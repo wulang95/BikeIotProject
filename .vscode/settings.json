@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "sys_core.h": "c",
+        "rtos_port_def.h": "c",
+        "ble_control.h": "c"
+    }
+}
