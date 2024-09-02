@@ -43,11 +43,12 @@ void app_main()
     def_rtosStaus err = RTOS_SUCEESS;
     sys_init();         /*外设驱动初始化   系统参数初始化 */
     car_init();         /*  对整车初始化  */
-
+    LOG_I("app_main is printf1");
+    LOG_I("app_main is printf2");
+    LOG_I("app_main is printf3");
     err =def_rtos_task_create(&app_task_start, 1024, TASK_PRIORITY_NORMAL, app_start_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("app_start_thread is create fail!");
     }
     def_rtos_task_delete(app_task_start);
-    while(1);
 }

@@ -12,7 +12,7 @@ uint8_t ble_cmd_table[] = {0x04, 0x01, 0x0c, 0x02, 0x03, 0x0b, 0x05, 0x09, 0x0a,
 
 struct ble_cmd_rely_order_s{
     uint8_t need_ask;           //是否需要应答
-    uint8_t rely_timeout;       //应答最大超时
+    uint16_t rely_timeout;       //应答最大超时
     uint8_t max_send_times;     //最大发送次数
 };
 
@@ -58,8 +58,15 @@ void ble_send_data(uint8_t *data, uint16_t len)
 
 }
 
+void ble_control_send_thread(void *param)
+{
+    
+}
 
+void ble_control_recv_thread(void *param)
+{
 
+}
 
 
 void ble_control_init()

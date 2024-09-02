@@ -14,12 +14,12 @@
 extern "C" {
 #endif
 
-#include <rtthread.h>
-
+#include "sys_core.h"
+#define  USING_HEAP
 /* ring buffer */
 struct rt_ringbuffer
 {
-    rt_uint8_t *buffer_ptr;
+    uint8_t *buffer_ptr;
     /* use the msb of the {read,write}_index as mirror bit. You can see this as
      * if the buffer adds a virtual mirror and the pointers point either to the
      * normal or to the mirrored buffer. If the write_index has the same value
@@ -39,13 +39,13 @@ struct rt_ringbuffer
      * read_idx-^ ^-write_idx
      */
 
-    rt_uint32_t read_mirror : 1;
-    rt_uint32_t read_index : 31;
-    rt_uint32_t write_mirror : 1;
-    rt_uint32_t write_index : 31;
+    uint32_t read_mirror : 1;
+    uint32_t read_index : 31;
+    uint32_t write_mirror : 1;
+    uint32_t write_index : 31;
     /* as we use msb of index as mirror bit, the size should be signed and
      * could only be positive. */
-    rt_int32_t buffer_size;
+    int32_t buffer_size;
 };
 
 enum rt_ringbuffer_state
@@ -62,19 +62,19 @@ enum rt_ringbuffer_state
  * Please note that the ring buffer implementation of RT-Thread
  * has no thread wait or resume feature.
  */
-void rt_ringbuffer_init(struct rt_ringbuffer *rb, rt_uint8_t *pool, rt_int32_t size);
+void rt_ringbuffer_init(struct rt_ringbuffer *rb, uint8_t *pool, int32_t size);
 void rt_ringbuffer_reset(struct rt_ringbuffer *rb);
-rt_size_t rt_ringbuffer_put(struct rt_ringbuffer *rb, const rt_uint8_t *ptr, rt_uint32_t length);
-rt_size_t rt_ringbuffer_put_force(struct rt_ringbuffer *rb, const rt_uint8_t *ptr, rt_uint32_t length);
-rt_size_t rt_ringbuffer_putchar(struct rt_ringbuffer *rb, const rt_uint8_t ch);
-rt_size_t rt_ringbuffer_putchar_force(struct rt_ringbuffer *rb, const rt_uint8_t ch);
-rt_size_t rt_ringbuffer_get(struct rt_ringbuffer *rb, rt_uint8_t *ptr, rt_uint32_t length);
-rt_size_t rt_ringbuffer_peek(struct rt_ringbuffer *rb, rt_uint8_t **ptr);
-rt_size_t rt_ringbuffer_getchar(struct rt_ringbuffer *rb, rt_uint8_t *ch);
-rt_size_t rt_ringbuffer_data_len(struct rt_ringbuffer *rb);
+size_t rt_ringbuffer_put(struct rt_ringbuffer *rb, const uint8_t *ptr, uint32_t length);
+size_t rt_ringbuffer_put_force(struct rt_ringbuffer *rb, const uint8_t *ptr, uint32_t length);
+size_t rt_ringbuffer_putchar(struct rt_ringbuffer *rb, const uint8_t ch);
+size_t rt_ringbuffer_putchar_force(struct rt_ringbuffer *rb, const uint8_t ch);
+size_t rt_ringbuffer_get(struct rt_ringbuffer *rb, uint8_t *ptr, uint32_t length);
+size_t rt_ringbuffer_peek(struct rt_ringbuffer *rb, uint8_t **ptr);
+size_t rt_ringbuffer_getchar(struct rt_ringbuffer *rb, uint8_t *ch);
+size_t rt_ringbuffer_data_len(struct rt_ringbuffer *rb);
 
-#ifdef RT_USING_HEAP
-struct rt_ringbuffer* rt_ringbuffer_create(rt_uint32_t length);
+#ifdef USING_HEAP
+struct rt_ringbuffer* rt_ringbuffer_create(uint32_t length);
 void rt_ringbuffer_destroy(struct rt_ringbuffer *rb);
 #endif
 
@@ -85,9 +85,9 @@ void rt_ringbuffer_destroy(struct rt_ringbuffer *rb);
  *
  * @return  Buffer size.
  */
-rt_inline rt_uint32_t rt_ringbuffer_get_size(struct rt_ringbuffer *rb)
+inline uint32_t rt_ringbuffer_get_size(struct rt_ringbuffer *rb)
 {
-    RT_ASSERT(rb != RT_NULL);
+    ASSERT(rb != NULL);
     return rb->buffer_size;
 }
 
