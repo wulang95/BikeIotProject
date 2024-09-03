@@ -6,8 +6,8 @@ extern "C" {
 #endif
 
 #include "sys_core.h"
-#include "hal_drv_uart.h"
-#define BLE_UART    UART1
+
+
 
 
 #define GAP_ADVTYPE_MANUFACTURER_SPECIFIC       0xFF

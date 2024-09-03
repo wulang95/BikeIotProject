@@ -1,6 +1,7 @@
 /*蓝牙控制*/
 #include "ble_control.h"
-
+#include "bike_app_config.h"
+#include "hal_drv_uart.h"
 #define DBG_TAG         "ble_control"
 
 #ifdef APP_MAIN_DEBUG
@@ -40,7 +41,7 @@ struct ble_cmd_send_var_s{
     uint8_t send_finish;            //发送完成
     uint8_t send_cnt;               //发送次数
     uint8_t send_buf[SENDDATALEN];  //发送buffer
-    uint8_t sendlen;                //发送长度
+    uint16_t sendlen;                //发送长度
 } ble_cmd_send_var;
 
 def_rtos_queue_t ble_send_cmd_que;
@@ -133,7 +134,7 @@ void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint1
     check = Package_CheckSum(&buf[0], lenth);  
     buf[lenth++] = check&0xff;
     buf[lenth++] = check>>8;
-    buf_len = lenth;
+    *buf_len = lenth;
 }
 
 void ble_cmd_mark(uint8_t cmd)
@@ -153,7 +154,6 @@ void ble_send_data(uint8_t *data, uint16_t len)
 
 void ble_control_send_thread(void *param)
 {
-    uint8_t cmd;
     while (1)
     {
         def_rtos_queue_wait(ble_send_cmd_que, &ble_cmd_send_var.cur_cmd, sizeof(uint8_t), RTOS_WAIT_FOREVER);

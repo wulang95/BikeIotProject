@@ -1,5 +1,9 @@
 #ifndef __HAL_DRV_UART_H
 #define __HAL_DRV_UART_H
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
 
 enum {
     PARITY_NONE,

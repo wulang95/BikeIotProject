@@ -1,6 +1,8 @@
 #ifndef __RTOS_DEF_H
 #define __RTOS_DEF_H
 
+#include "ql_api_osi.h"
+
 
 enum {
     TASK_PRIORITY_IDLE =1,
