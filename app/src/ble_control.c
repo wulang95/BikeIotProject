@@ -1,10 +1,10 @@
 /*蓝牙控制*/
 #include "ble_control.h"
-#include "bike_app_config.h"
 #include "hal_drv_uart.h"
+#include "app_system.h"
 #define DBG_TAG         "ble_control"
 
-#ifdef APP_MAIN_DEBUG
+#ifdef BLE_CONTROL_DEBUG
 #define DBG_LVL    DBG_LOG
 #else
 #define DBG_LVL   DBG_INFO
@@ -160,9 +160,6 @@ void ble_control_send_thread(void *param)
         ble_cmd_send_var.send_finish = 0;
         ble_cmd_pack(ble_cmd_send_var.cur_cmd, NULL, 0, ble_cmd_send_var.send_buf, &ble_cmd_send_var.sendlen);
         ble_send_data(ble_cmd_send_var.send_buf, ble_cmd_send_var.sendlen);
-        
-
-
     }
     def_rtos_task_delete(NULL);
     
@@ -170,13 +167,20 @@ void ble_control_send_thread(void *param)
 
 void ble_control_recv_thread(void *param)
 {
-
+    while(1){
+        def_rtos_task_sleep_ms(200);
+    }
+    def_rtos_task_delete(NULL);
 }
 
 
 void ble_control_init()
 {
-    def_rtos_queue_create(&ble_send_cmd_que, sizeof(uint8_t), 12);
+    def_rtosStaus err = RTOS_SUCEESS;
+    err = def_rtos_queue_create(&ble_send_cmd_que, sizeof(uint8_t), 12);
+    if(err != RTOS_SUCEESS) {
+        LOG_E("ble_send_cmd_que is create fail err:%d", err);
+    }
     def_rtos_semaphore_create(&ble_send_sem, 1);
     def_rtos_semaphore_create(&ble_trans_recv_sem, 0);
 

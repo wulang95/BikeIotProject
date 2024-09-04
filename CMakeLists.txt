@@ -7,7 +7,7 @@ target_include_directories(${target} PUBLIC port hal_drv/inc common/inc app/inc 
 set(APP_FILES
     app/src/ble_control.c
     app/src/ble_protocol.c
-    app/src/sys_core.c
+    app/src/app_system.c
     app/src/car_control.c)
 
 set(COMMON_FILES 
@@ -15,12 +15,13 @@ set(COMMON_FILES
     common/src/ringbuffer.c)
     
 set(HAL_DRV_FILES 
-    bike_app_main.c
     hal_drv/src/hal_drv_gpio.c
     hal_drv/src/hal_drv_rtc.c
-    hal_drv/src/hal_drv_uart.c)
+    hal_drv/src/hal_drv_uart.c
+    hal_drv/src/hal_drv_flash.c)
 
 target_sources(${target} PRIVATE
+    bike_app_main.c
 	${APP_FILES}
     ${COMMON_FILES}
     ${HAL_DRV_FILES}

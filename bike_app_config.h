@@ -27,6 +27,25 @@
 #define O_KEY_LOW             GPIO_25
 
 
+#define     BOOT_ADDR               0x60250000
+#define     BOOT_SIZE               0x2000
+#define     APP1_ADDR               (BOOT_ADDR + BOOT_SIZE)   
+#define     APP1_SIZE               (0x40000)   
+#define     APP2_ADDR               (APP1_ADDR + APP1_SIZE)
+#define     APP2_SIZE               (0x40000)
+#define     BOOT_CONFIG_ADDR        (APP2_ADDR + APP2_SIZE)
+#define     BOOT_CONFIG_SIZE        0x1000
+#define     SYS_CONFIG_ADDR           (BOOT_CONFIG_ADDR + BOOT_CONFIG_SIZE)
+#define     SYS_CONFIG_SIZE           0x1000
+#define     BACK_SYS_CONFIG_ADDR      (SYS_CONFIG_ADDR + SYS_CONFIG_SIZE)
+#define     BACK_SYS_CONFIG_SIZE      0x1000
+#define     CAR_SET_ADD             (BACK_SYS_CONFIG_ADDR + BACK_SYS_CONFIG_SIZE)
+#define     CAR_SET_SIZE            0x1000
+
+
+
+
+
 
 
 

@@ -4,8 +4,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "sys_core.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 
 
