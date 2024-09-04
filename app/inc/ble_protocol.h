@@ -1,6 +1,8 @@
 #ifndef __BLE_PROTOCOL_H
 #define __BLE_PROTOCOL_H
-#include "sys_core.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 
 void ble_protocol_recv_thread(void *param);

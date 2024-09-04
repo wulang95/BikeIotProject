@@ -1,28 +1,35 @@
 #ifndef   __HAL_DRV_GPIO_H
 #define   __HAL_DRV_GPIO_H
 
-
-enum {
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+typedef enum{
     IO_INPUT,
     IO_OUTPUT
-};
+}IO_DIR_E;
 
-enum {
+typedef enum {
+    PULL_NONE_MODE,
     DOWN_MODE,
     UP_MODE
-};
+}IO_MODE_E;
 
-enum {
+typedef enum{
+    LOW_L,
+    HIGH_L
+}IO_VAL_E;
+
+typedef enum {
     RISING_EDGE,
-    FALL_EDGE
-};
+    FALL_EDGE,
+    BOTH_EDGE
+}IO_EDGE_E;
 
-
-typedef void(*GPIO_IRQ_FUN)();
-void hal_drv_set_gpio_mode(uint8_t gpio_num, uint8_t mode);
-void hal_drv_write_gpio_value(uint8_t gpio_num, uint8_t value);
+void hal_drv_gpio_init(uint8_t gpio_num, IO_DIR_E dir, IO_MODE_E mode, IO_VAL_E value);
+void hal_drv_write_gpio_value(uint8_t gpio_num, IO_VAL_E value);
 uint8_t hal_drv_read_gpio_value(uint8_t gpio_num);
-void hal_drv_set_gpio_irq(uint8_t gpio_num, uint8_t trigger, GPIO_IRQ_FUN gpio_irq_call_fun);
+void hal_drv_set_gpio_irq(uint8_t gpio_num, IO_EDGE_E trigger, IO_MODE_E e_mode, void(*gpio_irq_call_fun)(void *));
 
 
 

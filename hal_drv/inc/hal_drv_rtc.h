@@ -1,16 +1,16 @@
 #ifndef __HAL_DRV_RTC_H
 #define __HAL_DRV_RTC_H
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 
-
-
-typedef void(*RTC_ALARM_CALL_FUN)();
 
 
 void hal_drv_rtc_init();
-void hal_drv_rtc_set_time(uint64_t timestamp);
-uint64_t hal_drv_rtc_get_timestamp();
-uint64_t hal_drv_rtc_set_alarm(uint64_t sec, RTC_ALARM_CALL_FUN rtc_alarm_call);
+void hal_drv_rtc_set_time(int64_t timestamp);
+int64_t hal_drv_rtc_get_timestamp();
+void hal_drv_rtc_set_alarm(int64_t sec, void(*rtc_alarm_call)());
 void hal_drv_rtc_time_print();
 void hal_drv_rtc_deinit();
 

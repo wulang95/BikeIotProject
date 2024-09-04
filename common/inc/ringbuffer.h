@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-#include "sys_core.h"
+#include "app_system.h"
 #define  USING_HEAP
 /* ring buffer */
 struct rt_ringbuffer

@@ -1,9 +1,14 @@
 /*蓝牙控制*/
 #include "ble_control.h"
+<<<<<<< HEAD
 
+=======
+#include "hal_drv_uart.h"
+#include "app_system.h"
+>>>>>>> 5111e5ef64edbf72536e9dbf31a2fab826fc7e68
 #define DBG_TAG         "ble_control"
 
-#ifdef APP_MAIN_DEBUG
+#ifdef BLE_CONTROL_DEBUG
 #define DBG_LVL    DBG_LOG
 #else
 #define DBG_LVL   DBG_INFO
@@ -40,7 +45,7 @@ struct ble_cmd_send_var_s{
     uint8_t send_finish;            //发送完成
     uint8_t send_cnt;               //发送次数
     uint8_t send_buf[SENDDATALEN];  //发送buffer
-    uint8_t sendlen;                //发送长度
+    uint16_t sendlen;                //发送长度
 } ble_cmd_send_var;
 
 def_rtos_queue_t ble_send_cmd_que;
@@ -133,7 +138,11 @@ void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint1
     check = Package_CheckSum(&buf[0], lenth);  
     buf[lenth++] = check&0xff;
     buf[lenth++] = check>>8;
+<<<<<<< HEAD
     buf_len = lenth;
+=======
+    *buf_len = lenth;
+>>>>>>> 5111e5ef64edbf72536e9dbf31a2fab826fc7e68
 }
 
 void ble_cmd_mark(uint8_t cmd)
@@ -153,16 +162,22 @@ void ble_send_data(uint8_t *data, uint16_t len)
 
 void ble_control_send_thread(void *param)
 {
+<<<<<<< HEAD
     uint8_t cmd;
+=======
+>>>>>>> 5111e5ef64edbf72536e9dbf31a2fab826fc7e68
     while (1)
     {
         def_rtos_queue_wait(ble_send_cmd_que, &ble_cmd_send_var.cur_cmd, sizeof(uint8_t), RTOS_WAIT_FOREVER);
         ble_cmd_send_var.send_finish = 0;
         ble_cmd_pack(ble_cmd_send_var.cur_cmd, NULL, 0, ble_cmd_send_var.send_buf, &ble_cmd_send_var.sendlen);
         ble_send_data(ble_cmd_send_var.send_buf, ble_cmd_send_var.sendlen);
+<<<<<<< HEAD
         
 
 
+=======
+>>>>>>> 5111e5ef64edbf72536e9dbf31a2fab826fc7e68
     }
     def_rtos_task_delete(NULL);
     
@@ -170,13 +185,20 @@ void ble_control_send_thread(void *param)
 
 void ble_control_recv_thread(void *param)
 {
-
+    while(1){
+        def_rtos_task_sleep_ms(200);
+    }
+    def_rtos_task_delete(NULL);
 }
 
 
 void ble_control_init()
 {
-    def_rtos_queue_create(&ble_send_cmd_que, sizeof(uint8_t), 12);
+    def_rtosStaus err = RTOS_SUCEESS;
+    err = def_rtos_queue_create(&ble_send_cmd_que, sizeof(uint8_t), 12);
+    if(err != RTOS_SUCEESS) {
+        LOG_E("ble_send_cmd_que is create fail err:%d", err);
+    }
     def_rtos_semaphore_create(&ble_send_sem, 1);
     def_rtos_semaphore_create(&ble_trans_recv_sem, 0);
 

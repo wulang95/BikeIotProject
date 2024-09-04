@@ -2,6 +2,7 @@
     "files.associations": {
         "sys_core.h": "c",
         "rtos_port_def.h": "c",
-        "ble_control.h": "c"
+        "ble_control.h": "c",
+        "app_system.h": "c"
     }
 }
