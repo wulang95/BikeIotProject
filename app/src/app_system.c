@@ -1,5 +1,8 @@
 #include "app_system.h"
 #include "hal_drv_flash.h"
+#include "hal_drv_gpio.h"
+#include "hal_drv_uart.h"
+
 #define DBG_TAG         "app_system"
 
 #ifdef APP_SYS_DEBUG
@@ -7,9 +10,7 @@
 #else
 #define DBG_LVL   DBG_INFO
 #endif
-
-
-
+#include    "log_port.h"
 
 
 void assert_handler(const char *ex_string, const char *func, size_t line)
@@ -73,7 +74,7 @@ void flash_partition_write(FLASH_PARTITION flash_part, void *data, size_t lenth,
 
 void flash_partition_read(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift)
 {
-    switch(flash_part){
+    switch(flash_part) {
         case APP1_ADR:
             hal_drv_flash_read(APP1_ADDR + shift, data, lenth);
             break;
@@ -97,7 +98,55 @@ void flash_partition_read(FLASH_PARTITION flash_part, void *data, size_t lenth, 
     }
 }
 
+void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len)
+{
+    uint16_t i;
+    char data_str[4];
+    char str[512];
+    sprintf(str, "%s[%d]:", str_tag, data_len);
+    for(i = 0; i < data_len; i++){
+        sprintf(data_str, "%02x ", in_data[i]);
+        strncat(str, data_str, strlen(data_str));
+    }
+    LOG_I("%s", str);
+}
+
+
+int64_t systm_tick_diff(int64_t time)
+{
+    int64_t sec;
+    const int64_t cur_t = def_rtos_get_system_tick();
+    sec = cur_t - time;
+    return sec;
+}
+
+void sensor_input_handler()
+{
+
+}
+
+static void hal_drv_init()
+{
+    hal_drv_set_gpio_irq(I_SENSOR_IN, RISING_EDGE, DOWN_MODE, sensor_input_handler);
+    hal_drv_gpio_init(O_RED_IND, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+    hal_drv_gpio_init(O_WHITE_IND, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+    hal_drv_gpio_init(O_BAT_CHARGE_CON, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+    hal_drv_gpio_init(I_MCU_CONEC, IO_INPUT, DOWN_MODE, L_NONE);
+    hal_drv_gpio_init(I_BLE_CON_SIG, IO_INPUT, DOWN_MODE, L_NONE);
+    hal_drv_gpio_init(O_KEY_HIGH, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+    hal_drv_gpio_init(O_BLE_WEEK_SIG, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+    hal_drv_gpio_init(O_MCU_WEEK, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+    hal_drv_gpio_init(I_36VPOWER_DET, IO_INPUT, DOWN_MODE, L_NONE);
+    hal_drv_gpio_init(O_BLE_POWER, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+
+    hal_drv_uart_init(BLE_UART, BLE_BAUD, BLE_PARITY);
+    hal_drv_uart_init(MCU_UART, MCU_BAUD, MCU_PARITY);
+}
+
 void sys_init()
 {
+    hal_drv_init();
+    app_rtc_init();
     ble_control_init();
+
 }

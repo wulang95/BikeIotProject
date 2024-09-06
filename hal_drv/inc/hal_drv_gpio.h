@@ -17,7 +17,8 @@ typedef enum {
 
 typedef enum{
     LOW_L,
-    HIGH_L
+    HIGH_L,
+    L_NONE
 }IO_VAL_E;
 
 typedef enum {

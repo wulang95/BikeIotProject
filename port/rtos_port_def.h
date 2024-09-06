@@ -63,7 +63,7 @@ typedef int def_rtosStaus;
 #define def_rtos_timer_stop(timerRef)       ql_rtos_timer_stop(timerRef)
 #define def_rtos_timer_delete(timerRef)     ql_rtos_timer_delete(timerRef)
 
-#define def_rtos_get_system_tick   ql_rtos_get_system_tick() 
+#define def_rtos_get_system_tick   ql_rtos_up_time_ms
 
 
 

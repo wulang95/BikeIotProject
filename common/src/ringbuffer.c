@@ -14,7 +14,7 @@
 
 #include "ringbuffer.h"
 
-inline enum rt_ringbuffer_state rt_ringbuffer_status(struct rt_ringbuffer *rb)
+static enum rt_ringbuffer_state rt_ringbuffer_status(struct rt_ringbuffer *rb)
 {
     if (rb->read_index == rb->write_index)
     {

@@ -32,45 +32,7 @@
 
 #define PIN_NONE        -1
 
-struct hal_gpio_config_table_s {
-    uint8_t pin;
-    uint8_t gpio_func;
-};
 
-struct hal_gpio_config_table_s hal_gpio_config_table[GPIO_MAX] = {
-    {PIN_NONE,       0},        //GPIO_0
-    {GPIO1_PIN,      0},        //GPIO_1
-    {GPIO2_PIN,      0},        //GPIO_2
-    {GPIO3_PIN,      0},        //GPIO_3
-    {GPIO4_PIN,      0},        //GPIO_4
-    {GPIO5_PIN,      0},        //GPIO_5
-    {PIN_NONE,       0},        //GPIO_6
-    {PIN_NONE,       0},        //GPIO_7
-    {GPIO8_PIN,      0},        //GPIO_8
-    {PIN_NONE,       0},        //GPIO_9
-    {PIN_NONE,       0},        //GPIO_10
-    {PIN_NONE,       0},        //GPIO_11
-    {PIN_NONE,       0},        //GPIO_12
-    {GPIO13_PIN,     0},        //GPIO_13
-    {GPIO14_PIN,     0},        //GPIO_14
-    {GPIO15_PIN,     0},        //GPIO_15
-    {PIN_NONE,       0},        //GPIO_16
-    {PIN_NONE,       0},        //GPIO_17
-    {GPIO18_PIN,     0},        //GPIO_18
-    {GPIO19_PIN,     0},        //GPIO_19
-    {GPIO20_PIN,     4},        //GPIO_20
-    {GPIO21_PIN,     4},        //GPIO_21
-    {GPIO22_PIN,     0},        //GPIO_22
-    {PIN_NONE,       0},        //GPIO_23
-    {GPIO24_PIN,     1},        //GPIO_24
-    {GPIO25_PIN,     1},        //GPIO_25
-    {PIN_NONE,       0},        //GPIO_26
-    {PIN_NONE,       0},        //GPIO_27
-    {PIN_NONE,       0},        //GPIO_28
-    {PIN_NONE,       0},        //GPIO_29
-    {PIN_NONE,       0},        //GPIO_30
-    {PIN_NONE,       0},        //GPIO_31  
-};
 
 
 

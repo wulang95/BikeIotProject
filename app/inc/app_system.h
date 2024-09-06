@@ -8,8 +8,8 @@
 #include    "ble_control.h"
 #include    "ble_protocol.h"
 #include    "car_control.h"
-#include    "log_port.h"
 #include    "bike_app_config.h"
+#include    "app_rtc_task.h"
 
 
 void assert_handler(const char *ex_string, const char *func, size_t line);
@@ -65,10 +65,10 @@ typedef struct {
     uint32_t crc32;
 }SYS_CONFIG_STR;
 
-typedef struct {
-    uint8_t ble_init :1;
-}SYS_INFO_STR;
 
+
+#define BLE_NAME    "ENGWE-EG"
+#define BLE_SUUID   0X1820
 typedef struct {
     uint32_t magic;
     uint8_t lock_sta;             //锁的状态
@@ -94,8 +94,8 @@ typedef struct {
 }CAR_SET;
 
 void sys_init();
-
-
+int64_t systm_tick_diff(int64_t time);
+void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len);
 
 
 

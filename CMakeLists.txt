@@ -8,7 +8,8 @@ set(APP_FILES
     app/src/ble_control.c
     app/src/ble_protocol.c
     app/src/app_system.c
-    app/src/car_control.c)
+    app/src/car_control.c
+    app/src/app_rtc_task.c)
 
 set(COMMON_FILES 
     common/src/common.c
