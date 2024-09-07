@@ -9,17 +9,19 @@ set(APP_FILES
     app/src/ble_protocol.c
     app/src/app_system.c
     app/src/car_control.c
-    app/src/app_rtc_task.c)
+    app/src/app_rtc_task.c
+    app/src/app_virt_uart.c)
 
 set(COMMON_FILES 
-    common/src/common.c
+    common/src/app_common.c
     common/src/ringbuffer.c)
     
 set(HAL_DRV_FILES 
     hal_drv/src/hal_drv_gpio.c
     hal_drv/src/hal_drv_rtc.c
     hal_drv/src/hal_drv_uart.c
-    hal_drv/src/hal_drv_flash.c)
+    hal_drv/src/hal_drv_flash.c
+    hal_drv/src/hal_virt_at.c)
 
 target_sources(${target} PRIVATE
     bike_app_main.c

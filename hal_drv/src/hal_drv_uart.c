@@ -4,7 +4,7 @@
 #include "ql_gpio.h"
 #include "hal_resources_config.h"
 #include "ringbuffer.h"
-#include "common.h"
+#include "app_common.h"
 #define DBG_TAG         "hal_drv_uart"
 
 #ifdef HAL_UART_DEBUG

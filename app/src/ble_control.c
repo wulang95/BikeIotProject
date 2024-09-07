@@ -4,6 +4,8 @@
 #include "hal_drv_uart.h"
 #include "ringbuffer.h"
 #include "hal_drv_gpio.h"
+#include "hal_virt_at.h"
+#include "app_virt_uart.h"
 #define DBG_TAG         "ble_control"
 
 #ifdef BLE_CONTROL_DEBUG
@@ -18,23 +20,7 @@
 #define BLE_TRANSBUF_LEN    1024
 struct rt_ringbuffer *ble_transbuf;
 
-enum {
-    CMD_BLE_ADV_START = 0x04,      /*0x04*/
-    CMD_BLE_GET_MAC = 0x01,            /*0x01*/
-    CMD_BLE_SET_ADV_DATA = 0x0c,       /*0x0c*/
-    CMD_BLE_SET_SCANRSP_DATA = 0x02,   /*0x02*/
-    CMD_BLE_GET_VER = 0x03,            /*0x03*/
-    CMD_BLE_ADV_STOP = 0x0b,           /*0x0b*/
-    CMD_BLE_DISCONNECT = 0x05,         /*0x05*/
-    CMD_BLE_SET_ADV_INTERVAL = 0x09,   /*0x09*/
-    CMD_BLE_SET_CON_PARAM = 0x0a,      /*0x0a*/
-    CMD_BLE_HID_UNLOCK = 0x07,         /*0x07*/
-    CMD_BLE_HID_LOCK = 0x08,           /*0x08*/ 
-    CMD_BLE_TRANS = 0x06,              /*0x06*/
-};
-
-
-uint8_t ble_cmd_table[BLE_INDEX_MAX] = {0x04, 0x01, 0x0c, 0x02, 0x03, 0x0b, 0x05, 0x09, 0x0a, 0x07, 0x08, 0x06};
+uint8_t ble_cmd_table[BLE_INDEX_MAX] = {0x04, 0x01, 0x0c, 0x02, 0x03, 0x0b, 0x05, 0x09, 0x0a, 0x07, 0x08, 0x06, 0x0d};
 
 struct ble_cmd_rely_order_s{
     uint8_t need_ask;           //是否需要应答
@@ -56,6 +42,7 @@ struct ble_cmd_rely_order_s ble_cmd_rely_order[] = {
     {false,              0,                  0        },         /*CMD_BLE_HID_UNLOCK*/
     {false,              0,                  0        },         /*CMD_BLE_HID_LOCK*/
     {false,              0,                  0        },         /*CMD_BLE_TRANS*/
+    {false,              0,                  0        },         /*CMD_BLE_VIRT_AT*/
 };
 
 #define SENDDATALEN         256
@@ -100,12 +87,11 @@ struct ble_info_s {
 };
 
 struct ble_info_s ble_info;
-void ble_cmd_pack(uint8_t cmd_index, uint8_t *data, uint16_t len, uint8_t *buff, uint16_t *buf_len)
+void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint16_t *buf_len)
 {
     uint16_t lenth = 0;
     uint16_t check;
     uint8_t *buf;
-    uint8_t cmd = ble_cmd_table[cmd_index];
     buf = buff;
     buf[lenth++] = 0x55;
     buf[lenth++] = 0xaa;
@@ -154,6 +140,7 @@ void ble_cmd_pack(uint8_t cmd_index, uint8_t *data, uint16_t len, uint8_t *buff,
             buf[lenth++] = ble_info.ble_con_param.con_timeout<<8;
             buf[lenth++] = ble_info.ble_con_param.con_timeout&0xff;
         break;
+        case CMD_BLE_VIRT_AT:
         case CMD_BLE_TRANS:
         buf[lenth++] = len >> 8;
         buf[lenth++] = len&0xff;
@@ -200,7 +187,7 @@ void ble_control_send_thread(void *param)
         ble_cmd_send_var.ask_flag = 0;
         ble_cmd_send_var.send_cnt = 0;
         time_cnt = 0;
-        ble_cmd_pack(cmd_index, NULL, 0, ble_cmd_send_var.send_buf, &ble_cmd_send_var.sendlen);
+        ble_cmd_pack(ble_cmd_table[cmd_index], NULL, 0, ble_cmd_send_var.send_buf, &ble_cmd_send_var.sendlen);
         ble_send_data(ble_cmd_send_var.send_buf, ble_cmd_send_var.sendlen);
         ble_cmd_send_var.send_cnt++;
         for(;;){
@@ -225,19 +212,24 @@ void ble_control_send_thread(void *param)
     def_rtos_task_delete(NULL); 
 }
 
-uint16_t ble_trans_data_block_read(uint8_t *buf, uint16_t len)
+uint16_t ble_trans_data_block_read(uint8_t *buf, uint16_t len, uint32_t time_out)
 {
     uint16_t buf_len, read_len;
-    def_rtos_semaphore_wait(ble_trans_recv_sem, RTOS_WAIT_FOREVER);
-    buf_len = rt_ringbuffer_data_len(ble_transbuf);
-    read_len = MIN(buf_len, len);
-    rt_ringbuffer_get(ble_transbuf, buf, read_len);
-    return read_len;
+    uint8_t res = RTOS_SUCEESS;
+    res = def_rtos_semaphore_wait(ble_trans_recv_sem, time_out);
+    if(res == RTOS_SUCEESS) {
+        buf_len = rt_ringbuffer_data_len(ble_transbuf);
+        read_len = MIN(buf_len, len);
+        rt_ringbuffer_get(ble_transbuf, buf, read_len);
+        return read_len;
+    }
+    return 0;
 }
 
 void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
 {
-    LOG_I("RECV CMD:%d", cmd);
+    char *p = NULL;
+    LOG_I("cmd:%d", cmd);
     switch(cmd)
     {
         case CMD_BLE_ADV_START:
@@ -262,12 +254,21 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
         case CMD_BLE_GET_MAC:
             memcpy(ble_info.mac, data, 6);
             break;
+        case CMD_BLE_VIRT_AT:
+            p = (char *)malloc(len+3);
+            memcpy(p, (char *)data, len);
+            strncat(p, "\r\n", 2);
+            p[len + 2] = '\0';
+            LOG_I("[%d]%s", strlen(p), (char *)p);
+            virt_uart_at.cmd_source = AT_VIRT_BLE;
+            hal_virt_at_write(p);
+            free(p);
+            break;
     }
     if(ble_cmd_table[ble_cmd_send_var.cmd_index] == cmd) {
         ble_cmd_send_var.ask_flag = 1;
     }
 }
-
 
 void ble_control_recv_thread(void *param)
 {
@@ -278,6 +279,7 @@ void ble_control_recv_thread(void *param)
     int64_t start_t = 0;
     while(1){
         len = hal_drv_uart_read(BLE_UART, rcv, 256, RTOS_WAIT_FOREVER);
+        if(len == 0) continue;
         debug_data_printf("blerecv",rcv, len);
         for(i = 0; i < len; i++){
             c = rcv[i];
@@ -285,7 +287,6 @@ void ble_control_recv_thread(void *param)
                 case 0:
                     if(c == 0x55) {
                         start_t = def_rtos_get_system_tick();
-                        LOG_I("start:%d", start_t);
                         step = 1;
                         check_sum = 0;
                         rcv_check = 0;
@@ -413,7 +414,6 @@ void sys_set_ble_adv_start()
     buf[len++] = BLE_SUUID&0XFF;
     ble_set_adv_data(buf, len);
     debug_data_printf("ble_adv_data", buf, len);
-
 
     len = 0;
     buf[1 +len] = GAP_ADVTYPE_MANUFACTURER_SPECIFIC;

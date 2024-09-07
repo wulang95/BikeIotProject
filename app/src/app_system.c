@@ -2,6 +2,7 @@
 #include "hal_drv_flash.h"
 #include "hal_drv_gpio.h"
 #include "hal_drv_uart.h"
+#include "hal_virt_at.h"
 
 #define DBG_TAG         "app_system"
 
@@ -141,6 +142,7 @@ static void hal_drv_init()
 
     hal_drv_uart_init(BLE_UART, BLE_BAUD, BLE_PARITY);
     hal_drv_uart_init(MCU_UART, MCU_BAUD, MCU_PARITY);
+    hal_virt_at_init();
 }
 
 void sys_init()
@@ -148,5 +150,4 @@ void sys_init()
     hal_drv_init();
     app_rtc_init();
     ble_control_init();
-
 }

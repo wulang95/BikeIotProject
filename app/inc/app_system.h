@@ -3,13 +3,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include    "common.h"
+#include    "app_common.h"
 #include   "rtos_port_def.h"
 #include    "ble_control.h"
 #include    "ble_protocol.h"
 #include    "car_control.h"
 #include    "bike_app_config.h"
 #include    "app_rtc_task.h"
+#include    "app_virt_uart.h"
 
 
 void assert_handler(const char *ex_string, const char *func, size_t line);
@@ -65,7 +66,8 @@ typedef struct {
     uint32_t crc32;
 }SYS_CONFIG_STR;
 
-
+#define SOFTVER 0x1000
+#define HWVER   0x1000
 
 #define BLE_NAME    "ENGWE-EG"
 #define BLE_SUUID   0X1820
