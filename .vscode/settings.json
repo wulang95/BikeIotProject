@@ -3,6 +3,7 @@
         "sys_core.h": "c",
         "rtos_port_def.h": "c",
         "ble_control.h": "c",
-        "app_system.h": "c"
+        "app_system.h": "c",
+        "app_led_ind.h": "c"
     }
 }
