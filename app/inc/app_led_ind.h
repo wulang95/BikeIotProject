@@ -16,6 +16,7 @@ typedef enum {
 }LED_IND;
 
 void app_set_led_ind(LED_IND led_ind_sta);
+void app_led_init();
 
 
 

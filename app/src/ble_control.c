@@ -4,7 +4,6 @@
 #include "hal_drv_uart.h"
 #include "ringbuffer.h"
 #include "hal_drv_gpio.h"
-#include "hal_virt_at.h"
 #include "app_virt_uart.h"
 #define DBG_TAG         "ble_control"
 
@@ -59,32 +58,9 @@ def_rtos_queue_t ble_send_cmd_que;
 def_rtos_sem_t ble_send_sem;
 def_rtos_sem_t ble_trans_recv_sem;
 
-struct ble_adv_info_s {
-    uint8_t data[32];
-    uint8_t len;
-};
 
-struct ble_adv_param_s {
-    uint16_t adv_inv_min;
-    uint16_t adv_inv_max;
-};
 
-struct ble_con_param_s {
-    uint16_t con_inv_min;
-    uint16_t con_inv_max;
-    uint16_t con_latency;
-    uint16_t con_timeout;
-};
 
-struct ble_info_s {
-    uint8_t init;
-    uint16_t  ver;
-    uint8_t mac[6];
-    struct ble_adv_param_s ble_adv_param;
-    struct ble_con_param_s ble_con_param;
-    struct ble_adv_info_s ble_adv_data;
-    struct ble_adv_info_s ble_scanrsp_data;
-};
 
 struct ble_info_s ble_info;
 void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint16_t *buf_len)
@@ -169,6 +145,8 @@ void ble_send_data(uint8_t *data, uint16_t len)
     def_rtos_smaphore_release(ble_send_sem);
 }
 
+
+
 void ble_cmd_send_fail(uint8_t cmd)
 {
 
@@ -249,19 +227,17 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
             def_rtos_smaphore_release(ble_trans_recv_sem);
             break;
         case CMD_BLE_GET_VER:
-            ble_info.ver = data[0]<< 8 | data[1];
+            LOG_I("BLE_VER:%s", (char *)data);
+            memcpy(&ble_info.ver[0], &data[0], strlen((char *)data));
             break;
         case CMD_BLE_GET_MAC:
             memcpy(ble_info.mac, data, 6);
             break;
         case CMD_BLE_VIRT_AT:
             p = (char *)malloc(len+3);
-            memcpy(p, (char *)data, len);
-            strncat(p, "\r\n", 2);
-            p[len + 2] = '\0';
-            LOG_I("[%d]%s", strlen(p), (char *)p);
-            virt_uart_at.cmd_source = AT_VIRT_BLE;
-            hal_virt_at_write(p);
+            sprintf(p, "%s\r\n", (char *)data);
+            LOG_I("[%d]%s", strlen(p), p);
+            app_virt_uart_write(AT_VIRT_BLE, p);
             free(p);
             break;
     }
@@ -400,8 +376,10 @@ void ble_set_scanrsp_data(uint8_t *data, uint8_t len)
 void sys_set_ble_adv_start()
 {
     uint8_t buf[32];
-    char str[] = BLE_NAME;
+    char str[30];
     uint8_t len = 0;
+    sprintf(str, "%s-%02X", BLE_NAME, ble_info.mac[5]);
+    LOG_I("%s", str);
     buf[1+len] = GAP_ADVTYPE_LOCAL_NAME_COMPLETE;
     len++;
     memcpy(&buf[1+len], str, strlen(str));

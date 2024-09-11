@@ -24,14 +24,8 @@ enum {
 typedef struct {
     uint8_t led;
     uint8_t value;
-    uint8_t active;
+    uint16_t active;
 }LED_CONTROL_STU;
-
-
-LED_CONTROL_STU *led_control_que[] = {
-        &sys_fault_ind,
-        &sys_ota_ind
-};
 
 LED_CONTROL_STU sys_fault_ind[] = {
         {O_RED_IND, 1,  100},
@@ -44,6 +38,13 @@ LED_CONTROL_STU sys_ota_ind[] = {
     {O_WHITE_IND, 1, 2000},
     {O_WHITE_IND, 0, LED_STOP},
 };
+
+LED_CONTROL_STU *led_control_que[] = {
+        sys_fault_ind,
+        sys_ota_ind
+};
+
+
 
 enum {
     LED_W = 0,
@@ -85,7 +86,7 @@ void app_led_timer_func(void *param)
     
 }
 
-void led_init()
+void app_led_init()
 {
     def_rtos_timer_create(&led_timer, NULL, app_led_timer_func, NULL);
 }

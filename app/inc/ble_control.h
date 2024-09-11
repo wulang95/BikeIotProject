@@ -15,6 +15,33 @@ extern "C" {
 #define GAP_ADVTYPE_LOCAL_NAME_COMPLETE         0x09
 #define GAP_ADVTYPE_16BIT_MORE                  0x02
 
+struct ble_adv_info_s {
+    uint8_t data[32];
+    uint8_t len;
+};
+
+struct ble_adv_param_s {
+    uint16_t adv_inv_min;
+    uint16_t adv_inv_max;
+};
+
+struct ble_con_param_s {
+    uint16_t con_inv_min;
+    uint16_t con_inv_max;
+    uint16_t con_latency;
+    uint16_t con_timeout;
+};
+
+struct ble_info_s {
+    uint8_t init;
+    char  ver[6];
+    uint8_t mac[6];
+    struct ble_adv_param_s ble_adv_param;
+    struct ble_con_param_s ble_con_param;
+    struct ble_adv_info_s ble_adv_data;
+    struct ble_adv_info_s ble_scanrsp_data;
+};
+
 enum {
     BLE_ADV_START_INDEX = 0,        /*0x04*/
     BLE_GET_MAC_INDEX,              /*0x01*/

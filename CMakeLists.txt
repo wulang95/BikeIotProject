@@ -10,7 +10,12 @@ set(APP_FILES
     app/src/app_system.c
     app/src/car_control.c
     app/src/app_rtc_task.c
-    app/src/app_virt_uart.c)
+    app/src/app_virt_uart.c
+    app/src/app_led_ind.c
+    app/src/net_protocol.c
+    app/src/net_control.c
+    app/src/mcu_uart.c
+    app/src/can_protocol.c)
 
 set(COMMON_FILES 
     common/src/app_common.c

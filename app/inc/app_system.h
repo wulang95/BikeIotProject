@@ -4,13 +4,16 @@
 #include <string.h>
 #include <stdlib.h>
 #include    "app_common.h"
-#include   "rtos_port_def.h"
+#include    "rtos_port_def.h"
 #include    "ble_control.h"
 #include    "ble_protocol.h"
 #include    "car_control.h"
 #include    "bike_app_config.h"
 #include    "app_rtc_task.h"
 #include    "app_virt_uart.h"
+#include    "app_led_ind.h"
+#include    "mcu_uart.h"
+#include    "can_protocol.h"
 
 
 void assert_handler(const char *ex_string, const char *func, size_t line);
@@ -43,7 +46,7 @@ typedef struct {
     uint32_t app_crc32;
     OTA_RES ota_res; 
     uint32_t crc32;
-}BOOT_CONFIG_STR;
+}BOOT_CONFIG_STU;
 
 typedef enum{
     APP1_ADR,
@@ -57,19 +60,27 @@ typedef enum{
 typedef struct {
     uint32_t magic;
     char ip[32];
-    uint32_t port;   
+    uint32_t port; 
+    char dev_type[6];  
     char apn[32];
     char DSN[32];
     char sn[16];
     char manufacturer[16];
     char ble_key[32];
     uint32_t crc32;
-}SYS_CONFIG_STR;
+}SYS_CONFIG_STU;
 
-#define SOFTVER 0x1000
-#define HWVER   0x1000
+typedef struct {
+    uint8_t back_info;
+}SYS_INFO_STU;
 
-#define BLE_NAME    "ENGWE-EG"
+#define SOFTVER "1.0"
+#define HWVER   "1.0"
+#define DEFAULT_MANUFACTURER  "ENGWE" 
+#define DEFAULT_SN      "123456789" 
+#define DEFAULT_DEV_TYPE    "K10" 
+
+#define BLE_NAME    "ENGWE"
 #define BLE_SUUID   0X1820
 typedef struct {
     uint32_t magic;
@@ -93,8 +104,10 @@ typedef struct {
     uint8_t lockVoiceSw     :1;      //关锁提示音    1：关闭 0：开启
     uint8_t vioce_volum     :4;       //音量
     uint32_t crc32;
-}CAR_SET;
+}CAR_SET_STU;
 
+
+extern SYS_CONFIG_STU sys_config;
 void sys_init();
 int64_t systm_tick_diff(int64_t time);
 void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len);

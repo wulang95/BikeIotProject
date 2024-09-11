@@ -10,13 +10,7 @@ extern "C" {
 
 #define     VIRT_BUF_LEN    256
 
-struct virt_uart_at_stu {
-    uint8_t cmd_source;
-    char virt_txbuf[VIRT_BUF_LEN];
-    uint16_t len;
-};
-
-struct virt_uart_at_stu virt_uart_at;
+void app_virt_uart_write(uint8_t cmd_src, char *cmd_str);
 
 enum {
     AT_VIRT_BLE = 0,
