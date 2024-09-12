@@ -1,8 +1,5 @@
 #ifndef     __SYS_CORE_H
 #define     __SYS_CORE_H
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 #include    "app_common.h"
 #include    "rtos_port_def.h"
 #include    "ble_control.h"
@@ -14,6 +11,7 @@
 #include    "app_led_ind.h"
 #include    "mcu_uart.h"
 #include    "can_protocol.h"
+#include    "net_control.h"
 
 
 void assert_handler(const char *ex_string, const char *func, size_t line);
@@ -79,6 +77,9 @@ typedef struct {
 #define DEFAULT_MANUFACTURER  "ENGWE" 
 #define DEFAULT_SN      "123456789" 
 #define DEFAULT_DEV_TYPE    "K10" 
+#define DEFAULT_APN     "3gnet"
+#define DEFAULT_IP     "36.137.226.30"
+#define DEFAULT_PORT   32784
 
 #define BLE_NAME    "ENGWE"
 #define BLE_SUUID   0X1820
@@ -108,7 +109,7 @@ typedef struct {
 
 
 extern SYS_CONFIG_STU sys_config;
-void sys_init();
+void app_sys_init();
 int64_t systm_tick_diff(int64_t time);
 void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len);
 

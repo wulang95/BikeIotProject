@@ -19,7 +19,7 @@ def_rtos_task_t app_rtc_event_task = NULL;
 def_rtos_task_t app_virt_uart_task = NULL;
 def_rtos_task_t can_protocol_recv_task = NULL;
 def_rtos_task_t mcu_uart_recv_task = NULL;
-
+def_rtos_task_t net_connect_task = NULL;
 void app_start_thread(void *param)
 {
     LOG_I("app start thread is run");
@@ -50,19 +50,24 @@ void app_start_thread(void *param)
     }
     err = def_rtos_task_create(&can_protocol_recv_task, 2048, TASK_PRIORITY_NORMAL, can_protocol_rx_thread); 
     if(err != RTOS_SUCEESS){
-        LOG_E("app_virt_uart_thread is create fail!");
+        LOG_E("can_protocol_rx_thread is create fail!");
     }
     err = def_rtos_task_create(&mcu_uart_recv_task, 2048, TASK_PRIORITY_NORMAL, mcu_uart_recv_thread);
     if(err != RTOS_SUCEESS){
-        LOG_E("app_virt_uart_thread is create fail!");
+        LOG_E("mcu_uart_recv_thread is create fail!");
     }
+    err = def_rtos_task_create(&net_connect_task, 2048, TASK_PRIORITY_NORMAL, net_connect_thread);
+    if(err != RTOS_SUCEESS){
+        LOG_E("net_connect_thread is create fail!");
+    }
+
     def_rtos_task_delete(NULL);
 }
 
 void app_main()
 {
     def_rtosStaus err = RTOS_SUCEESS;
-    sys_init();         /*外设驱动初始化   系统参数初始化 */
+    app_sys_init();         /*外设驱动初始化   系统参数初始化 */
     car_init();         /*  对整车初始化  */
     LOG_I("VERSION softver:%s, hwsoft:%s", SOFTVER, HWVER);
     LOG_I("DATA TIME:%s_%s", __DATE__, __TIME__);

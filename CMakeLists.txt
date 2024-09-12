@@ -15,7 +15,9 @@ set(APP_FILES
     app/src/net_protocol.c
     app/src/net_control.c
     app/src/mcu_uart.c
-    app/src/can_protocol.c)
+    app/src/can_protocol.c
+    app/src/net_control.c
+ )
 
 set(COMMON_FILES 
     common/src/app_common.c
@@ -26,7 +28,9 @@ set(HAL_DRV_FILES
     hal_drv/src/hal_drv_rtc.c
     hal_drv/src/hal_drv_uart.c
     hal_drv/src/hal_drv_flash.c
-    hal_drv/src/hal_virt_at.c)
+    hal_drv/src/hal_virt_at.c
+    hal_drv/src/hal_drv_net.c
+    )
 
 target_sources(${target} PRIVATE
     bike_app_main.c

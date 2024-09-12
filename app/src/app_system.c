@@ -166,9 +166,12 @@ void sys_config_init()
     memcpy(&sys_config.manufacturer[0], DEFAULT_MANUFACTURER, strlen(DEFAULT_MANUFACTURER));
     memcpy(&sys_config.sn[0], DEFAULT_SN, strlen(DEFAULT_SN));
     memcpy(&sys_config.dev_type, DEFAULT_DEV_TYPE, strlen(DEFAULT_DEV_TYPE));
+    memcpy(&sys_config.apn, DEFAULT_APN, strlen(DEFAULT_APN));
+    memcpy(&sys_config.ip, DEFAULT_IP, strlen(DEFAULT_IP));
+    sys_config.port = DEFAULT_PORT;
 }
 
-void sys_init()
+void app_sys_init()
 {
     hal_drv_init();
     app_led_init();
