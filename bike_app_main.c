@@ -19,7 +19,8 @@ def_rtos_task_t app_rtc_event_task = NULL;
 def_rtos_task_t app_virt_uart_task = NULL;
 def_rtos_task_t can_protocol_recv_task = NULL;
 def_rtos_task_t mcu_uart_recv_task = NULL;
-def_rtos_task_t net_connect_task = NULL;
+def_rtos_task_t net_socket_task = NULL;
+def_rtos_task_t pdp_active_task = NULL;
 void app_start_thread(void *param)
 {
     LOG_I("app start thread is run");
@@ -56,9 +57,13 @@ void app_start_thread(void *param)
     if(err != RTOS_SUCEESS){
         LOG_E("mcu_uart_recv_thread is create fail!");
     }
-    err = def_rtos_task_create(&net_connect_task, 2048, TASK_PRIORITY_NORMAL, net_connect_thread);
+    err = def_rtos_task_create(&pdp_active_task, 2048, TASK_PRIORITY_NORMAL, pdp_active_thread);
     if(err != RTOS_SUCEESS){
-        LOG_E("net_connect_thread is create fail!");
+        LOG_E("pdp_active_thread is create fail!");
+    }
+    err = def_rtos_task_create(&net_socket_task, 2048, TASK_PRIORITY_NORMAL, net_socket_thread);
+    if(err != RTOS_SUCEESS){
+        LOG_E("net_socket_thread is create fail!");
     }
 
     def_rtos_task_delete(NULL);

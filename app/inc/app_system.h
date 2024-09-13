@@ -79,7 +79,7 @@ typedef struct {
 #define DEFAULT_DEV_TYPE    "K10" 
 #define DEFAULT_APN     "3gnet"
 #define DEFAULT_IP     "36.137.226.30"
-#define DEFAULT_PORT   32784
+#define DEFAULT_PORT   46488
 
 #define BLE_NAME    "ENGWE"
 #define BLE_SUUID   0X1820

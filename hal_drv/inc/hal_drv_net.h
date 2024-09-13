@@ -7,7 +7,7 @@
 
 void hal_drv_get_imei(char *data, uint16_t len);
 void hal_drv_get_iccid(char *data, uint16_t len);
-void hal_drv_get_signal(uint8_t *csq, int *rssi);
+void hal_drv_get_signal(uint8_t *csq);
 uint8_t hal_drv_get_net_register_sta();
 void hal_drv_set_data_call_asyn_mode(uint8_t mode);
 uint8_t hal_drv_get_data_call_res(char *ip4_adr);
@@ -17,7 +17,8 @@ void hal_dev_set_c_fun(uint8_t fun, uint8_t rst);
 uint8_t hal_dev_get_c_fun();
 void sys_reset();
 void hal_drv_set_dns_addr();
-
+void hal_drv_data_call_register_init();
+void hal_drv_pdp_detect_block();
 
 
 

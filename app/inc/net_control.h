@@ -7,9 +7,9 @@
 
 
 
-
-void net_connect_thread(void *param);
-
+void net_control_init();
+void net_socket_thread(void *param);
+void pdp_active_thread(void *param);
 
 
 

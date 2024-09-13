@@ -178,6 +178,7 @@ void app_sys_init()
     app_rtc_init();
     ble_control_init();
     mcu_uart_init();
+    net_control_init();
     sys_config_init();
     // LOG_I("ble_send_data is start");
     // ble_send_data((uint8_t *)buf, sizeof(buf));

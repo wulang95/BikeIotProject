@@ -1,8 +1,11 @@
 #include "hal_drv_net.h"
+#include "rtos_port_def.h"
 #include "ql_api_sim.h"
 #include "ql_api_dev.h"
 #include "ql_api_nw.h"
 #include "ql_power.h"
+#include "ql_osi_def.h"
+
 
 #define DBG_TAG         "hal_drv_net"
 
@@ -14,7 +17,7 @@
 
 #include "log_port.h"
 
-
+def_rtos_sem_t pdp_active_det_sem;
 
 void hal_drv_get_imei(char *data, uint16_t len)
 {
@@ -26,22 +29,20 @@ void hal_drv_get_iccid(char *data, uint16_t len)
     ql_sim_get_iccid(0, data, (size_t)len);
 }
 
-void hal_drv_get_signal(uint8_t *csq, int *rssi)
+void hal_drv_get_signal(uint8_t *csq)
 {
-     ql_nw_signal_strength_info_s pt_info;
     ql_nw_get_csq(0, csq);
-    ql_nw_get_signal_strength(0, &pt_info);
-    *rssi = pt_info.rssi;
 }
 
 uint8_t hal_drv_get_net_register_sta()
 {
-    uint8_t res = 0;
+    uint8_t res = 1;
     ql_nw_reg_status_info_s nw_info = {0};
     ql_nw_get_reg_status(0, &nw_info);
+    LOG_I("nw_info.data_reg.state:%d", nw_info.data_reg.state);
     if((QL_NW_REG_STATE_HOME_NETWORK != nw_info.data_reg.state) && (QL_NW_REG_STATE_ROAMING != nw_info.data_reg.state)) {
-        res = 1;
-    }
+        res = 0;
+    } 
     return res;
 }
 
@@ -72,7 +73,12 @@ uint8_t hal_drv_get_data_call_res(char *ip4_adr)
 
 void hal_drv_start_data_call(char *apn)
 {
-    ql_start_data_call(0, 1, QL_PDP_TYPE_IP, apn, NULL, NULL, 0);
+    uint8_t res;
+    res = ql_start_data_call(0, 1, QL_PDP_TYPE_IP, apn, NULL, NULL, 0);
+    if(res != 0) {
+        LOG_E("error");
+    }
+    LOG_I("hal_drv_start_data_call AFTER===================");
 }
 
 uint8_t hal_drv_get_cpin()
@@ -117,4 +123,50 @@ void hal_drv_set_dns_addr()
 	ip4addr_aton("8.8.8.8", &(dns_sec.ip4));
 	ql_datacall_set_dns_addr(0, 1, &dns_pri, &dns_sec);
 }
+
+
+void ql_datacall_ind_callback(uint8_t sim_id, unsigned int ind_type, int profile_idx, bool result, void *ctx)
+{
+    uint8_t pdp_state = 0xff;
+    static uint8_t last_pdp_state = 0xff;
+    LOG_I("nSim = %d, profile_idx=%d, ind_type=0x%x, result=%d", sim_id, profile_idx, ind_type, result);
+    if((profile_idx < PROFILE_IDX_MIN) || (profile_idx > PROFILE_IDX_MAX))
+    {
+        return;
+    }
+    switch(ind_type)
+    {
+        case QUEC_DATACALL_ACT_RSP_IND:  //only received in asyn mode
+        {
+            pdp_state = (result == true)? QL_PDP_ACTIVED:QL_PDP_DEACTIVED;
+            break;
+        }
+        case QUEC_DATACALL_DEACT_RSP_IND:  //only received in asyn mode
+        {
+            pdp_state = (result == true)? QL_PDP_DEACTIVED:QL_PDP_ACTIVED;
+            break;
+        }
+        case QUEC_DATACALL_PDP_DEACTIVE_IND:  //received in both asyn mode and sync mode
+        {
+            pdp_state = QL_PDP_DEACTIVED;
+            break;
+        }
+    }  
+    if(pdp_state == QL_PDP_DEACTIVED && last_pdp_state == QL_PDP_ACTIVED) {
+        def_rtos_smaphore_release(pdp_active_det_sem);
+    }
+    last_pdp_state = pdp_state;
+}
+
+void hal_drv_pdp_detect_block()
+{
+    def_rtos_semaphore_wait(pdp_active_det_sem, RTOS_WAIT_FOREVER);
+}
+
+void hal_drv_data_call_register_init()
+{
+    def_rtos_semaphore_create(&pdp_active_det_sem, 0);
+    ql_datacall_register_cb(0, 1, ql_datacall_ind_callback, NULL);
+}
+
 
