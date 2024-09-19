@@ -12,6 +12,7 @@
 #include    "mcu_uart.h"
 #include    "can_protocol.h"
 #include    "net_control.h"
+#include    "car_control.h"
 
 
 void assert_handler(const char *ex_string, const char *func, size_t line);

@@ -85,7 +85,7 @@ void mcu_uart_recv_thread(void *param)
     while(1){
         len = hal_drv_uart_read(MCU_UART, rcv, 256, RTOS_WAIT_FOREVER);
         if(len == 0) continue;
-        debug_data_printf("mcurcv",rcv, len);
+    //    debug_data_printf("mcurcv",rcv, len);
         for(i = 0; i < len; i++){
             c = rcv[i];
             switch(step) {
@@ -156,4 +156,5 @@ void mcu_uart_init()
     def_rtos_semaphore_create(&mcu_send_sem, 1);
     def_rtos_queue_create(&can_rcv_que, sizeof(stc_can_rxframe_t), 12);
     hal_drv_uart_init(MCU_UART, MCU_BAUD, MCU_PARITY);
+    LOG_I("mcu_uart_init is ok");
 }

@@ -78,6 +78,7 @@ void net_control_init()
     socket_con_info.socket_state = SOCKET_STATUS_IDLE;
     socket_con_info.socket_en = 0;
     socket_con_info.login_ok = 0;
+    LOG_I("net_control_init is ok");
 }
 
 typedef struct {

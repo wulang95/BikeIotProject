@@ -89,6 +89,7 @@ void app_led_timer_func(void *param)
 void app_led_init()
 {
     def_rtos_timer_create(&led_timer, NULL, app_led_timer_func, NULL);
+    LOG_I("app_led_init is ok");
 }
 
 

@@ -51,13 +51,13 @@ static void rtc_alarm_call_fun()
 
 void app_rtc_init()
 {
-    LOG_I("app_rtc_init");
     hal_drv_rtc_set_time(1725504899);
     hal_drv_rtc_time_print();
     def_rtos_semaphore_create(&rtc_alarm_sem, 0);
     rtc_event_register(CAR_HEART_EVENT, 10, 1);
     rtc_event_register(CAR_SELF, 5, 1);
     hal_drv_set_alarm_call_fun(rtc_alarm_call_fun);
+    LOG_I("app_rtc_init is ok");
 }
 
 void app_rtc_event_thread(void *param)

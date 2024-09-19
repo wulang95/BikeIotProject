@@ -151,12 +151,11 @@ void ble_cmd_send_fail(uint8_t cmd)
 {
 
 }
-
-#define BLE_SEND_INTERVAL   5    
+  
 
 void ble_control_send_thread(void *param)
 {
-    uint16_t time_cnt;
+    int64_t time_t;
     uint8_t cmd_index;
     while (1)
     {
@@ -164,26 +163,25 @@ void ble_control_send_thread(void *param)
         cmd_index = ble_cmd_send_var.cmd_index;
         ble_cmd_send_var.ask_flag = 0;
         ble_cmd_send_var.send_cnt = 0;
-        time_cnt = 0;
         ble_cmd_pack(ble_cmd_table[cmd_index], NULL, 0, ble_cmd_send_var.send_buf, &ble_cmd_send_var.sendlen);
         ble_send_data(ble_cmd_send_var.send_buf, ble_cmd_send_var.sendlen);
         ble_cmd_send_var.send_cnt++;
+        time_t = def_rtos_get_system_tick();
         for(;;){
             if(ble_cmd_rely_order[cmd_index].need_ask) {
                 if(ble_cmd_send_var.ask_flag == 1){
                     break;
                 } 
-                time_cnt++;
-                if(time_cnt*BLE_SEND_INTERVAL >= ble_cmd_rely_order[cmd_index].rely_timeout){
+                if(def_rtos_get_system_tick() - time_t >= ble_cmd_rely_order[cmd_index].rely_timeout){
                     if(ble_cmd_send_var.send_cnt >= ble_cmd_rely_order[cmd_index].max_send_times){
                         ble_cmd_send_fail(ble_cmd_send_var.cmd_index);
                         break;
                     }
                     ble_send_data(ble_cmd_send_var.send_buf, ble_cmd_send_var.sendlen);
                     ble_cmd_send_var.send_cnt++;
-                    time_cnt = 0;
+                    time_t = def_rtos_get_system_tick();
                 }
-                def_rtos_task_sleep_ms(BLE_SEND_INTERVAL);
+                def_rtos_task_sleep_ms(5);
             } else break;
         }
     }
@@ -420,5 +418,6 @@ void ble_control_init()
     ble_param_init();
     ble_cmd_mark(BLE_GET_VER_INDEX);
     sys_set_ble_adv_start();
+    LOG_I("ble_control_init is ok");
 }
 
