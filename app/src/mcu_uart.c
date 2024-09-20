@@ -13,7 +13,6 @@
 #define HEADH  0XAA
 #define HEADL  0X55
 def_rtos_queue_t can_rcv_que;
-def_rtos_sem_t mcu_send_sem;
 
 uint8_t can_data_recv(stc_can_rxframe_t *can_rxframe, uint32_t time_out)
 {
@@ -44,14 +43,12 @@ void mcu_data_pack(uint8_t cmd, uint8_t *data, uint16_t data_len, uint8_t *buf, 
 
 void mcu_uart_send(uint8_t *data, uint16_t len)
 {
-    def_rtos_semaphore_wait(mcu_send_sem, RTOS_WAIT_FOREVER);
     #ifdef MCU_WEEK
     uint8_t c = 0xff;
     hal_drv_uart_send(MCU_UART, &c, 1);
     #endif
     hal_drv_uart_send(MCU_UART, data, len);
     debug_data_printf("mcu_send", data, len);
-    def_rtos_smaphore_release(mcu_send_sem);
 }
 void can_data_send(stc_can_rxframe_t can_txframe)
 {
@@ -153,7 +150,6 @@ void mcu_uart_recv_thread(void *param)
 
 void mcu_uart_init()
 {
-    def_rtos_semaphore_create(&mcu_send_sem, 1);
     def_rtos_queue_create(&can_rcv_que, sizeof(stc_can_rxframe_t), 12);
     hal_drv_uart_init(MCU_UART, MCU_BAUD, MCU_PARITY);
     LOG_I("mcu_uart_init is ok");

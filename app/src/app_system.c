@@ -12,8 +12,8 @@
 #define DBG_LVL   DBG_INFO
 #endif
 #include    "log_port.h"
-
-SYS_CONFIG_STU sys_config;
+struct sys_info_stu sys_info;
+struct sys_config_stu sys_config;
 void assert_handler(const char *ex_string, const char *func, size_t line)
 {
     LOG_E("(%s) assertion failed at function:%s, line number:%d \n", ex_string, func, line);
@@ -156,6 +156,7 @@ void sys_config_init()
     memcpy(&sys_config.apn, DEFAULT_APN, strlen(DEFAULT_APN));
     memcpy(&sys_config.ip, DEFAULT_IP, strlen(DEFAULT_IP));
     sys_config.port = DEFAULT_PORT;
+    memset(&sys_info, 0, sizeof(sys_info));
     LOG_I("sys_config_init is ok");
 }
 

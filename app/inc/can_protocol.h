@@ -39,7 +39,7 @@ enum {
 };
 
 /*IOT指令*/
-enum{
+enum {
     IOT_MATCH = 0XFB00,
     IOT_CONTROL_DATA1 = 0XFB01,
     IOT_STATE = 0XFB03,
@@ -49,6 +49,10 @@ enum{
     IOT_SOFT_VER2 = 0XFB11,
     IOT_HW_VER1 = 0XFB20,
     IOT_HW_VER2 = 0XFB21,
+    IOT_SAVE_DATA = 0XFB02,
+    IOT_STATE_DATA = 0XFB30,
+    IOT_NAVIGATION_DATA = 0XFB31,
+    IOT_SNTP = 0XFB32,
 };
 
 /*仪表指令*/

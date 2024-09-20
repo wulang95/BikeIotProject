@@ -125,9 +125,54 @@ struct car_info_stu {
     char con_param_ver2[8];
     char con_param_ver3[8];
 };
+struct car_state_data_stu {
+    uint8_t abnormal_move;
+    uint8_t mobile_operation_sta;
+    uint8_t slope_data;
+    uint8_t attitude;
+    uint8_t map_dir;
+    uint32_t cur_dir_range;
+    uint32_t total_nav_remaintime;
+    uint32_t total_nav_range;
+};
 #pragma pack()
-extern struct car_info_stu car_info;
 
+struct car_set_save_stu{
+    uint32_t magic;
+    uint32_t odo;
+    uint32_t trip;
+    uint8_t  range;
+    uint8_t gear;
+    uint8_t left_turn_light;
+    uint8_t right_turn_light;
+    uint8_t tail_light :1;
+    uint8_t head_light :1;
+    uint8_t anti_theft;
+    uint8_t lock_sta;             //锁的状态
+    uint32_t carInfoUpSw;           //滑板车信息上传开关
+    uint32_t carInfoUpInterval;        //滑板车信息上传间隔
+    uint32_t carInfoLockUpInterval;     //上锁时上报间隔
+    uint8_t carInchSppedDis;      //仪表显示单位
+    uint8_t gs_level;             //震动等级
+    uint8_t carFixedSpeedMode;    //定速巡航模式   
+    uint8_t carLowSpeed;          //低速限速值   单位Km/h
+    uint8_t carMidSpeed;          //中速限速值   单位Km/h
+    uint8_t carHighSpeed;         //高速限速值   单位Km/h
+    uint8_t carStratMode;         //启动方式  0：非零启动 1：零启动
+    uint8_t carKeySwLight;        //按键切换大灯
+    uint8_t carKeySpeed;          //按键切换速度模式
+    
+    uint8_t voiceCloseSw    :1;      //音量总开关  1:关闭  0：开启
+    uint8_t alarmVoiceSw    :1;      //报警提示音开关 1：关闭  0：开启
+    uint8_t unLockVoiceSw   :1;      //解锁提示音    1：关闭 0：开启
+    uint8_t lockVoiceSw     :1;      //关锁提示音    1：关闭 0：开启
+    uint8_t vioce_volum     :4;       //音量
+    uint32_t crc32;
+};
+
+extern struct car_info_stu car_info;
+extern struct car_set_save_stu car_set_save;
+extern struct car_state_data_stu car_state_data;
 
 void car_init();
 

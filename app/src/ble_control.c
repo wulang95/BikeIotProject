@@ -55,7 +55,6 @@ struct ble_cmd_send_var_s{
 } ble_cmd_send_var;
 
 def_rtos_queue_t ble_send_cmd_que;
-def_rtos_sem_t ble_send_sem;
 def_rtos_sem_t ble_trans_recv_sem;
 
 
@@ -139,10 +138,8 @@ void ble_cmd_mark(uint8_t cmd)
 
 void ble_send_data(uint8_t *data, uint16_t len)
 {
-    def_rtos_semaphore_wait(ble_send_sem, RTOS_WAIT_FOREVER);
     hal_drv_uart_send(BLE_UART, data, len);
     debug_data_printf("ble_send", data, len);
-    def_rtos_smaphore_release(ble_send_sem);
 }
 
 
@@ -410,7 +407,6 @@ void ble_control_init()
     if(err != RTOS_SUCEESS) {
         LOG_E("ble_send_cmd_que is create fail err:%d", err);
     }
-    def_rtos_semaphore_create(&ble_send_sem, 1);
     def_rtos_semaphore_create(&ble_trans_recv_sem, 0);
     ble_transbuf = rt_ringbuffer_create(BLE_TRANSBUF_LEN);
     memset(&ble_info, 0, sizeof(ble_info));

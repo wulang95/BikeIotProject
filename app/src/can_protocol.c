@@ -1,4 +1,5 @@
 #include "app_system.h"
+#include "hal_drv_rtc.h"
 
 #define DBG_TAG         "can_protocol"
 
@@ -9,6 +10,7 @@
 #endif
 #include    "log_port.h"
 
+def_rtos_timer_t can_adv_timer;
 def_rtos_queue_t can_tx_que;
 struct can_send_md_stu {
     stc_can_rxframe_t  can_tx_frame;
@@ -28,7 +30,7 @@ struct can_control_cmd_stu {
     uint8_t cmd_index;
     uint8_t cmd_len;
 };
-struct can_control_cmd_stu can_control_cmd_table[] = {
+static struct can_control_cmd_stu can_control_cmd_table[] = {
     {0x28,  0x01,   1},
     {0x28,  0x02,   1},
     {0x28,  0x03,   1},
@@ -42,12 +44,12 @@ struct can_control_cmd_stu can_control_cmd_table[] = {
 };
 
 
-struct can_cmd_order_s can_cmd_order[] = {
-    {0X14,  true,   3,  3000},  /* 控制指令*/
-    {0XEA,  true,   3,  3000}, /*  PNG请求*/
+static struct can_cmd_order_s can_cmd_order[] = {
+    {0X14,  true,   3,  2000},  /* 控制指令*/
+    {0XEA,  true,   3,  2000}, /*  PNG请求*/
 };
 
-void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
+static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
 {
     if(pdu.pdu1 >= 240){
         switch(pdu.pdu2) {
@@ -113,7 +115,7 @@ void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
     }
 }
 
-void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
+static void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
 {
     if(pdu.pdu1 >= 240){
         switch(pdu.pdu2){
@@ -240,7 +242,7 @@ void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
     }
 }
 
-void bms_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
+static void bms_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
 {
     if(pdu.pdu1 >= 240) {
         switch(pdu.pdu2){
@@ -293,12 +295,98 @@ void bms_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
         }
     }
 }
-void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
+
+static void iot_response_png(uint16_t pgn)
+{
+    CAN_PDU_STU can_pdu;
+    uint8_t data[8] = {0};
+    stc_can_rxframe_t can_dat = {0};
+    int64_t stamp;
+    can_pdu.src = IOT_ADR;
+    can_pdu.p = 6;
+    can_pdu.r = 0;
+    can_pdu.dp = 0;
+    can_pdu.res = 0;
+    can_pdu.pdu.pdu2 = pgn;
+    switch(pgn) {
+        case IOT_SN1:
+            memcpy(data, &sys_config.sn[0], 8);
+        break;
+        case IOT_SN2:
+            memcpy(data, &sys_config.sn[8], 8);
+        break;
+        case IOT_SOFT_VER1:
+            memcpy(data, SOFTVER, (strlen(SOFTVER) > 8 ? 8:strlen(SOFTVER)));
+        break;
+        case IOT_SOFT_VER2:
+            if(strlen(SOFTVER) > 8) {
+                memcpy(data, SOFTVER + 8, ((strlen(SOFTVER) - 8) > 8 ? 8:(strlen(SOFTVER) - 8)));
+            }
+        break;
+        case IOT_HW_VER1:
+            memcpy(data, HWVER, (strlen(HWVER) > 8 ? 8:strlen(HWVER)));
+        break;
+        case IOT_HW_VER2:
+            if(strlen(HWVER) > 8) {
+                memcpy(data, HWVER + 8, ((strlen(HWVER) - 8) > 8 ? 8:(strlen(HWVER) - 8)));
+            }
+        break;
+        case IOT_SAVE_DATA:
+            data[0] = car_set_save.odo >> 16 & 0XFF;
+            data[1] = car_set_save.odo >> 8 & 0XFF;
+            data[2] = car_set_save.odo & 0XFF;
+            data[3] = car_set_save.trip >> 16 & 0XFF;
+            data[4] = car_set_save.trip >> 8 & 0XFF;
+            data[5] = car_set_save.trip & 0XFF;
+            data[6] = car_set_save.range;
+        break;
+        case IOT_STATE_DATA:
+            data[0] |= ((car_state_data.abnormal_move == 0) ? 0 : 1) << 7;
+            data[0] |= ((car_state_data.mobile_operation_sta == 0) ? 0 : 1) << 6;
+            data[1] = car_state_data.slope_data;
+            data[2] = car_state_data.attitude;
+            data[3] = car_state_data.map_dir;
+            data[4] = car_state_data.cur_dir_range >> 24 & 0xff;
+            data[5] = car_state_data.cur_dir_range >> 16 & 0xff;
+            data[6] = car_state_data.cur_dir_range >> 8 & 0xff;
+            data[7] = car_state_data.cur_dir_range & 0xff;
+        break;
+        case IOT_NAVIGATION_DATA:
+            data[1] = car_state_data.total_nav_remaintime >> 24 & 0xff;
+            data[2] = car_state_data.total_nav_remaintime >> 16 & 0xff;
+            data[3] = car_state_data.total_nav_remaintime >> 8 & 0xff;
+            data[4] = car_state_data.total_nav_remaintime & 0xff;
+            data[5] = car_state_data.total_nav_range >> 16 &0xff;
+            data[6] = car_state_data.total_nav_range >> 8 &0xff;
+            data[7] = car_state_data.cur_dir_range & 0xff;
+        break;
+        case IOT_SNTP:
+            stamp = hal_drv_rtc_get_timestamp();
+            memcpy(data, &stamp, 8);
+        break;
+    }
+    memcpy(can_dat.Data, data, 8);
+    can_dat.ExtID = can_pdu.can_id;
+    can_dat.Cst.Control_f.DLC = 8;
+    can_dat.Cst.Control_f.IDE = 1;
+    can_dat.Cst.Control_f.RTR = 0;
+    can_data_send(can_dat);
+}
+
+static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
 {
     CAN_PDU_STU can_pdu;
     CAN_PDU_STU send_can_pdu;
+    uint16_t pgn;
     
+    LOG_I("CAN_ID:%08x, data_len:%d", rx_can_frame.RBUF32_0, rx_can_frame.Cst.Control_f.DLC);
     can_pdu.can_id = rx_can_frame.RBUF32_0;
+    if(can_pdu.pdu.da ==  IOT_ADR && can_pdu.pdu.pdu1 == 0XEA) {
+        pgn = rx_can_frame.Data[1] << 8 | rx_can_frame.Data[0];
+        LOG_I("iot png:%04x", pgn);
+        iot_response_png(pgn);
+        return;
+    }
     switch(can_pdu.src) {
         case HMI_ADR:
            hmi_info_handle(can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
@@ -309,7 +397,6 @@ void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
         case BMS_ADR:
             bms_info_handle(can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
         break;
-
     }
     if(can_send_cmd.cmd_send) {
         send_can_pdu.can_id = can_send_cmd.can_tx_frame.ExtID;
@@ -327,8 +414,6 @@ void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
             break;
         }
     }
-    
-    LOG_I("CAN_ID:%08x, data_len:%d", rx_can_frame.RBUF32_0, rx_can_frame.Cst.Control_f.DLC);
 }
 
 void can_png_quest(uint8_t dst, uint16_t png, uint8_t direct)
@@ -407,8 +492,6 @@ void can_send_control_cmd(uint8_t cmd, uint8_t *cmdvar, uint8_t direct)
         }
     }
 }
-
-
 
 uint8_t can_find_send_order(uint32_t can_id, struct can_cmd_order_s *can_cmd_t)
 {
@@ -493,19 +576,6 @@ void can_protocol_rx_thread(void *param)
     def_rtos_task_delete(NULL);
 }
 
-void headlightclose()
-{
-    uint8_t dat = 0xff;
-    dat &= ~(1 << 7); 
-    dat &= ~(1 << 6); 
-    can_send_control_cmd(CMD_SET_HEADLIGHT, &dat, 0);
-}
-
-void headlightclosemode()
-{
-    uint8_t dat = 0;
-    can_send_control_cmd(CMD_SET_HEADLIGHT_SENMODE, &dat, 0);
-}
 
 void enter_sleep()
 {
@@ -517,13 +587,128 @@ void enter_week()
     uint8_t dat = 0XA9;
     can_send_control_cmd(CMD_ENTER_SLEEP, &dat, 0);   
 }
+
+static void iot_can_control_fun()
+{
+    CAN_PDU_STU can_pdu;
+    uint8_t data[8] = {0};
+    stc_can_rxframe_t can_dat = {0};
+    def_rtosStaus res;
+    can_pdu.src = IOT_ADR;
+    can_pdu.p = 6;
+    can_pdu.r = 0;
+    can_pdu.dp = 0;
+    can_pdu.res = 0;
+    can_pdu.pdu.pdu2 = IOT_CONTROL_DATA1;
+    if(car_set_save.gear != car_info.gear){
+        data[0] |= 1<<7;
+        data[0] |= car_set_save.gear&0xf;
+    } else {
+        data[0] = 0;
+    }
+    data[1] = car_set_save.anti_theft;
+    if(car_set_save.head_light != car_info.headlight_sta || car_set_save.tail_light != car_info.taillight_sta){
+        data[4] |= 1<<7;
+        data[4] |= car_set_save.head_light;
+        data[4] |= car_set_save.tail_light << 1;
+    } else {
+        data[4] = 0;
+    }
+    can_dat.ExtID = can_pdu.can_id;
+    can_dat.Cst.Control_f.DLC = 8;
+    can_dat.Cst.Control_f.IDE = 1;
+    can_dat.Cst.Control_f.RTR = 0;
+    memcpy(can_dat.Data, data, 8);
+    res = def_rtos_queue_release(can_tx_que, sizeof(stc_can_rxframe_t), (uint8 *)&can_dat, RTOS_WAIT_FOREVER);
+    if(res != RTOS_SUCEESS) {
+        LOG_E("def_rtos_queue_release is fail");
+    }
+}
+
+static void iot_can_match_fun()
+{
+    CAN_PDU_STU can_pdu;
+    uint8_t data[8] = {0};
+    stc_can_rxframe_t can_dat = {0};
+    def_rtosStaus res;
+    can_pdu.src = IOT_ADR;
+    can_pdu.p = 6;
+    can_pdu.r = 0;
+    can_pdu.dp = 0;
+    can_pdu.res = 0;
+    can_pdu.pdu.pdu2 = IOT_MATCH;
+    data[1] = sys_info.can_key;
+    data[3] |= ((sys_info.startup_way == 1) ? 1 : 0) << 1;
+    data[3] |= ((sys_info.startup_way == 2) ? 1: 0);
+    data[4] |= sys_info.can_protocol_major;
+    data[5] |= sys_info.can_protocol_sub;
+    can_dat.ExtID = can_pdu.can_id;
+    can_dat.Cst.Control_f.DLC = 8;
+    can_dat.Cst.Control_f.IDE = 1;
+    can_dat.Cst.Control_f.RTR = 0;
+    memcpy(can_dat.Data, data, 8);
+    res = def_rtos_queue_release(can_tx_que, sizeof(stc_can_rxframe_t), (uint8 *)&can_dat, RTOS_WAIT_FOREVER);
+    if(res != RTOS_SUCEESS) {
+        LOG_E("def_rtos_queue_release is fail");
+    }
+}
+
+static void iot_can_state_fun()
+{
+    CAN_PDU_STU can_pdu;
+    uint8_t data[8] = {0};
+    stc_can_rxframe_t can_dat = {0};
+    def_rtosStaus res;
+    can_pdu.src = IOT_ADR;
+    can_pdu.p = 6;
+    can_pdu.r = 0;
+    can_pdu.dp = 0;
+    can_pdu.res = 0;
+    can_pdu.pdu.pdu2 = IOT_STATE;
+
+    data[0] = sys_info.bat_soc;
+    data[1] = sys_info.bat_soh;
+    data[2] = sys_info.fault;
+    data[3] |= sys_info.pdp_reg << 7;
+    data[3] |= sys_info.paltform_connect << 6;
+    data[3] |= sys_info.gps_state << 5;
+    data[3] |= sys_info.ble_connect << 4;
+    data[3] |= sys_info.exits_bat << 3;
+    can_dat.ExtID = can_pdu.can_id;
+    can_dat.Cst.Control_f.DLC = 8;
+    can_dat.Cst.Control_f.IDE = 1;
+    can_dat.Cst.Control_f.RTR = 0;
+    memcpy(can_dat.Data, data, 8);
+    res = def_rtos_queue_release(can_tx_que, sizeof(stc_can_rxframe_t), (uint8 *)&can_dat, RTOS_WAIT_FOREVER);
+    if(res != RTOS_SUCEESS) {
+        LOG_E("def_rtos_queue_release is fail");
+    }
+}
+
+void can_adv_timer_call_fun()
+{
+    static uint32_t time_s = 0;
+    if(time_s % 3 == 0) {
+        iot_can_match_fun();
+    }
+    if(time_s % 2 == 0) {
+        iot_can_state_fun();
+    }
+    iot_can_control_fun();
+    time_s++;
+    LOG_I("time_s:%d", time_s);
+}
 void can_protocol_init()
 {
     def_rtosStaus res;
+    res = def_rtos_timer_create(&can_adv_timer, NULL, can_adv_timer_call_fun, NULL);
+    if(res != RTOS_SUCEESS) {
+        LOG_E("can_adv_timer is creat fail");
+    }
+    def_rtos_timer_start(can_adv_timer, 1000, 1);
     res = def_rtos_queue_create(&can_tx_que, sizeof(stc_can_rxframe_t), 30);
-    if(res != RTOS_SUCEESS){
-        LOG_E("def_rtos_queue_create is fail");
+    if(res != RTOS_SUCEESS) {
+        LOG_E("can_tx_que is create fail");
     }
     LOG_I("can_protocol_init is ok");
-    headlightclose();
 }

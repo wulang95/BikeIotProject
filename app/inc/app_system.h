@@ -56,7 +56,7 @@ typedef enum{
     CAR_SET_ADR,
 } FLASH_PARTITION;
 
-typedef struct {
+struct sys_config_stu{
     uint32_t magic;
     char ip[32];
     uint32_t port; 
@@ -67,49 +67,39 @@ typedef struct {
     char manufacturer[16];
     char ble_key[32];
     uint32_t crc32;
-}SYS_CONFIG_STU;
-
-typedef struct {
-    uint8_t back_info;
-}SYS_INFO_STU;
+};
+#pragma pack(1)
+struct sys_info_stu{
+    uint8_t bat_soc;
+    uint8_t bat_soh;
+    uint8_t fault;
+    uint8_t pdp_reg :1;
+    uint8_t paltform_connect :1;
+    uint8_t gps_state :1;
+    uint8_t exits_bat :1;
+    uint8_t ble_connect :1;
+    uint8_t startup_way;  /*1表示蓝牙开机   2表示app按键开机*/
+    uint8_t can_key;
+    uint8_t can_protocol_major;
+    uint8_t can_protocol_sub;
+};
+#pragma pack()
 
 #define SOFTVER "1.0"
 #define HWVER   "1.0"
 #define DEFAULT_MANUFACTURER  "ENGWE" 
 #define DEFAULT_SN      "123456789" 
 #define DEFAULT_DEV_TYPE    "K10" 
-#define DEFAULT_APN     "3gnet"
+#define DEFAULT_APN     "asia.bics"
 #define DEFAULT_IP     "36.137.226.30"
-#define DEFAULT_PORT   46488
+#define DEFAULT_PORT   38026
 
 #define BLE_NAME    "ENGWE"
 #define BLE_SUUID   0X1820
-typedef struct {
-    uint32_t magic;
-    uint8_t lock_sta;             //锁的状态
-    uint32_t carInfoUpSw;           //滑板车信息上传开关
-    uint32_t carInfoUpInterval;        //滑板车信息上传间隔
-    uint32_t carInfoLockUpInterval;     //上锁时上报间隔
-    uint8_t carInchSppedDis;      //仪表显示单位
-    uint8_t gs_level;             //震动等级
-    uint8_t carFixedSpeedMode;    //定速巡航模式   
-    uint8_t carLowSpeed;          //低速限速值   单位Km/h
-    uint8_t carMidSpeed;          //中速限速值   单位Km/h
-    uint8_t carHighSpeed;         //高速限速值   单位Km/h
-    uint8_t carStratMode;         //启动方式  0：非零启动 1：零启动
-    uint8_t carKeySwLight;        //按键切换大灯
-    uint8_t carKeySpeed;          //按键切换速度模式
-    
-    uint8_t voiceCloseSw    :1;      //音量总开关  1:关闭  0：开启
-    uint8_t alarmVoiceSw    :1;      //报警提示音开关 1：关闭  0：开启
-    uint8_t unLockVoiceSw   :1;      //解锁提示音    1：关闭 0：开启
-    uint8_t lockVoiceSw     :1;      //关锁提示音    1：关闭 0：开启
-    uint8_t vioce_volum     :4;       //音量
-    uint32_t crc32;
-}CAR_SET_STU;
 
 
-extern SYS_CONFIG_STU sys_config;
+extern struct sys_info_stu sys_info;
+extern struct sys_config_stu sys_config;
 void app_sys_init();
 int64_t systm_tick_diff(int64_t time);
 void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len);
