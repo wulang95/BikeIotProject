@@ -123,24 +123,39 @@ enum{
 };
 
 enum {
-    CMD_SET_GEAR = 0,
-    CMD_SET_HEADLIGHT,   /*没有回复NG*/
-    CMD_SET_HEADLIGHT_SENMODE,  /*没有回复NG*/
-    CMD_SET_TURNLIGHT,
-    CMD_SET_CYCLE_MODE,
-    CMD_JUMP_PASSWORD,
-    CMD_ENTER_SLEEP,  /*进入休眠功能OK*/
-    CMD_ENTER_WEEK,/*没有回复NG*/
-    CMD_LOOK_CAR,
+    HMI_CMD_SET_GEAR = 0,
+    HMI_CMD_SET_HEADLIGHT,   /*没有回复NG*/
+    HMI_CMD_SET_HEADLIGHT_SENMODE,  /*没有回复NG*/
+    HMI_CMD_SET_TURNLIGHT,
+    HMI_CMD_SET_CYCLE_MODE,
+    HMI_CMD_JUMP_PASSWORD,
+    HMI_CMD_ENTER_SLEEP,  /*进入休眠功能OK*/
+    HMI_CMD_ENTER_WEEK,/*没有回复NG*/
+    HMI_CMD_LOOK_CAR,
     CMD_SET_ELECLOCK,
+    CMD_SPEED_LIMIT,
+    CMD_MILEAGE_UNIT,
+    CMD_BRIGHTNESS_LEVEL,
+    CMD_SET_POWER_ON_PASSWORD,
     CMD_MAX,
 };
+
+enum{
+    IOT_CONTROL_SET_GEAR = 0,
+    IOT_CONTROL_SET_HEADLIGHT,
+    IOT_CONTROL_SET_TAILLIHHT,
+    IOT_CONTROL_SET_LEFT_TURN_LIGHT,
+    IOT_CONTROL_SET_RIGHT_TURN_LIGHT,
+    IOT_CONTROL_ANTI_THEFT,
+};
+
+void iot_can_heart_fun();
 void can_protocol_rx_thread(void *param);
 void can_protocol_init();
 void can_protocol_tx_thread(void *param);
 void can_png_quest(uint8_t dst, uint16_t png, uint8_t direct);
-void can_send_control_cmd(uint8_t cmd, uint8_t *cmdvar, uint8_t direct);
-
+void iot_can_cmd_control(uint8_t cmd, uint8_t *cmdvar, uint8_t direct);
+void iot_can_png_control(uint8_t cmd, uint8_t direct);
 
 
 

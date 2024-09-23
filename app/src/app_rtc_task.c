@@ -25,9 +25,11 @@ void rtc_event_handler(RTC_EVENT rtc_e)
 {
     switch(rtc_e){
         case CAR_HEART_EVENT:
+            car_heart_event();
             LOG_I("CAR_HEART_EVENT");
             break;
-        case CAR_SELF:
+        case BLE_HEART_EVENT:
+            ble_heart_event();
             LOG_I("CAR_SELF");
             break;
         default:
@@ -44,6 +46,11 @@ void rtc_event_register(RTC_EVENT event, uint32_t time, uint8_t cycle_en_t)
     hal_drv_rtc_set_alarm(time);
 }
 
+void rtc_event_unregister(RTC_EVENT event) 
+{
+    rtc_week_table[event].vaild = 0;
+}
+
 static void rtc_alarm_call_fun()
 {
     def_rtos_smaphore_release(rtc_alarm_sem);
@@ -55,7 +62,6 @@ void app_rtc_init()
     hal_drv_rtc_time_print();
     def_rtos_semaphore_create(&rtc_alarm_sem, 0);
     rtc_event_register(CAR_HEART_EVENT, 10, 1);
-    rtc_event_register(CAR_SELF, 5, 1);
     hal_drv_set_alarm_call_fun(rtc_alarm_call_fun);
     LOG_I("app_rtc_init is ok");
 }

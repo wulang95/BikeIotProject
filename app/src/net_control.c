@@ -22,7 +22,7 @@
 #define MIN_FUN     0
 #define ALL_FUN     1
 #define DIS_FUN     4
-
+struct gsm_info_stu gsm_info;
 static char ip4_adr_str[16];
 
 typedef enum
@@ -57,8 +57,6 @@ typedef struct {
     uint8_t login_ok;
 } SOCKET_CON_INFO_STU;
 
-
-
 typedef struct {
 
     pdp_active_state_type pdp_state;
@@ -70,6 +68,7 @@ SOCKET_CON_INFO_STU socket_con_info;
 
 void net_control_init()
 {
+    memset(&gsm_info, 0, sizeof(gsm_info));
     memset(&pdp_active_info, 0, sizeof(pdp_active_info));
     memset(&socket_con_info, 0, sizeof(socket_con_info));
     pdp_active_info.pdp_is_active = 0;
@@ -81,14 +80,6 @@ void net_control_init()
     LOG_I("net_control_init is ok");
 }
 
-typedef struct {
-    char imei[20];
-    char iccid[24];
-    uint8_t csq;
-    uint8_t online;  
-}GSM_INFO_STU;
-
-GSM_INFO_STU gsm_info;
 
 static void pdp_active_state_machine(void)
 {

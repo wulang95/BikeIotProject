@@ -146,7 +146,6 @@ static void hal_drv_init()
     LOG_I("hal_drv_init is ok");
 }
 
-
 void sys_config_init()
 {
     memset(&sys_config, 0, sizeof(sys_config));

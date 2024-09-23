@@ -13,7 +13,7 @@
 #define HEADH  0XAA
 #define HEADL  0X55
 def_rtos_queue_t can_rcv_que;
-
+struct gps_info_stu gps_info;
 uint8_t can_data_recv(stc_can_rxframe_t *can_rxframe, uint32_t time_out)
 {
     uint8_t res = RTOS_SUCEESS;

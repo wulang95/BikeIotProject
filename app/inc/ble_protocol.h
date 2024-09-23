@@ -7,6 +7,7 @@
 
 void ble_protocol_recv_thread(void *param);
 void ble_protocol_send_thread(void *param);
+void ble_heart_event();
 
 
 

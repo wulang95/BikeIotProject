@@ -52,16 +52,17 @@ typedef struct stc_can_rxframe
 
 
 
-typedef struct {
+struct gps_info_stu{
     uint8_t valid;
     uint8_t starNum;
-} GPS_INFO;
+};
 
 enum {
     CMD_CAN_TRANS = 0X0C,
     CMD_GPS_START = 0X0E,
     CMD_GPS_STOP = 0X0D,
 };
+extern struct gps_info_stu gps_info;
 void mcu_uart_init();
 uint8_t can_data_recv(stc_can_rxframe_t *can_rxframe, uint32_t time_out);
 void can_data_send(stc_can_rxframe_t can_txframe);
