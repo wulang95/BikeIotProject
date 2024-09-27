@@ -12,6 +12,7 @@
 #include    "mcu_uart.h"
 #include    "can_protocol.h"
 #include    "net_control.h"
+#include    "net_protocol.h"
 #include    "car_control.h"
 
 
@@ -56,6 +57,12 @@ typedef enum{
     CAR_SET_ADR,
 } FLASH_PARTITION;
 
+struct sys_param_set_stu {
+    uint8_t unlock_car_heart_sw;
+    uint16_t net_heart_interval;
+    uint16_t unlock_car_heart_interval;
+};
+
 struct sys_config_stu{
     uint32_t magic;
     char ip[32];
@@ -70,6 +77,7 @@ struct sys_config_stu{
 };
 #pragma pack(1)
 struct sys_info_stu{
+    uint16_t bat_val;
     uint8_t bat_soc;
     uint8_t bat_soh;
     uint8_t fault;
@@ -82,28 +90,29 @@ struct sys_info_stu{
     uint8_t can_key;
     uint8_t can_protocol_major;
     uint8_t can_protocol_sub;
+    uint8_t sys_updata_falg; //bit0表示sys_param
 };
 #pragma pack()
 
 #define SOFTVER "1.0"
 #define HWVER   "1.0"
 #define DEFAULT_MANUFACTURER  "ENGWE" 
+#define DEFAULT_DNS "114.114.114.114"
 #define DEFAULT_SN      "123456789" 
 #define DEFAULT_DEV_TYPE    "K10" 
 #define DEFAULT_APN     "asia.bics"
-#define DEFAULT_IP     "36.137.226.30"
-#define DEFAULT_PORT   38026
+#define DEFAULT_IP     "dev-iot-tcp.engweapp.cn"
+#define DEFAULT_PORT   9507
 
 #define BLE_NAME    "ENGWE"
 #define BLE_SUUID   0X1820
 
-
+extern struct sys_param_set_stu sys_param_set;
 extern struct sys_info_stu sys_info;
 extern struct sys_config_stu sys_config;
 void app_sys_init();
 int64_t systm_tick_diff(int64_t time);
 void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len);
-
-
+void app_system_thread(void *param);
 
 #endif

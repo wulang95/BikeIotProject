@@ -17,6 +17,8 @@ set(APP_FILES
     app/src/mcu_uart.c
     app/src/can_protocol.c
     app/src/net_control.c
+    app/src/net_protocol.c
+    app/src/lock.c
  )
 
 set(COMMON_FILES 

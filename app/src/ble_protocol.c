@@ -2,7 +2,7 @@
 #include "app_system.h"
 #include <time.h>
 #include "hal_drv_rtc.h"
-#define DBG_TAG         "ble_protol"
+#define DBG_TAG         "ble_protocol"
 
 #ifdef BLE_PROTOL_DEBUG
 #define DBG_LVL    DBG_LOG
@@ -81,8 +81,8 @@ enum {
     BLE_CMD_ATSPHLIGHT_COLOR_CUSTOM_ASK = 0X0806,
     BLE_CMD_S_ATSPHLIGHT_BRIGHTVAL = 0X0807,
     BLE_CMD_S_ATSPHLIGHT_BRIGHTVAL_Q = 0X0808,
-    BLE_CMD_S_ATSPHLIGHT_DIR = 0X0809,
-    BLE_CMD_S_ATSPHLIGHT_DIR_ASK = 0X080A,
+    BLE_CMD_S_ATSPHLIGHT_TURN = 0X0809,
+    BLE_CMD_S_ATSPHLIGHT_TURN_ASK = 0X080A,
     BLE_CMD_S_ATSPHLIGHT_COLORTYPE = 0X080B,
     BLE_CMD_S_ATSPHLIGHT_COLORTYPE_ASK = 0X080C,
     BLE_CMD_ATSPHLIGHT_SW = 0X080D,
@@ -316,7 +316,7 @@ static void car_net_service_state_send()
     uint16_t data_len = 0;
     uint16_t len;
 
-    data[data_len++] = gsm_info.online ? 0x01:0x02;
+    data[data_len++] = sys_info.paltform_connect ? 0x01:0x02;
     data[data_len++] = gsm_info.csq;
     data[data_len++] = gps_info.starNum;
     ble_protocol_data_pack(BLE_CMD_Q_NET_SERVICE, &data[0], data_len, &buf[0], &len);
@@ -415,6 +415,7 @@ static void ble_cmd_car_wheel(uint8_t wheel, uint8_t query)
 static void ble_cmd_time_sync(uint8_t *dat, uint8_t query)
 {
     struct tm *gmt = NULL;
+    struct tm gm;
     time_t timestamp;
     uint8_t data[256] = {0}, buf[256];
     uint16_t data_len = 0;
@@ -423,21 +424,23 @@ static void ble_cmd_time_sync(uint8_t *dat, uint8_t query)
         timestamp = (time_t)hal_drv_rtc_get_timestamp();
         gmt = localtime(&timestamp);
 
-        data[data_len++] = gmt->tm_year - 2000;
+        data[data_len++] = gmt->tm_year - 100;
         data[data_len++] = gmt->tm_mon + 1;
         data[data_len++] = gmt->tm_mday;
-        data[data_len++] = gmt->tm_hour;
+        data[data_len++] = gmt->tm_hour + 8;
         data[data_len++] = gmt->tm_min;
         data[data_len++] = gmt->tm_sec;
+        hal_drv_rtc_time_print();
     } else {
-        gmt->tm_year = dat[0]+100;
-        gmt->tm_mon = dat[1]-1;
-        gmt->tm_mday = dat[2];
-        gmt->tm_hour = dat[3];
-        gmt->tm_min = dat[4];
-        gmt->tm_sec = dat[5];
-        timestamp = mktime(gmt);
+        gm.tm_year = dat[0]+100;
+        gm.tm_mon = dat[1]-1;
+        gm.tm_mday = dat[2];
+        gm.tm_hour = dat[3]-8;
+        gm.tm_min = dat[4];
+        gm.tm_sec = dat[5];
+        timestamp = mktime(&gm);
         hal_drv_rtc_set_time(timestamp);
+        hal_drv_rtc_time_print();
         memcpy(&data[data_len], &dat[0], 6);
         data_len += 6;
     }
@@ -534,6 +537,7 @@ static void ble_cmd_car_brightness_level(uint8_t brightness_level, uint8_t query
     ble_protocol_data_pack(BLE_CMD_S_BRIGHTNESS_LEVEL, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
 }
+
 static void ble_cmd_lock_control(uint8_t dat)
 {
     if(dat == 0x01) {
@@ -583,8 +587,87 @@ static void ble_cmd_set_power_on_password(uint8_t *dat, uint8_t lenth)
     ble_send_data(buf, len);
 }
 
+static void ble_navigation_service(uint8_t *data)
+{
+    car_state_data.map_dir = data[0];
+    car_state_data.cur_dir_range = data[1] << 16 | data[2] << 8 | data[3];
+    car_state_data.total_nav_remaintime = data[4] << 24 | data[5] << 16 | data[6] << 8 | data[7];
+    car_state_data.total_nav_remaintime = data[8]<<16 | data[9]| data[10];
+}
+
+static void ble_atsphlight_sta_query()
+{
+    uint8_t data[256] = {0}, buf[256];
+    uint16_t data_len = 0;
+    uint16_t len;
+    struct tm *gmt = NULL;
+    
+    data[data_len++] = car_info.atmosphere_light_info.light_mode;
+    data[data_len++] = car_info.atmosphere_light_info.color;
+    data[data_len++] = car_set_save.atmosphere_light_set.atmosphere_light_task.task_en;
+    gmt = localtime((time_t *)&car_set_save.atmosphere_light_set.atmosphere_light_task.start_timestap);
+    data[data_len++] = gmt->tm_hour;
+    data[data_len++] = gmt->tm_min;
+    gmt = localtime((time_t *)&car_set_save.atmosphere_light_set.atmosphere_light_task.end_timestap);
+    data[data_len++] = gmt->tm_hour;
+    data[data_len++] = gmt->tm_min;
+    data[data_len++] = car_set_save.atmosphere_light_set.atmosphere_light_task.action;
+
+    data[data_len++] = car_info.atmosphere_light_info.custom_red;
+    data[data_len++] = car_info.atmosphere_light_info.custom_green;
+    data[data_len++] = car_info.atmosphere_light_info.custom_blue;
+    data[data_len++] = car_info.atmosphere_light_info.brightness_val;
+    data[data_len++] = car_info.atmosphere_light_info.turn_linght_sta;
+    ble_protocol_data_pack(BLE_CMD_ATSPHLIGHT_STA_ASK, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
+static void ble_atsphlight_task_query()
+{
+    uint8_t data[256] = {0}, buf[256];
+    uint16_t data_len = 0;
+    uint16_t len;
+    struct tm *gmt = NULL;
+    data[data_len++] = car_set_save.atmosphere_light_set.atmosphere_light_task.task_en;
+    gmt = localtime((time_t *)&car_set_save.atmosphere_light_set.atmosphere_light_task.start_timestap);
+    data[data_len++] = gmt->tm_hour;
+    data[data_len++] = gmt->tm_min;
+    gmt = localtime((time_t *)&car_set_save.atmosphere_light_set.atmosphere_light_task.end_timestap);
+    data[data_len++] = gmt->tm_hour;
+    data[data_len++] = gmt->tm_min;
+    data[data_len++] = car_set_save.atmosphere_light_set.atmosphere_light_task.action;
+    ble_protocol_data_pack(BLE_CMD_Q_ATSPHLIGHT_TIMTASK_ASK, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
+static void ble_atsphlight_set_task(uint8_t *dat, uint16_t lenth)
+{
+    uint8_t data[256] = {0}, buf[256];
+    uint16_t data_len = 0;
+    uint16_t len;
+    struct tm *gmt = NULL;
+    time_t timestamp, setstamp;
+
+    car_set_save.atmosphere_light_set.atmosphere_light_task.task_en = data[1];
+    timestamp = (time_t)hal_drv_rtc_get_timestamp();
+    gmt = localtime(&timestamp);
+    gmt->tm_hour = data[2];
+    gmt->tm_min = data[3];
+    setstamp = mktime(gmt);
+    car_set_save.atmosphere_light_set.atmosphere_light_task.start_timestap = setstamp;
+    gmt->tm_hour = data[4];
+    gmt->tm_min = data[5];
+    setstamp = mktime(gmt);
+    car_set_save.atmosphere_light_set.atmosphere_light_task.end_timestap = setstamp;
+    car_set_save.atmosphere_light_set.atmosphere_light_task.action = data[6];
+    memcpy(&data[data_len], dat, lenth);
+    data_len += lenth;
+    ble_protocol_data_pack(BLE_CMD_S_ATSPHLIGHT_TIMTASK_ASK, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
 void ble_protocol_large_query_service(uint16_t cmd)
 {
+    LOG_I("cmd:0x%04x", cmd);
     switch (cmd)
     {
         case BLE_CMD_Q_BASIC_SERVICES:
@@ -604,6 +687,9 @@ void ble_protocol_large_query_service(uint16_t cmd)
         break;
         case BLE_CMD_Q_IOT_SERVICE:
             car_iot_service_send();
+        break;
+        case BLE_CMD_Q_NET_SERVICE:
+            car_net_service_state_send();
         break;
         case BLE_CMD_Q_SECOND_BAT_INFO:
 
@@ -632,18 +718,106 @@ void ble_protocol_large_query_service(uint16_t cmd)
             ble_cmd_car_unit(0, 1);
         break;
         case BLE_CMD_S_BRIGHTNESS_LEVEL:
-            ble_cmd_car_brightness_level(0, 1);
+
+        break;
+        case BLE_CMD_Q_ATSPHLIGHT_STA:
+            ble_atsphlight_sta_query();
+        break;
+        case BLE_CMD_Q_ATSPHLIGHT_TIMTASK:
+            ble_atsphlight_task_query();
         break;
         default:
         break;
     }
 }
+static void ble_set_atsphlight_mode(uint8_t dat)
+{
+    uint8_t data[256] = {0}, buf[256];
+    uint16_t data_len = 0;
+    uint16_t len;
 
+   car_set_save.atmosphere_light_set.light_mode = dat;
+   car_control_cmd(CAR_CMD_SET_ATSPHLIGHT_MODE);
+   data[data_len++] = dat;
+   ble_protocol_data_pack(BLE_CMD_ATSPHLIGHT_MODE_ASK, &data[0], data_len, &buf[0], &len);
+   ble_send_data(buf, len);
+}
+
+static void ble_set_atsphlight_color_custom(uint8_t *dat)
+{
+    uint8_t data[256] = {0}, buf[256];
+    uint16_t data_len = 0;
+    uint16_t len;
+
+    car_set_save.atmosphere_light_set.custom_red = dat[0];
+    car_set_save.atmosphere_light_set.custom_green = dat[1];
+    car_set_save.atmosphere_light_set.custom_blue = dat[2];
+    car_control_cmd(CAR_CMD_SET_ATSPHLIGHT_COLOR_CUSTOM);
+    memcpy(&data[data_len], dat, 3);
+    data_len += 3;
+    ble_protocol_data_pack(BLE_CMD_ATSPHLIGHT_COLOR_CUSTOM_ASK, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
+static void ble_set_atsphlight_brightness_val(uint8_t dat)
+{
+    uint8_t data[256] = {0}, buf[256];
+    uint16_t data_len = 0;
+    uint16_t len;
+
+    car_set_save.atmosphere_light_set.brightness_val = dat;
+    car_control_cmd(CAR_CMD_SET_ATSPHLIGHT_BRIGHTVAL);
+    data[data_len++] = dat;
+    ble_protocol_data_pack(BLE_CMD_S_ATSPHLIGHT_BRIGHTVAL_Q, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
+static void ble_set_atsphlight_turn(uint8_t dat)
+{
+    uint8_t data[256] = {0}, buf[256];
+    uint16_t data_len = 0;
+    uint16_t len;
+
+    car_set_save.atmosphere_light_set.turn_linght_sta = dat;
+    car_control_cmd(CAR_CMD_SET_ATSPHLIGHT_TURN);
+    data[data_len++] = dat;
+    ble_protocol_data_pack(BLE_CMD_S_ATSPHLIGHT_TURN_ASK, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
+static void ble_set_atsphlight_type(uint8_t dat)
+{
+    uint8_t data[256] = {0}, buf[256];
+    uint16_t data_len = 0;
+    uint16_t len;
+
+    car_set_save.atmosphere_light_set.color = dat;
+    car_control_cmd(CAR_CMD_SET_ATSPHLIGHT_COLORTYPE);
+    data[data_len++] = dat;
+    ble_protocol_data_pack(BLE_CMD_S_ATSPHLIGHT_COLORTYPE_ASK, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+static void ble_set_atsphlight_sw(uint8_t dat)
+{
+    uint8_t data[256] = {0}, buf[256];
+    uint16_t data_len = 0;
+    uint16_t len;
+
+    if(dat == 0x01) {
+        car_set_save.atmosphere_light_set.brightness_val = 100;
+    } else {
+        car_set_save.atmosphere_light_set.brightness_val = 0;
+    }
+    car_control_cmd(CAR_CMD_SET_ATSPHLIGHT_BRIGHTVAL);
+    data[data_len++] = dat;
+    ble_protocol_data_pack(BLE_CMD_ATSPHLIGHT_SW_ASK, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
 void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 {
     uint16_t i = 0;
     uint16_t cmd_sub;
-    LOG_I("cmd:%04x", cmd);
+    LOG_I("cmd:0x%04x", cmd);
     switch(cmd)
     {
         case BLE_CMD_LARGE_QUERY:
@@ -724,12 +898,38 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
         case BLE_CMD_S_POWER_PASSWORD:
             ble_cmd_set_power_on_password(data, len);
         break;
+        case BLE_CMD_NAVIGATION_SERVICE:
+            ble_navigation_service(data);
+        break;
+        case BLE_CMD_Q_ATSPHLIGHT_STA:
+            
+        break;
+        case BLE_CMD_S_ATSPHLIGHT_MODE:
+            ble_set_atsphlight_mode(data[0]);
+        break;
+        case BLE_CMD_ATSPHLIGHT_COLOR_CUSTOM:
+            ble_set_atsphlight_color_custom(data);
+        break;
+        case BLE_CMD_S_ATSPHLIGHT_BRIGHTVAL:
+            ble_set_atsphlight_brightness_val(data[0]);
+        break;
+        case BLE_CMD_S_ATSPHLIGHT_TURN:
+            ble_set_atsphlight_turn(data[0]);
+        break;
+        case BLE_CMD_S_ATSPHLIGHT_COLORTYPE:
+            ble_set_atsphlight_type(data[0]);
+        break;
+        case BLE_CMD_ATSPHLIGHT_SW:
+            ble_set_atsphlight_sw(data[0]);
+        break;
+        case BLE_CMD_S_ATSPHLIGHT_TIMTASK:
+            ble_atsphlight_set_task(data, len);
         default:
         break;
     }
 }
 
-static void ble_up_cycle_data_service()
+void ble_up_cycle_data_heart_service()
 {
     uint8_t data[256] = {0}, buf[256];
     uint16_t data_len = 0;
@@ -758,14 +958,34 @@ static void ble_up_cycle_data_service()
     data[data_len++] = car_info.pedal_speed;
     data[data_len++] = ((car_info.calorie/1000)>>8)&0xff;
     data[data_len++] = (car_info.calorie/1000)&0xff;
-
+    data[data_len++] = 0;
+    data[data_len++] = 0;  //CAN错误码
+    data[data_len++] = car_info.headlight_sta?0xff:0x00;
+    if(car_info.left_turn_light_sta && car_info.right_turn_light_sta) {
+        data[data_len++] = 0x03;
+    } else if(car_info.left_turn_light_sta && !car_info.right_turn_light_sta) {
+        data[data_len++] = 0x01;
+    }else if(!car_info.left_turn_light_sta && car_info.right_turn_light_sta){
+        data[data_len++] = 0x02;
+    } else{
+        data[data_len++] = 0x00;
+    }
+    data[data_len++] = car_info.hmi_info.fault_code;
+    data[data_len++] = 0;
+    data[data_len++] = 0;
+    data[data_len++] = gsm_info.online ? 0x01:0x02;
+    data[data_len++] = gsm_info.csq;
+    data[data_len++] = sys_info.bat_soc;
+    data[data_len++] = gps_info.starNum;
+    data[data_len++] = car_info.lock_sta?0x01:0x02;
+    data[data_len++] = 0x01;
     ble_protocol_data_pack(BLE_CMD_U_RIDEDATA_SERVICE, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
 }
 
 void ble_heart_event()
 {
-    ble_up_cycle_data_service();
+    ble_up_cycle_data_heart_service();
 }
 void ble_protocol_recv_thread(void *param)
 {

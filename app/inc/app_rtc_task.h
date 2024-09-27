@@ -6,6 +6,7 @@
 
 typedef enum{
     CAR_HEART_EVENT = 0,
+    NET_HEART_EVENT,
     BLE_HEART_EVENT,
     EVENT_MAX,
 }RTC_EVENT;

@@ -14,6 +14,7 @@
 #include    "log_port.h"
 struct sys_info_stu sys_info;
 struct sys_config_stu sys_config;
+struct sys_param_set_stu sys_param_set;
 void assert_handler(const char *ex_string, const char *func, size_t line)
 {
     LOG_E("(%s) assertion failed at function:%s, line number:%d \n", ex_string, func, line);
@@ -101,11 +102,12 @@ void flash_partition_read(FLASH_PARTITION flash_part, void *data, size_t lenth, 
 
 void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len)
 {
-    uint16_t i;
+    uint16_t i, len;
     char data_str[4];
     char str[512];
     sprintf(str, "%s[%d]:", str_tag, data_len);
-    for(i = 0; i < data_len; i++){
+    len = data_len > 512?512:data_len;
+    for(i = 0; i < len; i++){
         sprintf(data_str, "%02x ", in_data[i]);
         strncat(str, data_str, strlen(data_str));
     }
@@ -146,6 +148,13 @@ static void hal_drv_init()
     LOG_I("hal_drv_init is ok");
 }
 
+void sys_param_set_init()
+{
+    sys_param_set.unlock_car_heart_sw = 0;
+    sys_param_set.unlock_car_heart_interval = 10;
+    sys_param_set.net_heart_interval = 240;
+}
+
 void sys_config_init()
 {
     memset(&sys_config, 0, sizeof(sys_config));
@@ -154,10 +163,55 @@ void sys_config_init()
     memcpy(&sys_config.dev_type, DEFAULT_DEV_TYPE, strlen(DEFAULT_DEV_TYPE));
     memcpy(&sys_config.apn, DEFAULT_APN, strlen(DEFAULT_APN));
     memcpy(&sys_config.ip, DEFAULT_IP, strlen(DEFAULT_IP));
+    memcpy(&sys_config.DSN, DEFAULT_SN, strlen(DEFAULT_SN));
     sys_config.port = DEFAULT_PORT;
     memset(&sys_info, 0, sizeof(sys_info));
     LOG_I("sys_config_init is ok");
 }
+
+def_rtos_task_t app_system_task = NULL;
+def_rtos_timer_t system_timer;
+def_rtos_sem_t system_task_sem;
+
+
+void app_system_thread(void *param)
+{
+    def_rtosStaus res;
+    int64_t csq_time_t = 0;
+    while (1)
+    {
+        res = def_rtos_semaphore_wait(system_task_sem, RTOS_WAIT_FOREVER);
+        if(res != RTOS_SUCEESS) {
+            continue;
+        }
+        if(sys_info.sys_updata_falg & 0x01) {
+            rtc_event_register(NET_HEART_EVENT,  sys_param_set.net_heart_interval, 1);
+            if(sys_param_set.unlock_car_heart_sw) {
+                rtc_event_register(CAR_HEART_EVENT, sys_param_set.unlock_car_heart_interval, 1);
+            } else {
+                rtc_event_unregister(CAR_HEART_EVENT);
+            }
+            sys_info.sys_updata_falg &= ~0x01;
+        }
+        if(def_rtos_get_system_tick() - csq_time_t > 10) {
+            net_update_singal_csq();
+            csq_time_t = def_rtos_get_system_tick();
+        }
+//        if(car_info.lock_sta == CAR_LOCK_STA) {
+      //      car_heart_event();
+ //       }
+        if(hal_drv_read_gpio_value(I_BLE_CON_SIG)){
+      //      ble_heart_event();
+        }
+    }
+    def_rtos_task_delete(NULL);
+}
+
+void system_timer_fun()
+{
+    def_rtos_smaphore_release(system_task_sem);
+}
+
 
 void app_sys_init()
 {
@@ -168,6 +222,15 @@ void app_sys_init()
     mcu_uart_init();
     net_control_init();
     sys_config_init();
+    sys_param_set_init();
     can_protocol_init();
+    net_protocol_init();
+    rtc_event_register(NET_HEART_EVENT,  sys_param_set.net_heart_interval, 1);
+    if(sys_param_set.unlock_car_heart_sw){
+        rtc_event_register(CAR_HEART_EVENT, sys_param_set.unlock_car_heart_interval, 1);
+    }
+    def_rtos_semaphore_create(&system_task_sem, 0);
+    def_rtos_timer_create(&system_timer, app_system_task, system_timer_fun, NULL);
+    def_rtos_timer_start(system_timer, 1000, 1);
     LOG_I("app_sys_init is ok");
 }

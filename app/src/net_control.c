@@ -41,10 +41,6 @@ typedef enum
     SOCKET_STATUS_IDLE = 0,
     SOCKET_STATUS_CREATE = 1,
     SOCKET_STATUS_CONNECTTING = 2,
-    SOCKET_STATUS_LOGIN = 3,
-    SOCKET_STATUS_LOGIN_OK = 4,
-    SOCKET_STATUS_LOGIN_FAIL = 5,
-    JUDGMENT_LOGIN_STATUS = 6,
     SOCKET_STATUS_DATA_PROC = 7,
 } socket_state_type;
 
@@ -54,7 +50,6 @@ typedef struct {
     struct sockaddr_in server_ipv4;
     int socket_fd;
     uint8_t socket_en;
-    uint8_t login_ok;
 } SOCKET_CON_INFO_STU;
 
 typedef struct {
@@ -73,13 +68,16 @@ void net_control_init()
     memset(&socket_con_info, 0, sizeof(socket_con_info));
     pdp_active_info.pdp_is_active = 0;
     pdp_active_info.pdp_state = PDP_NOT_ACTIVATED;
-    
+    socket_con_info.socket_fd = -1;
     socket_con_info.socket_state = SOCKET_STATUS_IDLE;
     socket_con_info.socket_en = 0;
-    socket_con_info.login_ok = 0;
     LOG_I("net_control_init is ok");
 }
 
+void net_update_singal_csq()
+{
+    hal_drv_get_signal(&gsm_info.csq);
+}
 
 static void pdp_active_state_machine(void)
 {
@@ -154,8 +152,6 @@ static void pdp_active_state_machine(void)
     }
 } 
 
-
-
 void pdp_active_thread(void *param)
 {
     hal_drv_data_call_register_init();
@@ -169,21 +165,19 @@ void pdp_active_thread(void *param)
 
 void iot_socket_data_init()
 {
-    hal_drv_set_dns_addr();
+    hal_drv_set_dns_addr(sys_config.DSN);
     memset(&socket_con_info.local4, 0x00, sizeof(struct sockaddr_in));
     socket_con_info.local4.sin_family = AF_INET;
     socket_con_info.local4.sin_port = 0;
     inet_aton(ip4_adr_str, &socket_con_info.local4.sin_addr);
     memset(&socket_con_info.server_ipv4, 0x00, sizeof(struct sockaddr_in));
-    inet_aton(sys_config.ip, &socket_con_info.server_ipv4.sin_addr);
-    socket_con_info.server_ipv4.sin_family = AF_INET;
-	socket_con_info.server_ipv4.sin_port = htons(sys_config.port);
+
 } 
 
 
 void iot_socket_create()
 {
-    uint8_t ret;
+    uint8_t ret;	
     socket_con_info.socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(socket_con_info.socket_fd < 0){
         LOG_E("socket is erro");
@@ -201,34 +195,102 @@ void iot_socket_create()
 void iot_socket_connect()
 {
     uint8_t ret;
+    struct addrinfo *pres = NULL;	
+	struct addrinfo *temp = NULL;
     static uint16_t socket_connect_delay = 1;
-    ret = connect(socket_con_info.socket_fd, (struct sockaddr *)&socket_con_info.server_ipv4, sizeof(socket_con_info.server_ipv4));	
-    if(ret == 0) {
-        socket_con_info.socket_state = SOCKET_STATUS_LOGIN;
-        return;
-    } else {
-        if(socket_connect_delay > 512) {
-            socket_connect_delay = 1;
+    ret = getaddrinfo_with_pcid(sys_config.ip, NULL, NULL, &pres, 1);
+	if (ret < 0 || pres == NULL) 
+	{
+		LOG_E("DNS getaddrinfo failed! ret=%d; pres=%p!\n",ret,pres);
+	}
+    for(temp = pres; temp != NULL; temp = temp->ai_next) {
+        struct sockaddr_in * sin_res = (struct sockaddr_in *)temp->ai_addr;
+        socket_con_info.server_ipv4.sin_addr = sin_res->sin_addr;
+        socket_con_info.server_ipv4.sin_family = AF_INET;
+	    socket_con_info.server_ipv4.sin_port = htons(sys_config.port);
+        ret = connect(socket_con_info.socket_fd, (struct sockaddr *)&socket_con_info.server_ipv4, sizeof(socket_con_info.server_ipv4));	
+        if(ret == 0) {
+            socket_con_info.socket_state = SOCKET_STATUS_DATA_PROC;
+            return;
         }
-        LOG_E("connect is error");
+    }
+     if(socket_connect_delay > 512) {
+        socket_connect_delay = 1;
     }
     def_rtos_task_sleep_s(socket_connect_delay);
     socket_connect_delay = socket_connect_delay << 1;
 }
 
-void iot_login_fun()
+void net_socket_send(uint8_t *data, uint16_t len)
 {
-    int  recv_len = 0;
-    uint8_t buf[128];
-    recv_len = read(socket_con_info.socket_fd, buf, 128);
-    if(recv_len > 0) write(socket_con_info.socket_fd, buf, 128);
-    else {
-        LOG_E("SOCKET is error");
-        socket_con_info.socket_state = SOCKET_STATUS_IDLE;
-    }
+    debug_data_printf("net_send", data, len);
+    write(socket_con_info.socket_fd, data, len);
 }
 
+// void socket_data_process()
+// {
+//     uint8_t buf[512] = {0};
+//     uint16_t len;
+//     fd_set read_fds;
+//     fd_set exp_fds;
+//     int flags = 0;
+//     int fd_changed = 0;
+//     FD_ZERO(&read_fds);
+// 	FD_ZERO(&exp_fds);
 
+//     flags |= O_NONBLOCK;
+// 	fcntl(socket_con_info.socket_fd, F_SETFL, flags);
+
+//     FD_SET(socket_con_info.socket_fd, &read_fds);
+//     FD_SET(socket_con_info.socket_fd, &exp_fds);
+//     rtc_event_register(NET_HEART_EVENT, 60*4, 1);
+//     net_protocol_cmd_send(NET_CMD_SIGN_IN_Q0);
+//     while(1) {
+//         LOG_I("select");
+//         fd_changed = select(socket_con_info.socket_fd+1, &read_fds, NULL, &exp_fds, NULL);
+//         LOG_I("fd_changed:%d", fd_changed);
+//         if(fd_changed > 0) {
+//             if(FD_ISSET(socket_con_info.socket_fd, &read_fds)){
+//                 FD_CLR(socket_con_info.socket_fd, &read_fds);
+//                 memset(buf, 0, sizeof(buf));
+//                 len = read(socket_con_info.socket_fd, buf, 512);
+//                 if(len <= 0) {
+//                     socket_con_info.socket_state = SOCKET_STATUS_IDLE;
+//                     break;
+//                 }
+//                 FD_SET(socket_con_info.socket_fd, &read_fds);
+//                 debug_data_printf("net_recv", buf, len);
+//                 net_recv_data_parse(buf, len);
+//             } else if(FD_ISSET(socket_con_info.socket_fd, &exp_fds)) {
+//                 FD_CLR(socket_con_info.socket_fd, &exp_fds);
+//                 socket_con_info.socket_state = SOCKET_STATUS_IDLE;
+//                 break;
+//             }  
+//         }
+        
+//     }
+// }
+
+
+void socket_data_process()
+{
+    int  recv_len = 0;
+    uint8_t buf[1024] = {0};
+    net_protocol_cmd_send(NET_CMD_SIGN_IN_Q0);
+    while(1){
+        memset(buf, 0, sizeof(buf));
+        recv_len = read(socket_con_info.socket_fd, buf, 1024);
+        if(recv_len > 0) {
+             debug_data_printf("net_recv", buf, recv_len);
+             net_recv_data_parse(buf, recv_len);
+        }
+        else {
+            LOG_E("SOCKET is error");
+            socket_con_info.socket_state = SOCKET_STATUS_IDLE;
+            break;
+        }
+    }
+}
 static void iot_server_socket_state_machine(void)
 {
     static uint8_t connect_count = 0;
@@ -236,6 +298,12 @@ static void iot_server_socket_state_machine(void)
         switch(socket_con_info.socket_state) {
             case SOCKET_STATUS_IDLE:
                 LOG_I("SOCKET_STATUS_IDLE");
+                sys_info.paltform_connect = 0;
+          //      rtc_event_unregister(NET_HEART_EVENT);
+                if(socket_con_info.socket_fd > 0) {
+                    close(socket_con_info.socket_fd);
+                }
+                socket_con_info.socket_fd = -1;
                 iot_socket_data_init();
                 connect_count = 0;
                 socket_con_info.socket_state = SOCKET_STATUS_CREATE;
@@ -252,25 +320,10 @@ static void iot_server_socket_state_machine(void)
                     sys_reset();
                 }
             break;
-            case SOCKET_STATUS_LOGIN:
-                LOG_I("SOCKET_STATUS_LOGIN");
-                iot_login_fun();
-       //         socket_con_info.socket_state = SOCKET_STATUS_LOGIN_OK;
-            break;
-            case SOCKET_STATUS_LOGIN_OK:
-                LOG_I("SOCKET_STATUS_LOGIN_OK");
-                socket_con_info.socket_state = SOCKET_STATUS_LOGIN_FAIL;
-            break;
-            case SOCKET_STATUS_LOGIN_FAIL:
-                LOG_I("SOCKET_STATUS_LOGIN_FAIL");
-                socket_con_info.socket_state = JUDGMENT_LOGIN_STATUS;
-            break;
-            case JUDGMENT_LOGIN_STATUS:
-                LOG_I("JUDGMENT_LOGIN_STATUS");
-                socket_con_info.socket_state = SOCKET_STATUS_DATA_PROC;
-            break;
             case SOCKET_STATUS_DATA_PROC:
                 LOG_I("SOCKET_STATUS_DATA_PROC");
+                sys_info.paltform_connect = 1;
+                socket_data_process(); 
             break;
         }
     }
@@ -284,7 +337,6 @@ void net_socket_thread(void *param)
         def_rtos_task_sleep_ms(100);
     }
     def_rtos_task_delete(NULL);
-    
 }
 
 

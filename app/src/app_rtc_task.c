@@ -25,12 +25,16 @@ void rtc_event_handler(RTC_EVENT rtc_e)
 {
     switch(rtc_e){
         case CAR_HEART_EVENT:
-            car_heart_event();
+            if(car_info.lock_sta == CAR_UNLOCK_ATA){
+                NET_CMD_MARK(NET_CMD_Q_CAR_INFO_S6);
+            }
             LOG_I("CAR_HEART_EVENT");
             break;
-        case BLE_HEART_EVENT:
-            ble_heart_event();
-            LOG_I("CAR_SELF");
+        case NET_HEART_EVENT:
+            if(sys_info.paltform_connect) {
+                NET_CMD_MARK(NET_CMD_GSM_HEART_H0);
+            }
+            LOG_I("NET_HEART_EVENT");
             break;
         default:
             break;
@@ -61,7 +65,6 @@ void app_rtc_init()
     hal_drv_rtc_set_time(1725504899);
     hal_drv_rtc_time_print();
     def_rtos_semaphore_create(&rtc_alarm_sem, 0);
-    rtc_event_register(CAR_HEART_EVENT, 10, 1);
     hal_drv_set_alarm_call_fun(rtc_alarm_call_fun);
     LOG_I("app_rtc_init is ok");
 }

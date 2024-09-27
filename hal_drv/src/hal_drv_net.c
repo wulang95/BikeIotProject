@@ -110,7 +110,7 @@ void sys_reset()
     ql_power_reset(RESET_NORMAL);
 }
 
-void hal_drv_set_dns_addr()
+void hal_drv_set_dns_addr(char *dns)
 {
     ql_datacall_dns_info_s dns_pri = {0};
 	ql_datacall_dns_info_s dns_sec = {0};
@@ -119,7 +119,7 @@ void hal_drv_set_dns_addr()
     memset(&dns_pri, 0x00, sizeof(ql_datacall_dns_info_s));
     dns_pri.type = QL_PDP_TYPE_IP;
 	dns_sec.type = QL_PDP_TYPE_IP;
-    ip4addr_aton("114.114.114.114", &(dns_pri.ip4));
+    ip4addr_aton(dns, &(dns_pri.ip4));
 	ip4addr_aton("8.8.8.8", &(dns_sec.ip4));
 	ql_datacall_set_dns_addr(0, 1, &dns_pri, &dns_sec);
 }

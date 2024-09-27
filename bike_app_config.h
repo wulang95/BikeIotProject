@@ -3,11 +3,11 @@
 #include "ql_gpio.h"
 
 #define DBG_ENABLE   1
-#define BLE_UART    UART2
+#define BLE_UART    UART1
 #define BLE_BAUD    115200
 #define BLE_PARITY  PARITY_NONE
 
-#define MCU_UART    UART1
+#define MCU_UART    UART2
 #define MCU_BAUD    115200
 #define MCU_PARITY  PARITY_EVENT
 //#define MCU_WEEK

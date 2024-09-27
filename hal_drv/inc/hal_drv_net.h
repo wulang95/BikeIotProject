@@ -16,7 +16,7 @@ uint8_t hal_drv_get_cpin();
 void hal_dev_set_c_fun(uint8_t fun, uint8_t rst);
 uint8_t hal_dev_get_c_fun();
 void sys_reset();
-void hal_drv_set_dns_addr();
+void hal_drv_set_dns_addr(char *dns);
 void hal_drv_data_call_register_init();
 void hal_drv_pdp_detect_block();
 

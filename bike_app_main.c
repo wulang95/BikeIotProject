@@ -22,6 +22,8 @@ def_rtos_task_t mcu_uart_recv_task = NULL;
 def_rtos_task_t net_socket_task = NULL;
 def_rtos_task_t pdp_active_task = NULL;
 def_rtos_task_t can_protocol_send_task = NULL;
+extern def_rtos_task_t app_system_task;
+def_rtos_task_t net_protocol_send_task = NULL;
 void app_start_thread(void *param)
 {
     LOG_I("app start thread is run");
@@ -46,6 +48,7 @@ void app_start_thread(void *param)
     if(err != RTOS_SUCEESS){
         LOG_E("app_rtc_event_thread is create fail!");
     }
+
     err = def_rtos_task_create(&app_virt_uart_task, 2048, TASK_PRIORITY_NORMAL, app_virt_uart_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("app_virt_uart_thread is create fail!");
@@ -62,13 +65,21 @@ void app_start_thread(void *param)
     if(err != RTOS_SUCEESS){
         LOG_E("pdp_active_thread is create fail!");
     }
-    err = def_rtos_task_create(&net_socket_task, 2048, TASK_PRIORITY_NORMAL, net_socket_thread);
+    err = def_rtos_task_create(&net_socket_task, 1024*4, TASK_PRIORITY_NORMAL, net_socket_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("net_socket_thread is create fail!");
     }
-    err = def_rtos_task_create(&can_protocol_send_task, 2048, TASK_PRIORITY_NORMAL, can_protocol_tx_thread);
+    err = def_rtos_task_create(&can_protocol_send_task, 1024*4, TASK_PRIORITY_NORMAL, can_protocol_tx_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("can_protocol_tx_thread is create fail!");
+    }
+    err = def_rtos_task_create(&app_system_task, 2048, TASK_PRIORITY_NORMAL, app_system_thread);
+    if(err != RTOS_SUCEESS){
+        LOG_E("system_timer_thread is create fail!");
+    }
+    err = def_rtos_task_create(&net_protocol_send_task, 2048, TASK_PRIORITY_NORMAL, net_protocol_send_thread);
+    if(err != RTOS_SUCEESS){
+        LOG_E("net_protocol_send_thread is create fail!");
     }
     def_rtos_task_delete(NULL);
 }

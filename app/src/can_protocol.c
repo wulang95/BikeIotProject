@@ -32,27 +32,32 @@ struct can_control_cmd_stu {
     uint8_t cmd_len;
 };
 static struct can_control_cmd_stu can_control_cmd_table[] = {
-    {0x28,  0x14,   0x01,   1},
-    {0x28,  0x14,   0x02,   1},
-    {0x28,  0x14,   0x03,   1},
-    {0x28,  0x14,   0x04,   1},
-    {0x28,  0x14,   0x05,   1},
-    {0x28,  0x14,   0x06,   1},
-    {0x28,  0x14,   0x07,   1},
-    {0x28,  0x14,   0x08,   1},
-    {0x28,  0x14,   0x09,   1},
-    {0x60,  0x14,   0x01,   1},
-    {0xEF,  0x60,   0x55,   2},
-    {0X28,  0X60,   0X05,   1},
-    {0x28,  0x60,   0x08,   1}, 
-    {0X28,  0X60,   0X02,   4},
+    {0x28,  0x14,   0x01,   1}, //HMI_CMD_SET_GEAR
+    {0x28,  0x14,   0x02,   1}, //HMI_CMD_SET_HEADLIGHT
+    {0x28,  0x14,   0x03,   1}, //HMI_CMD_SET_HEADLIGHT_SENMODE
+    {0x28,  0x14,   0x04,   1}, //HMI_CMD_SET_TURNLIGHT
+    {0x28,  0x14,   0x05,   1}, //HMI_CMD_SET_CYCLE_MODE
+    {0x28,  0x14,   0x06,   1}, //HMI_CMD_JUMP_PASSWORD
+    {0x28,  0x14,   0x07,   1}, //HMI_CMD_ENTER_SLEEP
+    {0x28,  0x14,   0x08,   1}, //HMI_CMD_ENTER_WEEK
+    {0x28,  0x14,   0x09,   1}, //HMI_CMD_LOOK_CAR
+    {0x60,  0x14,   0x01,   1}, //CMD_SET_ELECLOCK
+    {0xEF,  0x60,   0x55,   2}, //CMD_SPEED_LIMIT
+    {0X28,  0X60,   0X05,   1}, //CMD_MILEAGE_UNIT
+    {0X28,  0X60,   0X02,   4}, //CMD_SET_POWER_ON_PASSWORD
+    {0X28,  0X60,   0X06,   1}, //CMD_SET_ATMOSPHERE_LIGHT_MODE
+    {0X28,  0X60,   0X07,   1}, //CMD_SET_ATMOSPHERE_LIGHT_COLOUR
+    {0X28,  0X60,   0X08,   1}, //CMD_SET_ATMOSPHERE_LIGHT_BRIGHTNESS
+    {0X28,  0X60,   0X09,   1}, //CMD_SET_ATMOSPHERE_LIGHT_TURN
+    {0X28,  0X60,   0X0A,   1}, //CMD_SET_ATMOSPHERE_LIGHT_R_VAL
+    {0X28,  0X60,   0X0B,   1}, //CMD_SET_ATMOSPHERE_LIGHT_G_VAL
+    {0X28,  0X60,   0X0C,   1}, //CMD_SET_ATMOSPHERE_LIGHT_B_VAL
 };
 
 
 static struct can_cmd_order_s can_cmd_order[] = {
-    {0X14,  true,   3,  1000},  /* 控制指令*/
-    {0XEA,  true,   3,  1000}, /*  PNG请求*/
-    {0x60,  true,   3,  1000},  /*控制参数*/
+    {0X14,  true,   3,   1000},  /* 控制指令*/
+    {0XEA,  true,   3,   1000}, /*  PNG请求*/
 };
 
 static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
@@ -119,6 +124,16 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                 memcpy(&car_info.hmi_info.sn[24], (char *)data, 8);
                 LOG_I("hmi_sn4:%s", car_info.hmi_info.sn);
            //     debug_data_printf("HMI_SN4", data, data_len); 
+            break;
+            case HMI_ATMOSPHERE_LIGHT_STA:
+                car_info.atmosphere_light_info.light_mode = data[0];
+                car_info.atmosphere_light_info.color = data[1];
+                car_info.atmosphere_light_info.brightness_val = data[2];
+                car_info.atmosphere_light_info.turn_linght_sta = data[3];
+                car_info.atmosphere_light_info.ble_sta = data[4];
+                car_info.atmosphere_light_info.custom_red = data[5];
+                car_info.atmosphere_light_info.custom_green = data[6];
+                car_info.atmosphere_light_info.custom_blue = data[7];
             break;
         }
     }
@@ -723,6 +738,7 @@ static void iot_can_match_fun()
     CAN_PDU_STU can_pdu;
     uint8_t data[8] = {0};
     stc_can_rxframe_t can_dat = {0};
+    def_rtosStaus res;
     can_pdu.src = IOT_ADR;
     can_pdu.p = 6;
     can_pdu.r = 0;
@@ -739,7 +755,10 @@ static void iot_can_match_fun()
     can_dat.Cst.Control_f.IDE = 1;
     can_dat.Cst.Control_f.RTR = 0;
     memcpy(can_dat.Data, data, 8);
-    can_data_send(can_dat);
+    res = def_rtos_queue_release(can_tx_que, sizeof(stc_can_rxframe_t), (uint8_t *)&can_dat, RTOS_WAIT_FOREVER);
+    if(res != RTOS_SUCEESS) {
+        LOG_E("def_rtos_queue_release is fail");
+    }
 }
 
 static void iot_can_state_fun()
@@ -747,6 +766,7 @@ static void iot_can_state_fun()
     CAN_PDU_STU can_pdu;
     uint8_t data[8] = {0};
     stc_can_rxframe_t can_dat = {0};
+    def_rtosStaus res;
     can_pdu.src = IOT_ADR;
     can_pdu.p = 6;
     can_pdu.r = 0;
@@ -767,7 +787,10 @@ static void iot_can_state_fun()
     can_dat.Cst.Control_f.IDE = 1;
     can_dat.Cst.Control_f.RTR = 0;
     memcpy(can_dat.Data, data, 8);
-    can_data_send(can_dat);
+    res = def_rtos_queue_release(can_tx_que, sizeof(stc_can_rxframe_t), (uint8_t *)&can_dat, RTOS_WAIT_FOREVER);
+    if(res != RTOS_SUCEESS) {
+        LOG_E("def_rtos_queue_release is fail");
+    }
 }
 
 void iot_can_heart_fun()

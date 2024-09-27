@@ -17,11 +17,35 @@ enum {
     CAR_CMD_SET_SPEED_LIMIT,
     CAR_CMD_SET_TURN_LIGHT,
     CAR_CMD_SET_MILEAGE_UNIT,
-    CAR_CMD_SET_BRIGHTNESS_LEVEL,
     CAR_CMD_SET_POWER_ON_PASSWORD,
+    CAR_CMD_SET_ATSPHLIGHT_MODE,
+    CAR_CMD_SET_ATSPHLIGHT_COLOR_CUSTOM,
+    CAR_CMD_SET_ATSPHLIGHT_BRIGHTVAL,
+    CAR_CMD_SET_ATSPHLIGHT_TURN,
+    CAR_CMD_SET_ATSPHLIGHT_COLORTYPE,
 };
 
 #pragma pack(1)
+
+struct atmosphere_light_task_stu{
+    uint8_t task_en;
+    int64_t start_timestap;
+    int64_t end_timestap;
+    uint8_t action;
+};
+
+struct atmosphere_light_info_stu{
+    struct atmosphere_light_task_stu atmosphere_light_task;
+    uint8_t light_mode;
+    uint8_t color;
+    uint8_t brightness_val;
+    uint8_t turn_linght_sta;
+    uint8_t ble_sta;
+    uint8_t custom_red;
+    uint8_t custom_green;
+    uint8_t custom_blue;
+};
+
 struct hmi_info_stu{
     uint8_t power_on  :1;
     uint8_t encry_mode_data :7;
@@ -56,8 +80,8 @@ struct bms_info_stu{
     uint8_t design_capactity;
     uint8_t pack_series_number;
     uint8_t pack_parallel_number;
-    uint16_t cell_val[16];
-    uint16_t pack_vol;
+    uint16_t cell_val[16];  //单位mv
+    uint16_t pack_vol;  //单位0.1V
     uint16_t max_charge_val;
     uint16_t pack_current;
     uint8_t max_continuous_current; 
@@ -90,6 +114,7 @@ struct bms_info_stu{
 struct car_info_stu {
     struct hmi_info_stu hmi_info;
     struct bms_info_stu bms_info[2];
+    struct atmosphere_light_info_stu atmosphere_light_info;
     uint8_t bms_connect :1;
     uint8_t hmi_connnect :1;
     uint8_t control_connect :1;
@@ -97,15 +122,15 @@ struct car_info_stu {
     uint8_t lock_sta;
     uint8_t lock_src;
     uint8_t main_power;
-    uint8_t headlight_sta;  /*前灯状态*/
-    uint8_t taillight_sta;
+    uint8_t headlight_sta :1;  /*前灯状态*/
+    uint8_t taillight_sta :1;
     uint8_t left_turn_light_sta :2;
     uint8_t right_turn_light_sta :2;
     uint8_t gear;   /*挡位*/
     uint16_t speed_limit;   /*限速 0.1KM/H*/
     uint8_t current_limit;  /*限流 0.1A*/
     uint8_t wheel;      /*轮径*/
-    uint16_t speed;
+    uint16_t speed;   //单位 0.1KM
     uint8_t transfer_data;
     uint16_t avg_speed;
     uint16_t motor_speed;
@@ -124,9 +149,9 @@ struct car_info_stu {
     uint16_t motor_avg_consumption;
     uint8_t reduce_power_sta;
     uint8_t stop_drive_sta;
-    uint32_t total_odo;
-    uint32_t single_odo;
-    uint16_t remain_odo;
+    uint32_t total_odo;   //单位 0.1KM
+    uint32_t single_odo;    //单位 0.1KM
+    uint16_t remain_odo;    //单位 1KM
     uint8_t current;
     uint8_t power_sta;
     uint8_t pedal_speed;
@@ -174,6 +199,7 @@ enum {
 
 struct car_set_save_stu{
     uint32_t magic;
+    struct atmosphere_light_info_stu atmosphere_light_set;
     uint32_t odo;
     uint32_t trip;
     uint8_t  range;
