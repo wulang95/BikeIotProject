@@ -15,6 +15,7 @@
 struct sys_info_stu sys_info;
 struct sys_config_stu sys_config;
 struct sys_param_set_stu sys_param_set;
+struct sys_set_var_stu sys_set_var;
 void assert_handler(const char *ex_string, const char *func, size_t line)
 {
     LOG_E("(%s) assertion failed at function:%s, line number:%d \n", ex_string, func, line);
@@ -197,10 +198,38 @@ void app_system_thread(void *param)
             net_update_singal_csq();
             csq_time_t = def_rtos_get_system_tick();
         }
+        if(sys_set_var.ble_bind_infoClean) {
+            ble_cmd_mark(BLE_DELETE_BIND_INDEX);
+            sys_set_var.ble_bind_infoClean = 0;
+        }
+        if(sys_set_var.hid_lock_sw) {
+            if(sys_set_var.hid_lock_sw == 1) {
+
+            } else if(sys_set_var.hid_lock_sw ==2){
+
+            }
+            sys_set_var.hid_lock_sw = 0;
+        }
+        if(sys_set_var.car_power_en) {
+            if(sys_set_var.car_power_en == 1) {
+
+            } else if(sys_set_var.car_power_en == 2){
+
+            }
+            sys_set_var.car_power_en = 0;
+        }
+        if(sys_set_var.iot_active) {
+            if(sys_set_var.iot_active == 1) {
+                    
+            } else if(sys_set_var.iot_active == 2) {
+
+            }
+            sys_set_var.iot_active = 0;
+        }
 //        if(car_info.lock_sta == CAR_LOCK_STA) {
       //      car_heart_event();
  //       }
-        if(hal_drv_read_gpio_value(I_BLE_CON_SIG)){
+        if(hal_drv_read_gpio_value(I_BLE_CON_SIG)) {
       //      ble_heart_event();
         }
     }

@@ -42,6 +42,7 @@ struct ble_cmd_rely_order_s ble_cmd_rely_order[] = {
     {false,              0,                  0        },         /*CMD_BLE_HID_LOCK*/
     {false,              0,                  0        },         /*CMD_BLE_TRANS*/
     {false,              0,                  0        },         /*CMD_BLE_VIRT_AT*/
+    {true,              1000,                3        },         /*CMD_BLE_DELETE_BIND_INFO*/
 };
 
 #define SENDDATALEN         256
@@ -80,6 +81,7 @@ void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint1
         case CMD_BLE_DISCONNECT:
         case CMD_BLE_HID_UNLOCK:
         case CMD_BLE_HID_LOCK:
+        case CMD_BLE_DELETE_BIND_INFO:
             buf[lenth++] = 0x00;
             buf[lenth++] = 0x00;
         break;
@@ -212,6 +214,7 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
         case CMD_BLE_SET_ADV_INTERVAL:
         case CMD_BLE_SET_CON_PARAM:
         case CMD_BLE_ADV_STOP:
+        case CMD_BLE_DELETE_BIND_INFO:
             break;
         case CMD_BLE_HID_UNLOCK:
             break;

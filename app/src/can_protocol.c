@@ -9,7 +9,7 @@
 #define DBG_LVL   DBG_INFO
 #endif
 #include    "log_port.h"
-
+struct trans_can_control_stu  trans_can_control;
 def_rtos_queue_t can_tx_que;
 static int64_t check_hmi_timeout, check_control_timeout,check_lock_timeout, check_bms_timeout;
 struct can_send_md_stu {
@@ -348,6 +348,9 @@ static void bms_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                 car_info.bms_info[0].max_charge_val = data[0] << 8 | data[1];
             break;
             case BMS_PROTECTION_FAULT_INFO:
+                car_info.bms_info[0].first_protect_code = data[1];
+                car_info.bms_info[0].second_protect_code = data[2];
+                car_info.bms_info[0].fault_code = data[4];
             break;
             case BMS_BARCODE_A:
                 car_info.bms_info[0].code_len = data[0];
@@ -460,7 +463,35 @@ static void iot_response_png(uint16_t pgn)
     can_dat.Cst.Control_f.RTR = 0;
     can_data_send(can_dat);
 }
+static void lock_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
+{
+    if(pdu.pdu1 >= 240) {
+        switch(pdu.pdu2) {
+            case ELECTRONIC_LOCK_MATCH_INFO:
 
+            break;
+            case ELECTRONIC_LOCK_STATUE:
+                car_info.electronic_lock.lock_sta  = data[0];
+                car_info.electronic_lock.fault_code = data[1];
+            break;
+            case ELECTRONIC_LOCK_HEART:
+
+            break;
+            case ELECTRONIC_LOCK_HW_VER:
+                memcpy(&car_info.electronic_lock.hw_ver[0], &data[0], 8);
+            break;
+            case ELECTRONIC_LOCK_SOFT_VER:
+                memcpy(&car_info.electronic_lock.soft_ver[0], &data[0], 8);
+            break;
+            case ELECTRONIC_LOCK_TYPE:
+                memcpy(&car_info.electronic_lock.type_str[0], &data[0], 8);
+            break;
+            case ELECTRONIC_LOCK_FIRM:
+                memcpy(&car_info.electronic_lock.firm_identify[0], &data[0], 8);
+            break;
+        }
+    }
+}
 static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
 {
     CAN_PDU_STU can_pdu;
@@ -474,6 +505,17 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
         LOG_I("iot png:%04x", pgn);
         iot_response_png(pgn);
         return;
+    }
+    if(trans_can_control.rq_can_id == can_pdu.can_id && trans_can_control.send_flag) {
+        trans_can_control.send_flag = 0;
+        memcpy(trans_can_control.rq_data, rx_can_frame.Data, 8);
+        switch(trans_can_control.src) {
+            case CAN_NET_TRANS:
+            NET_CMD_MARK(NET_CMD_CAN_TRANS_Z0);
+            break;
+            default:
+            break;
+        }
     }
     switch(can_pdu.src) {
         case HMI_ADR:
@@ -494,6 +536,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
         case LOCK_ADR:
             car_info.lock_connect = 1;
             check_bms_timeout = def_rtos_get_system_tick();
+            lock_info_handle(can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
         break;
     }
     if(can_send_cmd.cmd_send) {
@@ -555,6 +598,26 @@ static uint8_t can_check_sum(uint8_t *dat, uint8_t len)
     }
     return check_sum;
 
+}
+void iot_can_trans_func(uint32_t can_id, uint8_t *data, uint8_t direct)
+{
+    stc_can_rxframe_t can_dat = {0};
+    can_dat.ExtID = can_id;
+    def_rtosStaus res;
+
+    memcpy(&can_dat.Data[0], &data[0], 8);
+    can_dat.Cst.Control_f.DLC = 8;
+    can_dat.Cst.Control_f.IDE = 1;
+    can_dat.Cst.Control_f.RTR = 0;
+
+    if(direct) {
+        can_data_send(can_dat);
+    } else {
+        res = def_rtos_queue_release(can_tx_que, sizeof(stc_can_rxframe_t), (uint8_t *)&can_dat, RTOS_WAIT_FOREVER);
+        if(res != RTOS_SUCEESS) {
+            LOG_E("def_rtos_queue_release is fail");
+        }
+    }
 }
 void iot_can_cmd_control(uint8_t cmd, uint8_t *cmdvar, uint8_t direct)
 {

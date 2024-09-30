@@ -23,6 +23,13 @@ enum {
     CAR_CMD_SET_ATSPHLIGHT_BRIGHTVAL,
     CAR_CMD_SET_ATSPHLIGHT_TURN,
     CAR_CMD_SET_ATSPHLIGHT_COLORTYPE,
+    CAR_CMD_JUMP_PASSWORD,
+};
+
+enum {
+    CAR_MOVEVENT_ALARM,
+    CAR_FALLING_GROUND_ALARM,
+    CAR_CLEAN_FALLING_GROUND_ALARM,
 };
 
 #pragma pack(1)
@@ -89,7 +96,9 @@ struct bms_info_stu{
     uint8_t max_charge_current;
     uint8_t first_protect[4];
     uint8_t second_protect[4];
-
+    uint8_t first_protect_code;
+    uint8_t second_protect_code;
+    uint8_t fault_code;
     uint8_t charge_det  :1;
     uint8_t charge_sta  :1;
     uint8_t charge_mos  :1;
@@ -110,11 +119,20 @@ struct bms_info_stu{
     char soft_ver[32];
     char hw_ver[16];
 };
+struct electronic_lock_stu {
+    char soft_ver[8];
+    char hw_ver[8];
+    char type_str[8];
+    char firm_identify[8];
+    uint8_t fault_code;
+    uint8_t lock_sta;
+};
 
 struct car_info_stu {
     struct hmi_info_stu hmi_info;
     struct bms_info_stu bms_info[2];
     struct atmosphere_light_info_stu atmosphere_light_info;
+    struct electronic_lock_stu electronic_lock;
     uint8_t bms_connect :1;
     uint8_t hmi_connnect :1;
     uint8_t control_connect :1;
@@ -166,6 +184,7 @@ struct car_info_stu {
     uint8_t promote_func;
     uint16_t bus_voltage;
     uint32_t calorie;
+    uint8_t move_alarm;
     char control_hw_ver[16];
     char control_soft_ver[16];
     char control_sn[32];
@@ -205,6 +224,7 @@ struct car_set_save_stu{
     uint8_t  range;
     uint8_t power_on_psaaword[4];
     uint8_t gear;
+    uint8_t jump_password;
     uint8_t left_turn_light :2;
     uint8_t right_turn_light :2;
     uint8_t tail_light :1;
@@ -220,11 +240,13 @@ struct car_set_save_stu{
     uint8_t carFixedSpeedMode;    //定速巡航模式   
     uint16_t speed_limit;          // 单位Km/h
     uint8_t bright_lev;
+    uint8_t gps_track_interval;
     uint8_t voiceCloseSw    :1;      //音量总开关  1:关闭  0：开启
     uint8_t alarmVoiceSw    :1;      //报警提示音开关 1：关闭  0：开启
     uint8_t unLockVoiceSw   :1;      //解锁提示音    1：关闭 0：开启
     uint8_t lockVoiceSw     :1;      //关锁提示音    1：关闭 0：开启
     uint8_t vioce_volum     :4;       //音量
+    uint8_t look_car_sw;
     uint32_t crc32;
 };
 

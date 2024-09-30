@@ -19,6 +19,7 @@ set(APP_FILES
     app/src/net_control.c
     app/src/net_protocol.c
     app/src/lock.c
+    app/src/http_upgrade_ota.c
  )
 
 set(COMMON_FILES 

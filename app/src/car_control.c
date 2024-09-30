@@ -67,6 +67,10 @@ void car_control_cmd(uint8_t cmd)
     case CAR_CMD_SET_ATSPHLIGHT_COLORTYPE:
         iot_can_cmd_control(CMD_SET_ATMOSPHERE_LIGHT_COLOUR, &car_set_save.atmosphere_light_set.color, 0);
         break;
+    case CAR_CMD_JUMP_PASSWORD:
+        data = 0x56;
+        iot_can_cmd_control(HMI_CMD_JUMP_PASSWORD, &data, 0);
+        break;
     default:
         break;
     }
@@ -90,6 +94,7 @@ void car_init()
     // can_png_quest(HMI_ADR, HMI_SN3, 0);
     // can_png_quest(HMI_ADR, HMI_SN4, 0);
     car_set_save.mileage_unit= 1;
+  //  car_control_cmd(CAR_CMD_SET_ATSPHLIGHT_COLOR_CUSTOM);
     car_control_cmd(CAR_CMD_SET_MILEAGE_UNIT);
     LOG_I("car_init is ok");  
 }

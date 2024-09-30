@@ -122,6 +122,16 @@ enum{
     CONTROL_CUSTOMERCODE1 = 0XFE25,
     CONTROL_CUSTOMERCODE2 = 0XFE26,
 };
+/*电子锁指令*/
+enum{
+    ELECTRONIC_LOCK_MATCH_INFO = 0XFC00,
+    ELECTRONIC_LOCK_STATUE = 0XFC01,
+    ELECTRONIC_LOCK_HEART = 0XFC10,
+    ELECTRONIC_LOCK_HW_VER = 0XFC20,
+    ELECTRONIC_LOCK_SOFT_VER = 0XFC21,
+    ELECTRONIC_LOCK_TYPE = 0XFC22,
+    ELECTRONIC_LOCK_FIRM = 0XFC23,
+};
 
 enum {
     HMI_CMD_SET_GEAR = 0,
@@ -136,7 +146,6 @@ enum {
     CMD_SET_ELECLOCK,
     CMD_SPEED_LIMIT,
     CMD_MILEAGE_UNIT,
-    CMD_BRIGHTNESS_LEVEL,
     CMD_SET_POWER_ON_PASSWORD,
     CMD_SET_ATMOSPHERE_LIGHT_MODE,
     CMD_SET_ATMOSPHERE_LIGHT_COLOUR,
@@ -157,6 +166,20 @@ enum{
     IOT_CONTROL_ANTI_THEFT,
 };
 
+enum {
+    CAN_NET_TRANS,
+    CAN_BLUE_TRANS,
+};
+struct trans_can_control_stu {
+    uint8_t src;
+    uint32_t send_can_id;
+    uint8_t send_data[8];
+    uint8_t send_flag;
+    uint32_t rq_can_id;
+    uint8_t rq_data[8];
+};
+
+extern struct trans_can_control_stu  trans_can_control;
 void iot_can_heart_fun();
 void can_protocol_rx_thread(void *param);
 void can_protocol_init();
@@ -164,7 +187,7 @@ void can_protocol_tx_thread(void *param);
 void can_png_quest(uint8_t dst, uint16_t png, uint8_t direct);
 void iot_can_cmd_control(uint8_t cmd, uint8_t *cmdvar, uint8_t direct);
 void iot_can_png_control(uint8_t cmd, uint8_t direct);
-
+void iot_can_trans_func(uint32_t can_id, uint8_t *data, uint8_t direct);
 
 
 

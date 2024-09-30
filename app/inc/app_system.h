@@ -14,6 +14,7 @@
 #include    "net_control.h"
 #include    "net_protocol.h"
 #include    "car_control.h"
+#include    "http_upgrade_ota.h"
 
 
 void assert_handler(const char *ex_string, const char *func, size_t line);
@@ -73,6 +74,7 @@ struct sys_config_stu{
     char sn[16];
     char manufacturer[16];
     char ble_key[32];
+    uint8_t alive_sta;
     uint32_t crc32;
 };
 #pragma pack(1)
@@ -92,6 +94,15 @@ struct sys_info_stu{
     uint8_t can_protocol_sub;
     uint8_t sys_updata_falg; //bit0表示sys_param
 };
+struct sys_set_var_stu{
+    uint8_t sys_poweroff_flag;
+    uint8_t sys_reboot_flag; 
+    uint8_t car_power_en;   //0，无效 1， EN下电  2， EN上电
+    uint8_t ble_bind_infoClean; //0， 无效  1，删除
+    uint8_t iot_active;   //0,无效 1，取消激活 2，激活
+    uint8_t hid_lock_sw;    //0，无效 1，关 2：开       
+};
+
 #pragma pack()
 
 #define SOFTVER "1.0"
@@ -106,7 +117,7 @@ struct sys_info_stu{
 
 #define BLE_NAME    "ENGWE"
 #define BLE_SUUID   0X1820
-
+extern struct sys_set_var_stu sys_set_var;
 extern struct sys_param_set_stu sys_param_set;
 extern struct sys_info_stu sys_info;
 extern struct sys_config_stu sys_config;
@@ -114,5 +125,4 @@ void app_sys_init();
 int64_t systm_tick_diff(int64_t time);
 void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len);
 void app_system_thread(void *param);
-
 #endif

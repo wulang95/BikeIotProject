@@ -56,6 +56,7 @@ enum {
     BLE_HID_LOCK_INDEX,             /*0x08*/ 
     BLE_TRANS_INDEX,                /*0x06*/
     BLE_VIRT_INDEX,                 /*0x0d*/
+    BLE_DELETE_BIND_INDEX,          /*0x0f*/
     BLE_INDEX_MAX
 };
 
@@ -73,6 +74,7 @@ enum {
     CMD_BLE_HID_LOCK = 0x08,           /*0x08*/ 
     CMD_BLE_TRANS = 0x06,              /*0x06*/
     CMD_BLE_VIRT_AT = 0x0d,             /*0x0d*/ 
+    CMD_BLE_DELETE_BIND_INFO = 0x0f,   /*0x0f*/
 };
 
 extern struct ble_info_s ble_info;
@@ -84,7 +86,7 @@ uint16_t ble_trans_data_block_read(uint8_t *buf, uint16_t len, uint32_t time_out
 void ble_set_adv_data(uint8_t *data, uint8_t len);
 void ble_set_scanrsp_data(uint8_t *data, uint8_t len);
 void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint16_t *buf_len);
-
+void ble_cmd_mark(uint8_t cmd);
 
 
 
