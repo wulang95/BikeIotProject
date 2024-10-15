@@ -531,9 +531,9 @@ static void net_cmd_startup_http_upgrade_U5_func(uint8_t send_flag, char (*ppr)[
         lenth +=len;
         len = sprintf(&data_str[lenth], "%d,", updata_type1);
         lenth +=len;
-        len = sprintf(&data_str[lenth], "%d,,", updata_type2);
+        len = sprintf(&data_str[lenth], "%d,0,", updata_type2);
         lenth +=len;
-        len = sprintf(&data_str[lenth], "%lu,,", http_upgrade_info.crc_sum);
+        len = sprintf(&data_str[lenth], "%lu,", http_upgrade_info.crc_sum);
         lenth +=len;
         net_cmd_package_send(data_str, lenth);
     } else {
@@ -634,9 +634,11 @@ static void net_cmd_http_upgrade_state_U6_func(uint8_t send_flag, char (*ppr)[PA
                 lenth += len;
             break;
         }
+        len = sprintf(&data_str[lenth], "%d,", http_upgrade_info.ota_sta);
+        lenth += len;
         len = sprintf(&data_str[lenth], "%d,",http_upgrade_info.download_fail_cent);
         lenth += len;
-        len = sprintf(&data_str[lenth], "%u,",http_upgrade_info.download_start_byte);
+        len = sprintf(&data_str[lenth], "%ld,",http_upgrade_info.download_start_byte);
         lenth += len;
         net_cmd_package_send(data_str, lenth);
     }

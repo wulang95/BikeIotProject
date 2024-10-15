@@ -15,6 +15,7 @@
 #include    "net_protocol.h"
 #include    "car_control.h"
 #include    "http_upgrade_ota.h"
+#include    "qmi8658.h"
 
 
 void assert_handler(const char *ex_string, const char *func, size_t line);
@@ -31,6 +32,8 @@ typedef enum {
     OTA_NEED,
     OTA_NO, 
 } OTA_RES;
+
+#define IOT_MAGIC   0XFAFA5858 
 
 /*
     step1 app拉取升级文件后，置ota_res为OTA_NEED,写入boot配置。
@@ -50,18 +53,18 @@ typedef struct {
 }BOOT_CONFIG_STU;
 
 typedef enum{
-    APP1_ADR,
-    APP2_ADR,
-    BOOT_CONFIG_ADR,
+    DEV_APP_ADR,
     SYS_CONFIG_ADR,
     BACK_SYS_CONFIG_ADR,
-    CAR_SET_ADR,
+    SYS_SET_ADR,
 } FLASH_PARTITION;
 
 struct sys_param_set_stu {
+    uint32_t magic;
     uint8_t unlock_car_heart_sw;
     uint16_t net_heart_interval;
     uint16_t unlock_car_heart_interval;
+    uint32_t crc32;
 };
 
 struct sys_config_stu{
@@ -86,8 +89,9 @@ struct sys_info_stu{
     uint8_t pdp_reg :1;
     uint8_t paltform_connect :1;
     uint8_t gps_state :1;
-    uint8_t exits_bat :1;
+    uint8_t power_36v :1;
     uint8_t ble_connect :1;
+    uint8_t exits_bat:1;
     uint8_t startup_way;  /*1表示蓝牙开机   2表示app按键开机*/
     uint8_t can_key;
     uint8_t can_protocol_major;

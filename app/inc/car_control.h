@@ -172,7 +172,7 @@ struct car_info_stu {
     uint16_t remain_odo;    //单位 1KM
     uint8_t current;
     uint8_t power_sta;
-    uint8_t pedal_speed;
+    uint16_t pedal_speed;
     uint8_t pedal_torque;
     uint16_t motor_power;
     uint8_t control_torque;

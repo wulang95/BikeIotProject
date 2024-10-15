@@ -79,9 +79,9 @@ void car_control_cmd(uint8_t cmd)
 void car_init()
 {
     memset(&car_info, 0, sizeof(car_info));
-    // can_png_quest(CONTROL_ADR, CONTROL_HWVER1, 0);
-    // can_png_quest(CONTROL_ADR, CONTROL_SOFTVER1, 0);
-    // can_png_quest(CONTROL_ADR, CONTROL_SN1, 0);
+    can_png_quest(CONTROL_ADR, CONTROL_HWVER1, 0);
+    can_png_quest(CONTROL_ADR, CONTROL_SOFTVER1, 0);
+    can_png_quest(CONTROL_ADR, CONTROL_SN1, 0);
     // can_png_quest(CONTROL_ADR, CONTROL_SN2, 0);
     // can_png_quest(CONTROL_ADR, CONTROL_SN3, 0);
     // can_png_quest(CONTROL_ADR, CONTROL_SN4, 0);

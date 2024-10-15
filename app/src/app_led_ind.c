@@ -35,7 +35,7 @@ LED_CONTROL_STU sys_fault_ind[] = {
 
 LED_CONTROL_STU sys_ota_ind[] = {
     {O_WHITE_IND, 1, 100},
-    {O_WHITE_IND, 1, 2000},
+    {O_WHITE_IND, 0, 2000},
     {O_WHITE_IND, 0, LED_STOP},
 };
 
@@ -54,18 +54,21 @@ enum {
 
 static LED_CONTROL_STU *led_cur_ind;
 static uint8_t led_step;
-
-void app_set_led_ind(LED_IND led_ind_sta)
-{
-    led_step = 0;
-    led_cur_ind = led_control_que[led_ind_sta];
-    ql_rtos_timer_start(led_timer, 10, 0);
-}
-
 void led_set_value(uint8_t led, uint8_t value)
 {
     hal_drv_write_gpio_value(led, value);
 }
+
+void app_set_led_ind(LED_IND led_ind_sta)
+{
+    led_step = 0;
+    led_set_value(O_WHITE_IND, 0);
+    led_set_value(O_RED_IND, 0);
+    led_cur_ind = led_control_que[led_ind_sta];
+    ql_rtos_timer_start(led_timer, 10, 0);
+}
+
+
 
 void app_led_timer_func(void *param)
 {

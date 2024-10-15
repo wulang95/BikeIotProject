@@ -14,6 +14,7 @@
 #include    "log_port.h"
 struct sys_info_stu sys_info;
 struct sys_config_stu sys_config;
+struct sys_config_stu sys_config_back;
 struct sys_param_set_stu sys_param_set;
 struct sys_set_var_stu sys_set_var;
 void assert_handler(const char *ex_string, const char *func, size_t line)
@@ -26,14 +27,8 @@ void assert_handler(const char *ex_string, const char *func, size_t line)
 void flash_partition_erase(FLASH_PARTITION flash_part)
 {
     switch(flash_part) {
-        case APP1_ADR:
-            hal_drv_flash_erase(APP1_ADDR, APP1_SIZE);
-            break;
-        case APP2_ADR:
-            hal_drv_flash_erase(APP2_ADDR, APP2_SIZE);
-            break;
-        case BOOT_CONFIG_ADR:
-            hal_drv_flash_erase(BOOT_CONFIG_ADDR, BOOT_CONFIG_SIZE);
+        case DEV_APP_ADR:
+            hal_drv_flash_erase(DEV_APP_ADDR, DEV_APP_SIZE);
             break;
         case SYS_CONFIG_ADR:
             hal_drv_flash_erase(SYS_CONFIG_ADDR, SYS_CONFIG_SIZE);
@@ -41,8 +36,8 @@ void flash_partition_erase(FLASH_PARTITION flash_part)
         case BACK_SYS_CONFIG_ADR:
             hal_drv_flash_erase(BACK_SYS_CONFIG_ADDR, BACK_SYS_CONFIG_SIZE);
             break;
-        case CAR_SET_ADR:
-            hal_drv_flash_erase(CAR_SET_ADD, CAR_SET_SIZE);
+        case SYS_SET_ADR:
+            hal_drv_flash_erase(SYS_SET_ADDR, SYS_SET_SIZE);
             break;
         default:
             break;
@@ -52,23 +47,17 @@ void flash_partition_erase(FLASH_PARTITION flash_part)
 void flash_partition_write(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift)
 {
     switch(flash_part){
-        case APP1_ADR:
-            hal_drv_flash_write(APP1_ADDR + shift, data, lenth);
-            break;
-        case APP2_ADR:
-            hal_drv_flash_write(APP2_ADDR + shift, data, lenth);
-            break;
-        case BOOT_CONFIG_ADR:
-            hal_drv_flash_write(BOOT_CONFIG_ADDR, data, lenth);
+        case DEV_APP_ADR:
+            hal_drv_flash_write(DEV_APP_ADDR + shift, data, lenth);
             break;
         case SYS_CONFIG_ADR:
-            hal_drv_flash_write(SYS_CONFIG_ADDR, data, lenth);
+            hal_drv_flash_write(SYS_CONFIG_ADDR + shift, data, lenth);
             break;
         case BACK_SYS_CONFIG_ADR:
-            hal_drv_flash_write(BACK_SYS_CONFIG_ADDR, data, lenth);
+            hal_drv_flash_write(BACK_SYS_CONFIG_ADDR + shift, data, lenth);
             break;
-        case CAR_SET_ADR:
-            hal_drv_flash_write(CAR_SET_ADD, data, lenth);
+        case SYS_SET_ADR:
+            hal_drv_flash_write(SYS_SET_ADDR + shift, data, lenth);
             break;
         default:
             break;
@@ -78,23 +67,17 @@ void flash_partition_write(FLASH_PARTITION flash_part, void *data, size_t lenth,
 void flash_partition_read(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift)
 {
     switch(flash_part) {
-        case APP1_ADR:
-            hal_drv_flash_read(APP1_ADDR + shift, data, lenth);
-            break;
-        case APP2_ADR:
-            hal_drv_flash_read(APP2_ADDR + shift, data, lenth);
-            break;
-        case BOOT_CONFIG_ADR:
-            hal_drv_flash_read(BOOT_CONFIG_ADDR, data, lenth);
+        case DEV_APP_ADR:
+            hal_drv_flash_read(DEV_APP_ADDR + shift, data, lenth);
             break;
         case SYS_CONFIG_ADR:
-            hal_drv_flash_read(SYS_CONFIG_ADDR, data, lenth);
+            hal_drv_flash_read(SYS_CONFIG_ADDR + shift, data, lenth);
             break;
         case BACK_SYS_CONFIG_ADR:
-            hal_drv_flash_read(BACK_SYS_CONFIG_ADDR, data, lenth);
+            hal_drv_flash_read(BACK_SYS_CONFIG_ADDR + shift, data, lenth);
             break;
-        case CAR_SET_ADR:
-            hal_drv_flash_read(CAR_SET_ADD, data, lenth);
+        case SYS_SET_ADR:
+            hal_drv_flash_read(SYS_SET_ADDR + shift, data, lenth);
             break;
         default:
             break;
@@ -126,7 +109,7 @@ int64_t systm_tick_diff(int64_t time)
 
 void sensor_input_handler()
 {
-
+    
 }
 
 static void hal_drv_init()
@@ -141,7 +124,7 @@ static void hal_drv_init()
     hal_drv_gpio_init(O_BLE_WEEK_SIG, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(O_MCU_WEEK, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(I_36VPOWER_DET, IO_INPUT, DOWN_MODE, L_NONE);
-    hal_drv_gpio_init(O_BLE_POWER, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+    hal_drv_gpio_init(O_BLE_POWER, IO_OUTPUT, PULL_NONE_MODE, HIGH_L);
 
     hal_drv_uart_init(BLE_UART, BLE_BAUD, BLE_PARITY);
     hal_drv_uart_init(MCU_UART, MCU_BAUD, MCU_PARITY);
@@ -149,14 +132,28 @@ static void hal_drv_init()
     LOG_I("hal_drv_init is ok");
 }
 
-void sys_param_set_init()
+void sys_param_set_default_init()
 {
+    memset(&sys_param_set, 0, sizeof(sys_param_set));
+    sys_param_set.magic = IOT_MAGIC;
     sys_param_set.unlock_car_heart_sw = 0;
     sys_param_set.unlock_car_heart_interval = 10;
     sys_param_set.net_heart_interval = 240;
+    sys_param_set.crc32 = GetCrc32((uint8_t *)&sys_param_set, sizeof(sys_param_set) - 4);
+    flash_partition_erase(SYS_SET_ADR);
+    flash_partition_write(SYS_SET_ADR, (void *)&sys_param_set, sizeof(sys_param_set), 0);
 }
 
-void sys_config_init()
+void sys_param_set_init()
+{
+    flash_partition_read(SYS_SET_ADR, (void *)&sys_param_set, sizeof(sys_param_set), 0);
+    if(sys_param_set.magic != IOT_MAGIC || sys_param_set.crc32 != GetCrc32((uint8_t *)&sys_param_set, sizeof(sys_param_set) - 4)) {
+        sys_param_set_default_init();
+        LOG_E("sys_set_param save is fail!");
+    }
+}
+
+static void sys_config_default_init()
 {
     memset(&sys_config, 0, sizeof(sys_config));
     memcpy(&sys_config.manufacturer[0], DEFAULT_MANUFACTURER, strlen(DEFAULT_MANUFACTURER));
@@ -166,8 +163,37 @@ void sys_config_init()
     memcpy(&sys_config.ip, DEFAULT_IP, strlen(DEFAULT_IP));
     memcpy(&sys_config.DSN, DEFAULT_SN, strlen(DEFAULT_SN));
     sys_config.port = DEFAULT_PORT;
-    memset(&sys_info, 0, sizeof(sys_info));
-    LOG_I("sys_config_init is ok");
+    sys_config.magic = IOT_MAGIC;
+    sys_config.alive_sta = 0;
+    sys_config.crc32 = GetCrc32((uint8_t *)&sys_config, sizeof(sys_config) - 4);
+    flash_partition_erase(SYS_CONFIG_ADR);
+    flash_partition_erase(BACK_SYS_CONFIG_ADR);
+    flash_partition_write(SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
+    flash_partition_write(BACK_SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
+}
+
+void sys_config_init()
+{
+    flash_partition_read(SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
+    if(sys_config.magic != IOT_MAGIC || sys_config.crc32 != GetCrc32((uint8_t *)&sys_config, sizeof(sys_config) - 4)) {
+        flash_partition_read(BACK_SYS_CONFIG_ADR, (void *)&sys_config_back, sizeof(sys_config_back), 0);
+        if(sys_config_back.magic != IOT_MAGIC || sys_config_back.crc32 != GetCrc32((uint8_t *)&sys_config_back, sizeof(sys_config_back) - 4)) {
+            LOG_E("sys_config save is fail!");
+            sys_config_default_init();
+        } else {
+            sys_config = sys_config_back;
+            flash_partition_erase(SYS_CONFIG_ADR);
+            flash_partition_write(SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
+        }
+    } else {
+        flash_partition_read(BACK_SYS_CONFIG_ADR, (void *)&sys_config_back, sizeof(sys_config_back), 0);
+        if(sys_config_back.magic != IOT_MAGIC || sys_config_back.crc32 != GetCrc32((uint8_t *)&sys_config_back, sizeof(sys_config_back) - 4)) {
+            sys_config_back = sys_config;
+            flash_partition_erase(BACK_SYS_CONFIG_ADR);
+            flash_partition_write(BACK_SYS_CONFIG_ADR, (void *)&sys_config_back, sizeof(sys_config_back), 0);
+        }
+    }
+    LOG_I("APN:%s, DSN:%s, IP:%s, PORT:%d", sys_config.apn, sys_config.DSN, sys_config.ip, sys_config.port);
 }
 
 def_rtos_task_t app_system_task = NULL;
@@ -179,24 +205,32 @@ void app_system_thread(void *param)
 {
     def_rtosStaus res;
     int64_t csq_time_t = 0;
+    uint16_t bat_val;
     while (1)
     {
         res = def_rtos_semaphore_wait(system_task_sem, RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) {
             continue;
         }
-        if(sys_info.sys_updata_falg & 0x01) {
-            rtc_event_register(NET_HEART_EVENT,  sys_param_set.net_heart_interval, 1);
-            if(sys_param_set.unlock_car_heart_sw) {
-                rtc_event_register(CAR_HEART_EVENT, sys_param_set.unlock_car_heart_interval, 1);
-            } else {
-                rtc_event_unregister(CAR_HEART_EVENT);
+        if(sys_info.sys_updata_falg != 0) {
+            if(sys_info.sys_updata_falg & 0x01) {
+                sys_info.sys_updata_falg &= ~0x01;
+                flash_partition_erase(SYS_SET_ADR);
+                flash_partition_write(SYS_SET_ADR, (void *)&sys_param_set, sizeof(sys_param_set), 0);
+            } 
+            if(sys_info.sys_updata_falg & 0x02) {
+                sys_info.sys_updata_falg &= ~0x02;
+                flash_partition_erase(SYS_CONFIG_ADR);
+                flash_partition_erase(BACK_SYS_CONFIG_ADR);
+                flash_partition_write(SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
+                flash_partition_write(BACK_SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
             }
-            sys_info.sys_updata_falg &= ~0x01;
         }
-        if(def_rtos_get_system_tick() - csq_time_t > 10) {
+
+        if(def_rtos_get_system_tick() - csq_time_t > 10*1000) {
             net_update_singal_csq();
             csq_time_t = def_rtos_get_system_tick();
+            LOG_I("CSQ:%d", gsm_info.csq);
         }
         if(sys_set_var.ble_bind_infoClean) {
             ble_cmd_mark(BLE_DELETE_BIND_INDEX);
@@ -213,7 +247,7 @@ void app_system_thread(void *param)
         if(sys_set_var.car_power_en) {
             if(sys_set_var.car_power_en == 1) {
 
-            } else if(sys_set_var.car_power_en == 2){
+            } else if(sys_set_var.car_power_en == 2) {
 
             }
             sys_set_var.car_power_en = 0;
@@ -229,8 +263,16 @@ void app_system_thread(void *param)
 //        if(car_info.lock_sta == CAR_LOCK_STA) {
       //      car_heart_event();
  //       }
-        if(hal_drv_read_gpio_value(I_BLE_CON_SIG)) {
-      //      ble_heart_event();
+        if(hal_drv_read_gpio_value(I_BLE_CON_SIG)) {   //蓝牙连接状态检测
+            ble_heart_event();
+        }
+
+        if(hal_drv_read_gpio_value(I_36VPOWER_DET) == 0) {    //36V电源检测
+            hal_adc_value_get(BAT_ADC_VAL, (int *)&bat_val);
+            hal_drv_write_gpio_value(O_BAT_CHARGE_CON, 0);
+            sys_info.power_36v = 1;
+        } else {
+            sys_info.power_36v = 0;
         }
     }
     def_rtos_task_delete(NULL);
@@ -241,7 +283,12 @@ void system_timer_fun()
     def_rtos_smaphore_release(system_task_sem);
 }
 
-
+void sys_param_init()
+{
+    sys_config_init();
+    sys_param_set_init();
+    memset(&sys_info, 0, sizeof(sys_info));
+}
 void app_sys_init()
 {
     hal_drv_init();
@@ -250,10 +297,10 @@ void app_sys_init()
     ble_control_init();
     mcu_uart_init();
     net_control_init();
-    sys_config_init();
-    sys_param_set_init();
+    sys_param_init();
     can_protocol_init();
     net_protocol_init();
+    qmi8658_init();
     rtc_event_register(NET_HEART_EVENT,  sys_param_set.net_heart_interval, 1);
     if(sys_param_set.unlock_car_heart_sw){
         rtc_event_register(CAR_HEART_EVENT, sys_param_set.unlock_car_heart_interval, 1);

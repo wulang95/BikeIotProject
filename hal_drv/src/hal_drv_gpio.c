@@ -1,6 +1,6 @@
 #include "hal_drv_gpio.h"
 #include "hal_resources_config.h"
-
+#include "ql_adc.h"
 
 struct hal_gpio_config_table_s {
     uint8_t pin;
@@ -42,6 +42,11 @@ struct hal_gpio_config_table_s hal_gpio_config_table[GPIO_MAX] = {
     {PIN_NONE,       0},        //GPIO_31  
 };
 
+void hal_adc_value_get(int channel, int *adc)
+{
+   ql_adc_get_volt(channel, adc);
+}
+
 void hal_drv_gpio_init(uint8_t gpio_num, IO_DIR_E dir, IO_MODE_E mode, IO_VAL_E value)
 {
     if(gpio_num < GPIO_0 || gpio_num > GPIO_31) return;
@@ -62,6 +67,8 @@ uint8_t hal_drv_read_gpio_value(uint8_t gpio_num)
     ql_gpio_get_level(gpio_num, &gpio_lvl);
     return gpio_lvl;
 }
+
+
 
 void hal_drv_set_gpio_irq(uint8_t gpio_num, IO_EDGE_E trigger, IO_MODE_E e_mode, void(*gpio_irq_call_fun)(void *))
 {

@@ -36,6 +36,7 @@ typedef int def_rtosStaus;
 
 #define def_rtos_task_sleep_ms(ms)  ql_rtos_task_sleep_ms(ms)
 #define def_rtos_task_sleep_s(s)    ql_rtos_task_sleep_s(s)
+#define def_rtos_task_sleep_us(us)   ql_delay_us(us)
 
 #define def_rtos_enter_critical   ql_rtos_exit_critical
 #define def_rtos_exit_critical(critical)  ql_rtos_exit_critical(critical)

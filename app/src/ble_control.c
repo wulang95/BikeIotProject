@@ -154,11 +154,13 @@ void ble_cmd_send_fail(uint8_t cmd)
 
 void ble_control_send_thread(void *param)
 {
+    def_rtosStaus res;
     int64_t time_t;
     uint8_t cmd_index;
     while (1)
     {
-        def_rtos_queue_wait(ble_send_cmd_que, &ble_cmd_send_var.cmd_index, sizeof(uint8_t), RTOS_WAIT_FOREVER);
+        res = def_rtos_queue_wait(ble_send_cmd_que, &ble_cmd_send_var.cmd_index, sizeof(uint8_t), RTOS_WAIT_FOREVER);
+        if(res != RTOS_SUCEESS) continue;
         cmd_index = ble_cmd_send_var.cmd_index;
         ble_cmd_send_var.ask_flag = 0;
         ble_cmd_send_var.send_cnt = 0;
@@ -324,8 +326,9 @@ static void ble_power_init()
     char buf[24], *p;
     uint16_t len;
     uint8_t i;
-    hal_drv_write_gpio_value(O_BLE_POWER, HIGH_L);
+    hal_drv_write_gpio_value(O_BLE_POWER, LOW_L);
     for(i = 0; i < 3; i++){
+        def_rtos_task_sleep_ms(10);
         len = hal_drv_uart_read(BLE_UART, (uint8_t *)buf, 24, 300);
         if(len) {
             LOG_I("%s", buf);
@@ -336,10 +339,12 @@ static void ble_power_init()
                 break;
             }
         } else {
-            hal_drv_write_gpio_value(O_BLE_POWER, LOW_L);
-            def_rtos_task_sleep_ms(3000);
+            hal_drv_write_gpio_value(O_BLE_POWER, HIGH_L);
+            LOG_E("ble init recv fail count:%d", i);
+            def_rtos_task_sleep_ms(8000);
         }
-        hal_drv_write_gpio_value(O_BLE_POWER, HIGH_L);
+        hal_drv_write_gpio_value(O_BLE_POWER, LOW_L);
+        def_rtos_task_sleep_ms(10);
     }
     if(ble_info.init != 1) {
         LOG_E("ble init fail");

@@ -59,15 +59,30 @@ struct gps_info_stu{
 
 enum {
     CMD_CAN_TRANS = 0X0C,
-    CMD_GPS_START = 0X0E,
-    CMD_GPS_STOP = 0X0D,
+    CMD_GPS_POWERON = 0X0E,
+    CMD_GPS_POWEROFF = 0X0D,
+    CMD_GPS_DATA = 0X0F,
+	CMD_GPS_TRANS = 0X0B,
+	CMD_GPS_DEEPSLEEP = 0X0A,
+	CMD_GPS_HOST_START = 0X09,
 };
+enum {
+    CMD_CAN_TRANS_INDEX = 0,
+    CMD_GPS_POWERON_INDEX,
+    CMD_GPS_POWEROFF_INDEX,
+    CMD_GPS_DATA_INDEX,
+    CMD_GPS_TRANS_INDEX,
+    CMD_GPS_DEEPSLEEP_INDEX,
+    CMD_GPS_HOST_START_INDEX
+};
+
+
 extern struct gps_info_stu gps_info;
 void mcu_uart_init();
 uint8_t can_data_recv(stc_can_rxframe_t *can_rxframe, uint32_t time_out);
 void can_data_send(stc_can_rxframe_t can_txframe);
 void mcu_uart_recv_thread(void *param);
-
+void mcu_uart_send_thread(void *param);
 
 
 

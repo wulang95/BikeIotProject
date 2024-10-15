@@ -566,7 +566,8 @@ static void ble_cmd_set_apn_info(uint8_t *dat, uint8_t lenth)
     uint8_t data[256] = {0}, buf[256];
     uint16_t data_len = 0;
     uint16_t len;
-
+    LOG_I("apn:%s", (char *)dat);
+    memset(sys_config.apn, 0, sizeof(sys_config.apn));
     memcpy(sys_config.apn, dat, lenth);
     memcpy(&data[data_len], dat, lenth);
     data_len += lenth;
@@ -578,7 +579,7 @@ static void ble_cmd_set_power_on_password(uint8_t *dat, uint8_t lenth)
     uint8_t data[256] = {0}, buf[256];
     uint16_t data_len = 0;
     uint16_t len;
-
+    memset(car_set_save.power_on_psaaword, 0, sizeof(car_set_save.power_on_psaaword));
     memcpy(car_set_save.power_on_psaaword, dat, lenth);
 
     memcpy(&data[data_len], dat, lenth);
@@ -813,6 +814,16 @@ static void ble_set_atsphlight_sw(uint8_t dat)
     ble_protocol_data_pack(BLE_CMD_ATSPHLIGHT_SW_ASK, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
 }
+static void ble_apn_query_send()
+{   
+    uint8_t data[256] = {0}, buf[256];
+    uint16_t data_len = 0;
+    uint16_t len;
+    memcpy(&data[data_len], sys_config.apn, strlen(sys_config.apn));
+    data_len += strlen(sys_config.apn);
+    ble_protocol_data_pack(BLE_CMD_Q_APN, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
 void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 {
     uint16_t i = 0;
@@ -924,6 +935,10 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
         break;
         case BLE_CMD_S_ATSPHLIGHT_TIMTASK:
             ble_atsphlight_set_task(data, len);
+        break;
+        case BLE_CMD_Q_APN:
+            ble_apn_query_send();
+        break;
         default:
         break;
     }
@@ -935,10 +950,13 @@ void ble_up_cycle_data_heart_service()
     uint16_t data_len = 0;
     uint16_t len;
 
+    
     data[data_len++] = (car_info.speed >> 8) & 0xff;
     data[data_len++] = car_info.speed&0xff;
     data[data_len++] = (car_info.max_speed >> 8)&0xff;
     data[data_len++] = car_info.max_speed&0xff;
+    data[data_len++] = (car_info.avg_speed >> 8)&0xff;
+    data[data_len++] = car_info.avg_speed&0xff;  //CAN错误码
     data[data_len++] = (car_info.single_odo >> 16)&0xff;
     data[data_len++] = (car_info.single_odo>>8)&0xff;
     data[data_len++] = car_info.single_odo&0xff;
@@ -955,7 +973,8 @@ void ble_up_cycle_data_heart_service()
     data[data_len++] = ((car_info.motor_power/10) >> 8)&0xff;
     data[data_len++] = (car_info.motor_power/10)&0xff;
     data[data_len++] = car_info.bms_info[0].soc;
-    data[data_len++] = car_info.pedal_speed;
+    data[data_len++] = car_info.pedal_speed >> 8;
+    data[data_len++] = car_info.pedal_speed & 0xff;   
     data[data_len++] = ((car_info.calorie/1000)>>8)&0xff;
     data[data_len++] = (car_info.calorie/1000)&0xff;
     data[data_len++] = 0;
@@ -973,7 +992,9 @@ void ble_up_cycle_data_heart_service()
     data[data_len++] = car_info.hmi_info.fault_code;
     data[data_len++] = 0;
     data[data_len++] = 0;
-    data[data_len++] = gsm_info.online ? 0x01:0x02;
+    data[data_len++] = 0;
+    data[data_len++] = 0;
+    data[data_len++] = sys_info.paltform_connect ? 0x01:0x02;
     data[data_len++] = gsm_info.csq;
     data[data_len++] = sys_info.bat_soc;
     data[data_len++] = gps_info.starNum;

@@ -1,18 +1,19 @@
 #ifndef  __CONFIG_H
 #define  __CONFIG_H
 #include "ql_gpio.h"
+#include "ql_adc.h"
 
 #define DBG_ENABLE   1
-#define BLE_UART    UART1
+#define BLE_UART    UART2
 #define BLE_BAUD    115200
 #define BLE_PARITY  PARITY_NONE
 
-#define MCU_UART    UART2
+#define MCU_UART    UART1
 #define MCU_BAUD    115200
 #define MCU_PARITY  PARITY_EVENT
 //#define MCU_WEEK
 
-
+#define BAT_ADC_VAL        QL_ADC1_CHANNEL 
 
 #define I_SENSOR_IN           GPIO_1
 #define O_RED_IND             GPIO_2
@@ -31,21 +32,18 @@
 #define O_BLE_POWER           GPIO_24
 #define O_KEY_LOW             GPIO_25
 
+#define FLASH_SECTOR_SIZE  4096
 
-#define     BOOT_ADDR               0x60250000
-#define     BOOT_SIZE               0x2000
-#define     APP1_ADDR               (BOOT_ADDR + BOOT_SIZE)   
-#define     APP1_SIZE               (0x40000)   
-#define     APP2_ADDR               (APP1_ADDR + APP1_SIZE)
-#define     APP2_SIZE               (0x40000)
-#define     BOOT_CONFIG_ADDR        (APP2_ADDR + APP2_SIZE)
-#define     BOOT_CONFIG_SIZE        0x1000
-#define     SYS_CONFIG_ADDR           (BOOT_CONFIG_ADDR + BOOT_CONFIG_SIZE)
-#define     SYS_CONFIG_SIZE           0x1000
-#define     BACK_SYS_CONFIG_ADDR      (SYS_CONFIG_ADDR + SYS_CONFIG_SIZE)
-#define     BACK_SYS_CONFIG_SIZE      0x1000
-#define     CAR_SET_ADD             (BACK_SYS_CONFIG_ADDR + BACK_SYS_CONFIG_SIZE)
-#define     CAR_SET_SIZE            0x1000
+#define     FLASH_BASE                  0x60290000 
+#define     DEV_APP_ADDR                FLASH_BASE
+//521K
+#define     DEV_APP_SIZE                0x80000  
+#define     SYS_CONFIG_ADDR             (DEV_APP_ADDR + DEV_APP_SIZE)
+#define     SYS_CONFIG_SIZE             FLASH_SECTOR_SIZE  
+#define     BACK_SYS_CONFIG_ADDR        (SYS_CONFIG_ADDR + SYS_CONFIG_SIZE)
+#define     BACK_SYS_CONFIG_SIZE        FLASH_SECTOR_SIZE
+#define     SYS_SET_ADDR                (BACK_SYS_CONFIG_ADDR + BACK_SYS_CONFIG_SIZE)
+#define     SYS_SET_SIZE                FLASH_SECTOR_SIZE
 
 
 

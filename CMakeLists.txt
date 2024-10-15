@@ -20,6 +20,7 @@ set(APP_FILES
     app/src/net_protocol.c
     app/src/lock.c
     app/src/http_upgrade_ota.c
+    app/src/qmi8658.c
  )
 
 set(COMMON_FILES 
@@ -33,6 +34,7 @@ set(HAL_DRV_FILES
     hal_drv/src/hal_drv_flash.c
     hal_drv/src/hal_virt_at.c
     hal_drv/src/hal_drv_net.c
+    hal_drv/src/hal_drv_iic.c
     )
 
 target_sources(${target} PRIVATE

@@ -31,7 +31,7 @@ void hal_drv_gpio_init(uint8_t gpio_num, IO_DIR_E dir, IO_MODE_E mode, IO_VAL_E 
 void hal_drv_write_gpio_value(uint8_t gpio_num, IO_VAL_E value);
 uint8_t hal_drv_read_gpio_value(uint8_t gpio_num);
 void hal_drv_set_gpio_irq(uint8_t gpio_num, IO_EDGE_E trigger, IO_MODE_E e_mode, void(*gpio_irq_call_fun)(void *));
-
+void hal_adc_value_get(int channel, int *adc);
 
 
 
