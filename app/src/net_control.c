@@ -49,7 +49,6 @@ typedef struct {
     struct sockaddr_in local4;
     struct sockaddr_in server_ipv4;
     int socket_fd;
-    uint8_t socket_en;
 } SOCKET_CON_INFO_STU;
 
 typedef struct {
@@ -70,7 +69,6 @@ void net_control_init()
     pdp_active_info.pdp_state = PDP_NOT_ACTIVATED;
     socket_con_info.socket_fd = -1;
     socket_con_info.socket_state = SOCKET_STATUS_IDLE;
-    socket_con_info.socket_en = 0;
     LOG_I("net_control_init is ok");
 }
 
@@ -89,8 +87,8 @@ static void pdp_active_state_machine(void)
     switch (pdp_active_info.pdp_state) {
         case PDP_NOT_ACTIVATED:
             LOG_I("PDP_NOT_ACTIVATED");
+            sys_info.pdp_reg = 0;
             pdp_active_info.pdp_is_active = 0;
-            socket_con_info.socket_en = 0;
             pdp_active_info.pdp_state  = PDP_CONDITIONS_CHECK;
             check_csq_timeout = def_rtos_get_system_tick();
         break;
@@ -115,7 +113,7 @@ static void pdp_active_state_machine(void)
                 pdp_active_info.pdp_state  = PDP_START_ACTIVATION;
                 check_pdp_timeout = def_rtos_get_system_tick();
                 hal_drv_set_data_call_asyn_mode(1);
-                hal_drv_start_data_call(sys_config.apn);
+                hal_drv_start_data_call(sys_config.apn); 
             }
             if((def_rtos_get_system_tick() - check_csq_timeout)/1000 > 30*60) {
                 LOG_E("sys_reset...");
@@ -136,8 +134,8 @@ static void pdp_active_state_machine(void)
         case PDP_ACTIVATION_SUCCESS:
             LOG_I("PDP_ACTIVATION_SUCCESS");
             pdp_active_info.pdp_state  = PDP_ACTIVE_DETECT;
-            socket_con_info.socket_en  = 1;
             pdp_active_info.pdp_is_active = 1;
+            sys_info.pdp_reg = 1; 
         break;
         case PDP_ACTIVATION_FAILURE:
             hal_dev_set_c_fun(MIN_FUN, 0);
@@ -227,74 +225,90 @@ void net_socket_send(uint8_t *data, uint16_t len)
     write(socket_con_info.socket_fd, data, len);
 }
 
-// void socket_data_process()
-// {
-//     uint8_t buf[512] = {0};
-//     uint16_t len;
-//     fd_set read_fds;
-//     fd_set exp_fds;
-//     int flags = 0;
-//     int fd_changed = 0;
-//     FD_ZERO(&read_fds);
-// 	FD_ZERO(&exp_fds);
-
-//     flags |= O_NONBLOCK;
-// 	fcntl(socket_con_info.socket_fd, F_SETFL, flags);
-
-//     FD_SET(socket_con_info.socket_fd, &read_fds);
-//     FD_SET(socket_con_info.socket_fd, &exp_fds);
-//     rtc_event_register(NET_HEART_EVENT, 60*4, 1);
-//     net_protocol_cmd_send(NET_CMD_SIGN_IN_Q0);
-//     while(1) {
-//         LOG_I("select");
-//         fd_changed = select(socket_con_info.socket_fd+1, &read_fds, NULL, &exp_fds, NULL);
-//         LOG_I("fd_changed:%d", fd_changed);
-//         if(fd_changed > 0) {
-//             if(FD_ISSET(socket_con_info.socket_fd, &read_fds)){
-//                 FD_CLR(socket_con_info.socket_fd, &read_fds);
-//                 memset(buf, 0, sizeof(buf));
-//                 len = read(socket_con_info.socket_fd, buf, 512);
-//                 if(len <= 0) {
-//                     socket_con_info.socket_state = SOCKET_STATUS_IDLE;
-//                     break;
-//                 }
-//                 FD_SET(socket_con_info.socket_fd, &read_fds);
-//                 debug_data_printf("net_recv", buf, len);
-//                 net_recv_data_parse(buf, len);
-//             } else if(FD_ISSET(socket_con_info.socket_fd, &exp_fds)) {
-//                 FD_CLR(socket_con_info.socket_fd, &exp_fds);
-//                 socket_con_info.socket_state = SOCKET_STATUS_IDLE;
-//                 break;
-//             }  
-//         }
-        
-//     }
-// }
-
+void net_socket_close()
+{
+    if(socket_con_info.socket_fd > 0) {
+        close(socket_con_info.socket_fd);
+        LOG_I("socket is close");
+    }
+    sys_info.paltform_connect = 0;
+    socket_con_info.socket_fd = -1;
+}
 
 void socket_data_process()
 {
-    int  recv_len = 0;
     uint8_t buf[1024] = {0};
-    net_protocol_cmd_send(NET_CMD_SIGN_IN_Q0);
-    while(1){
-        memset(buf, 0, sizeof(buf));
-        recv_len = read(socket_con_info.socket_fd, buf, 1024);
-        if(recv_len > 0) {
-             debug_data_printf("net_recv", buf, recv_len);
-             net_recv_data_parse(buf, recv_len);
-        }
-        else {
-            LOG_E("SOCKET is error");
-            socket_con_info.socket_state = SOCKET_STATUS_IDLE;
-            break;
-        }
+    uint16_t len;
+    fd_set read_fds;
+    fd_set exp_fds;
+    int flags = 0;
+    int fd_changed = 0;
+    FD_ZERO(&read_fds);
+	FD_ZERO(&exp_fds);
+
+    flags |= O_NONBLOCK;
+	fcntl(socket_con_info.socket_fd, F_SETFL, flags);
+
+    FD_SET(socket_con_info.socket_fd, &read_fds);
+    FD_SET(socket_con_info.socket_fd, &exp_fds);
+    NET_CMD_MARK(NET_CMD_SIGN_IN_Q0);
+    while(1) {
+        LOG_I("select");
+        fd_changed = select(socket_con_info.socket_fd+1, &read_fds, NULL, &exp_fds, NULL);
+        LOG_I("fd_changed:%d", fd_changed);
+        if(fd_changed > 0) {
+            if(FD_ISSET(socket_con_info.socket_fd, &read_fds)){
+                FD_CLR(socket_con_info.socket_fd, &read_fds);
+                memset(buf, 0, sizeof(buf));
+                len = read(socket_con_info.socket_fd, buf, 512);
+                if(len <= 0) {
+                    socket_con_info.socket_state = SOCKET_STATUS_IDLE;
+                    sys_info.paltform_connect = 0;
+                    LOG_E("socket is error");
+                    break;
+                }
+                FD_SET(socket_con_info.socket_fd, &read_fds);
+                debug_data_printf("net_recv", buf, len);
+                net_recv_data_parse(buf, len);
+            } else if(FD_ISSET(socket_con_info.socket_fd, &exp_fds)) {
+                FD_CLR(socket_con_info.socket_fd, &exp_fds);
+                socket_con_info.socket_state = SOCKET_STATUS_IDLE;
+                sys_info.paltform_connect = 0;
+                LOG_E("socket is error");
+                break;
+            } else {
+                LOG_E("socket is error");
+                socket_con_info.socket_state = SOCKET_STATUS_IDLE;
+                sys_info.paltform_connect = 0;
+                break;
+            }  
+        }   
     }
 }
+
+// void socket_data_process()
+// {
+//     int  recv_len = 0;
+//     uint8_t buf[1024] = {0};
+//     net_protocol_cmd_send(NET_CMD_SIGN_IN_Q0);
+//     while(1){
+//         memset(buf, 0, sizeof(buf));
+//         recv_len = read(socket_con_info.socket_fd, buf, 1024);
+//         if(recv_len > 0) {
+//              debug_data_printf("net_recv", buf, recv_len);
+//              net_recv_data_parse(buf, recv_len);
+//         } else {
+//             LOG_E("SOCKET is error");
+//             socket_con_info.socket_state = SOCKET_STATUS_IDLE;
+//             sys_info.paltform_connect = 0;
+//             break;
+//         }
+//     }
+// }
 static void iot_server_socket_state_machine(void)
 {
     static uint8_t connect_count = 0;
-    if(socket_con_info.socket_en) {
+    if(pdp_active_info.pdp_is_active == 1 && sys_info.ota_flag == 0) {
         switch(socket_con_info.socket_state) {
             case SOCKET_STATUS_IDLE:
                 LOG_I("SOCKET_STATUS_IDLE");

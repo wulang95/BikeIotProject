@@ -36,6 +36,10 @@ void rtc_event_handler(RTC_EVENT rtc_e)
             }
             LOG_I("NET_HEART_EVENT");
             break;
+        case GPS_TRACK_EVENT:
+            NET_CMD_MARK(NET_CMD_Q_LOCATION_D0);
+            LOG_I("GPS_TRACK_EVENT");
+            break;
         default:
             break;
     }

@@ -52,6 +52,7 @@ struct http_upgrade_info_stu {
 
 extern struct http_upgrade_info_stu http_upgrade_info;
 void app_http_ota_thread(void *param);
+void app_http_ota_init();
 #ifdef __cplusplus
 }
 #endif

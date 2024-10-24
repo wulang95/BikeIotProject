@@ -11,7 +11,7 @@ struct gsm_info_stu{
     uint8_t csq;
 };
 extern struct gsm_info_stu gsm_info;
-
+void net_socket_close();
 void net_control_init();
 void net_update_singal_csq();
 void net_socket_thread(void *param);

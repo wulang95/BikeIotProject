@@ -13,7 +13,7 @@
 #define HEADER      0XFFFF
 #define SERVER_TAG    "*SCOS"
 #define IOT_TAG       "*SCOR"
-#define PARAM_LEN       20
+#define PARAM_LEN       256
 
 struct net_send_cmd_con_stu{
     uint8_t cent;
@@ -67,8 +67,9 @@ uint8_t net_cmd_param_strtok(char *str,  char (*ppr)[PARAM_LEN])
 
 void net_cmd_package_send(char *data, uint16_t len)
 {
-    char data_str[512] = {0};
+    char *data_str;
     uint16_t lenth = 0, len_str;
+    data_str = malloc(512);
     len_str = sprintf(data_str, "*SCOR,OM,");
     lenth += len_str;
     strncat(data_str, gsm_info.imei, strlen(gsm_info.imei));
@@ -81,6 +82,7 @@ void net_cmd_package_send(char *data, uint16_t len)
     lenth += 2;
     LOG_I("%s", data_str);
     net_socket_send((uint8_t *)data_str, lenth);
+    free(data_str);
 }
 
 static void net_cmd_sign_in_Q0_func(uint8_t send_flag, char (*ppr)[PARAM_LEN])
@@ -333,14 +335,44 @@ static void net_cmd_voice_play_V0_func(uint8_t send_flag, char (*ppr)[PARAM_LEN]
     }
 }
 
+void gps_data_net_up()
+{
+    char data[156] = {0};
+    uint16_t len = 0, lenth = 0;
+    len = sprintf(data, "D0,%d,", GPS_MODE);
+    lenth += len;
+    if(gps_info.RefreshFlag && gps_info.GPSValidFlag == 'A') {
+        len = sprintf(data+ lenth, "%s,", gps_info.Time1);
+        lenth += len;
+        len = sprintf(data + lenth, "%c,", gps_info.GPSValidFlag);
+        lenth += len;
+        len = sprintf(data + lenth, "%s,", gps_info.LatLongData);
+        lenth += len;
+        len = sprintf(data + lenth, "%s,", gps_info.SateNumStr);
+        lenth += len;
+        len = sprintf(data + lenth, "%s,", gps_info.HDOP);
+        lenth += len;
+        len = sprintf(data + lenth, "%s,", gps_info.Time2);
+        lenth += len;
+        len = sprintf(data + lenth, "%s,", gps_info.SeaLevelH);
+        lenth += len;
+        len = sprintf(data + lenth, "%s", gps_info.Mode);
+        lenth += len;
+    } else {
+        len = sprintf(data + lenth, "%s", ",V,,,,,,,,,,N");
+        lenth += len;
+    }
+    LOG_I("data:%s, len:%d", data, lenth);
+    net_cmd_package_send(data, lenth);
+}
+
 static void net_cmd_q_location_D0_func(uint8_t send_flag, char (*ppr)[PARAM_LEN])
 {
-    // char data_str[128] ={0};
-    // uint16_t len = 0;
-    // uint16_t lenth = 0; 
-    // if(send_flag) {
-
-    // }
+    if(send_flag) {
+        gps_data_net_up();
+    } else {
+        GPS_MODE = GPS_SINGAL;
+    }
 }
 
 static void net_cmd_location_track_D1_func(uint8_t send_flag, char (*ppr)[PARAM_LEN])
@@ -356,6 +388,12 @@ static void net_cmd_location_track_D1_func(uint8_t send_flag, char (*ppr)[PARAM_
         net_cmd_package_send(data_str, lenth);
     } else {
         car_set_save.gps_track_interval = atoi(ppr[0]);
+        if(car_set_save.gps_track_interval) {
+            rtc_event_register(GPS_TRACK_EVENT, car_set_save.gps_track_interval, 1);
+        } else{
+            rtc_event_unregister(GPS_TRACK_EVENT);
+        }
+        GPS_MODE = GPS_TRACK;
     }
 }
 
@@ -539,6 +577,7 @@ static void net_cmd_startup_http_upgrade_U5_func(uint8_t send_flag, char (*ppr)[
     } else {
         http_upgrade_info.req_type = atoi(ppr[0]);
         http_upgrade_info.timeout = atoi(ppr[1]);
+        memset(http_upgrade_info.url, 0x00, sizeof(http_upgrade_info.url));
         memcpy(http_upgrade_info.url, &ppr[2], strlen(ppr[2]));
         updata_type1 = atoi(ppr[3]);
         updata_type2 = atoi(ppr[4]);
@@ -580,6 +619,7 @@ static void net_cmd_startup_http_upgrade_U5_func(uint8_t send_flag, char (*ppr)[
             }  
         }
         http_upgrade_info.crc_sum = atoi(ppr[6]);
+        def_rtos_smaphore_release(http_upgrade_info.http_ota_sem);
     }
 }
 

@@ -28,7 +28,6 @@ enum {
     NET_CMD_STARUP_HTTP_UPGRADE_U5,
     NET_CMD_HTTP_UPGRADE_STATE_U6,
 };
-
 void net_protocol_init();
 void NET_CMD_MARK(uint8_t cmd);
 void net_recv_data_parse(uint8_t *data, uint16_t len);

@@ -104,10 +104,10 @@ enum {
 
 void ble_protocol_data_pack(uint16_t cmd, uint8_t *data, uint16_t data_len, uint8_t *buf, uint16_t *len)
 {
-    uint8_t p[256];
+    uint8_t *p;
     uint16_t lenth = 0;
     uint16_t check_crc;
-
+    p = malloc(256);
     p[lenth++] = HEAD_H;
     p[lenth++] = HEAD_L;
     p[lenth++] = cmd >> 8;
@@ -124,6 +124,7 @@ void ble_protocol_data_pack(uint16_t cmd, uint8_t *data, uint16_t data_len, uint
     p[lenth++] = TAIL_H;
     p[lenth++] = TAIL_L;
     ble_cmd_pack(CMD_BLE_TRANS, p, lenth, buf, len);
+    free(p);
 }
 
 
@@ -318,7 +319,7 @@ static void car_net_service_state_send()
 
     data[data_len++] = sys_info.paltform_connect ? 0x01:0x02;
     data[data_len++] = gsm_info.csq;
-    data[data_len++] = gps_info.starNum;
+    data[data_len++] = atoi(gps_info.SateNumStr);
     ble_protocol_data_pack(BLE_CMD_Q_NET_SERVICE, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
 }
@@ -946,11 +947,13 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 
 void ble_up_cycle_data_heart_service()
 {
-    uint8_t data[256] = {0}, buf[256];
+  //  uint8_t data[256] = {0}, buf[256];
+    uint8_t *data, *buf; 
     uint16_t data_len = 0;
     uint16_t len;
 
-    
+    data = malloc(128);
+    buf = malloc(128);
     data[data_len++] = (car_info.speed >> 8) & 0xff;
     data[data_len++] = car_info.speed&0xff;
     data[data_len++] = (car_info.max_speed >> 8)&0xff;
@@ -997,11 +1000,14 @@ void ble_up_cycle_data_heart_service()
     data[data_len++] = sys_info.paltform_connect ? 0x01:0x02;
     data[data_len++] = gsm_info.csq;
     data[data_len++] = sys_info.bat_soc;
-    data[data_len++] = gps_info.starNum;
+    data[data_len++] = 0;
+    data[data_len++] = atoi(gps_info.SateNumStr);
     data[data_len++] = car_info.lock_sta?0x01:0x02;
     data[data_len++] = 0x01;
     ble_protocol_data_pack(BLE_CMD_U_RIDEDATA_SERVICE, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
+    free(data);
+    free(buf);
 }
 
 void ble_heart_event()

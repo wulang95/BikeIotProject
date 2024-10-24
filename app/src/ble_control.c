@@ -144,8 +144,6 @@ void ble_send_data(uint8_t *data, uint16_t len)
     debug_data_printf("ble_send", data, len);
 }
 
-
-
 void ble_cmd_send_fail(uint8_t cmd)
 {
 

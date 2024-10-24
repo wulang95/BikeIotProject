@@ -226,9 +226,12 @@ void app_system_thread(void *param)
                 flash_partition_write(BACK_SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
             }
         }
-
+         if(def_rtos_get_system_tick() - gps_resh_time_t > 10*1000) {
+                gps_info.RefreshFlag = 0;
+         }   
         if(def_rtos_get_system_tick() - csq_time_t > 10*1000) {
             net_update_singal_csq();
+            can_png_quest(CONTROL_ADR, CONTROL_HWVER1, 0);
             csq_time_t = def_rtos_get_system_tick();
             LOG_I("CSQ:%d", gsm_info.csq);
         }
@@ -265,11 +268,14 @@ void app_system_thread(void *param)
  //       }
         if(hal_drv_read_gpio_value(I_BLE_CON_SIG)) {   //蓝牙连接状态检测
             ble_heart_event();
+            sys_info.ble_connect = 1;
+        } else {
+            sys_info.ble_connect = 0;
         }
 
         if(hal_drv_read_gpio_value(I_36VPOWER_DET) == 0) {    //36V电源检测
             hal_adc_value_get(BAT_ADC_VAL, (int *)&bat_val);
-            hal_drv_write_gpio_value(O_BAT_CHARGE_CON, 0);
+            hal_drv_write_gpio_value(O_BAT_CHARGE_CON, 1);
             sys_info.power_36v = 1;
         } else {
             sys_info.power_36v = 0;
@@ -295,12 +301,13 @@ void app_sys_init()
     app_led_init();
     app_rtc_init();
     ble_control_init();
-    mcu_uart_init();
     net_control_init();
     sys_param_init();
     can_protocol_init();
     net_protocol_init();
     qmi8658_init();
+    app_http_ota_init();
+ //   rtc_event_register(NET_HEART_EVENT,  8, 1);
     rtc_event_register(NET_HEART_EVENT,  sys_param_set.net_heart_interval, 1);
     if(sys_param_set.unlock_car_heart_sw){
         rtc_event_register(CAR_HEART_EVENT, sys_param_set.unlock_car_heart_interval, 1);

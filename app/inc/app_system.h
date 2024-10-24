@@ -81,7 +81,7 @@ struct sys_config_stu{
     uint32_t crc32;
 };
 #pragma pack(1)
-struct sys_info_stu{
+struct sys_info_stu {
     uint16_t bat_val;
     uint8_t bat_soc;
     uint8_t bat_soh;
@@ -97,6 +97,7 @@ struct sys_info_stu{
     uint8_t can_protocol_major;
     uint8_t can_protocol_sub;
     uint8_t sys_updata_falg; //bit0表示sys_param
+    uint8_t ota_flag;
 };
 struct sys_set_var_stu{
     uint8_t sys_poweroff_flag;

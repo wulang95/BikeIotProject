@@ -139,6 +139,7 @@ void hal_drv_rtc_set_alarm(int64_t sec)
 {
     int64_t time_t;
     ql_rtc_time_t tm;
+    ql_rtc_enable_alarm(0);
     time_t = hal_drv_rtc_get_timestamp();
     time_t += sec;
     ql_sec_conv_rtc_time(&time_t, &tm);

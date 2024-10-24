@@ -21,6 +21,7 @@ set(APP_FILES
     app/src/lock.c
     app/src/http_upgrade_ota.c
     app/src/qmi8658.c
+    app/src/imualgo.a
  )
 
 set(COMMON_FILES 
