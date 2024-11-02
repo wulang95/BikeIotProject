@@ -212,7 +212,7 @@ void iot_socket_connect()
             return;
         }
     }
-     if(socket_connect_delay > 512) {
+    if(socket_connect_delay > 512) {
         socket_connect_delay = 1;
     }
     def_rtos_task_sleep_s(socket_connect_delay);

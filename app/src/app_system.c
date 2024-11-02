@@ -23,7 +23,6 @@ void assert_handler(const char *ex_string, const char *func, size_t line)
     while(1);
 }
 
-
 void flash_partition_erase(FLASH_PARTITION flash_part)
 {
     switch(flash_part) {
@@ -38,6 +37,9 @@ void flash_partition_erase(FLASH_PARTITION flash_part)
             break;
         case SYS_SET_ADR:
             hal_drv_flash_erase(SYS_SET_ADDR, SYS_SET_SIZE);
+            break;
+        case SENSEOR_CALIBRATION_ADR:
+            hal_drv_flash_erase(SENSOR_CALIBRATION_DATA_ADDR, SENSOR_CALIBRATION_DATA_SEIZE);
             break;
         default:
             break;
@@ -59,6 +61,9 @@ void flash_partition_write(FLASH_PARTITION flash_part, void *data, size_t lenth,
         case SYS_SET_ADR:
             hal_drv_flash_write(SYS_SET_ADDR + shift, data, lenth);
             break;
+        case SENSEOR_CALIBRATION_ADR:
+            hal_drv_flash_write(SENSOR_CALIBRATION_DATA_ADDR + shift, data, lenth);
+            break;
         default:
             break;
     }
@@ -78,6 +83,9 @@ void flash_partition_read(FLASH_PARTITION flash_part, void *data, size_t lenth, 
             break;
         case SYS_SET_ADR:
             hal_drv_flash_read(SYS_SET_ADDR + shift, data, lenth);
+            break;
+        case SENSEOR_CALIBRATION_ADR:
+            hal_drv_flash_read(SENSOR_CALIBRATION_DATA_ADDR + shift, data, lenth);
             break;
         default:
             break;
@@ -118,16 +126,17 @@ static void hal_drv_init()
     hal_drv_gpio_init(O_RED_IND, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(O_WHITE_IND, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(O_BAT_CHARGE_CON, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
-    hal_drv_gpio_init(I_MCU_CONEC, IO_INPUT, DOWN_MODE, L_NONE);
+    hal_drv_gpio_init(O_MCU_CONEC, IO_OUTPUT, PULL_NONE_MODE, HIGH_L);
     hal_drv_gpio_init(I_BLE_CON_SIG, IO_INPUT, DOWN_MODE, L_NONE);
     hal_drv_gpio_init(O_KEY_HIGH, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(O_BLE_WEEK_SIG, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
-    hal_drv_gpio_init(O_MCU_WEEK, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+    hal_drv_gpio_init(I_MCU_WEEK, IO_INPUT, DOWN_MODE, L_NONE);
     hal_drv_gpio_init(I_36VPOWER_DET, IO_INPUT, DOWN_MODE, L_NONE);
     hal_drv_gpio_init(O_BLE_POWER, IO_OUTPUT, PULL_NONE_MODE, HIGH_L);
 
     hal_drv_uart_init(BLE_UART, BLE_BAUD, BLE_PARITY);
     hal_drv_uart_init(MCU_UART, MCU_BAUD, MCU_PARITY);
+    hal_drv_write_gpio_value(O_MCU_CONEC, HIGH_L);
     hal_virt_at_init();
     LOG_I("hal_drv_init is ok");
 }
@@ -200,7 +209,6 @@ def_rtos_task_t app_system_task = NULL;
 def_rtos_timer_t system_timer;
 def_rtos_sem_t system_task_sem;
 
-
 void app_system_thread(void *param)
 {
     def_rtosStaus res;
@@ -226,14 +234,16 @@ void app_system_thread(void *param)
                 flash_partition_write(BACK_SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
             }
         }
-         if(def_rtos_get_system_tick() - gps_resh_time_t > 10*1000) {
-                gps_info.RefreshFlag = 0;
-         }   
+        if(def_rtos_get_system_tick() - gps_resh_time_t > 10*1000) {
+            gps_info.RefreshFlag = 0;
+        }   
         if(def_rtos_get_system_tick() - csq_time_t > 10*1000) {
             net_update_singal_csq();
             can_png_quest(CONTROL_ADR, CONTROL_HWVER1, 0);
             csq_time_t = def_rtos_get_system_tick();
             LOG_I("CSQ:%d", gsm_info.csq);
+            LOG_I("ptich:%.2f,roll:%.2f,yaw:%.2f",euler_angle[0],euler_angle[1],euler_angle[2]);
+            imu_algo_timer_stop();
         }
         if(sys_set_var.ble_bind_infoClean) {
             ble_cmd_mark(BLE_DELETE_BIND_INDEX);
@@ -275,7 +285,7 @@ void app_system_thread(void *param)
 
         if(hal_drv_read_gpio_value(I_36VPOWER_DET) == 0) {    //36V电源检测
             hal_adc_value_get(BAT_ADC_VAL, (int *)&bat_val);
-            hal_drv_write_gpio_value(O_BAT_CHARGE_CON, 1);
+            
             sys_info.power_36v = 1;
         } else {
             sys_info.power_36v = 0;
@@ -305,8 +315,8 @@ void app_sys_init()
     sys_param_init();
     can_protocol_init();
     net_protocol_init();
-    qmi8658_init();
     app_http_ota_init();
+    qmi8658_sensor_init();
  //   rtc_event_register(NET_HEART_EVENT,  8, 1);
     rtc_event_register(NET_HEART_EVENT,  sys_param_set.net_heart_interval, 1);
     if(sys_param_set.unlock_car_heart_sw){

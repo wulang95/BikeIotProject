@@ -78,7 +78,6 @@ void hal_drv_start_data_call(char *apn)
     if(res != 0) {
         LOG_E("error");
     }
-    LOG_I("hal_drv_start_data_call AFTER===================");
 }
 
 uint8_t hal_drv_get_cpin()

@@ -29,7 +29,7 @@ extern "C" {
 #endif
 
 
-/*
+
 
 
 /*!
@@ -65,7 +65,7 @@ float Filter_Apply(float sample, QST_Filter_Buffer *buffer, QST_Filter *filter);
  */
 void qst_fusion_update(float fusion_accel[3], float fusion_gyro[3], float *fusion_dt, float *rpy, float *quaternion, float *line_accel);
 
-void init_state_recognition(unsigned char (*read)(unsigned char, unsigned char *, unsigned short));  
+void init_state_recognition(int (*read)(unsigned char, unsigned char *, unsigned short));  
 
 //extern unsigned char Qmi8658_read_reg(unsigned char reg, unsigned char *buf, unsigned short len);
 

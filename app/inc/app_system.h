@@ -15,9 +15,10 @@
 #include    "net_protocol.h"
 #include    "car_control.h"
 #include    "http_upgrade_ota.h"
-#include    "qmi8658.h"
+#include    "app_sensor.h"
+#include    "app_audio.h"
 
-
+extern def_rtos_task_t app_system_task;
 void assert_handler(const char *ex_string, const char *func, size_t line);
 
 #define SYS_ALIGN_DOWN(v, n) ((unsigned long)(v) & ~((n)-1))
@@ -57,6 +58,7 @@ typedef enum{
     SYS_CONFIG_ADR,
     BACK_SYS_CONFIG_ADR,
     SYS_SET_ADR,
+    SENSEOR_CALIBRATION_ADR,
 } FLASH_PARTITION;
 
 struct sys_param_set_stu {
@@ -67,7 +69,7 @@ struct sys_param_set_stu {
     uint32_t crc32;
 };
 
-struct sys_config_stu{
+struct sys_config_stu {
     uint32_t magic;
     char ip[32];
     uint32_t port; 
@@ -80,6 +82,14 @@ struct sys_config_stu{
     uint8_t alive_sta;
     uint32_t crc32;
 };
+
+struct sensor_calibration_data_stu {
+    uint32_t magic;
+    float static_offset_acc[3];
+    float static_offset_gyro[3];
+    uint32_t crc32;
+};
+
 #pragma pack(1)
 struct sys_info_stu {
     uint16_t bat_val;
@@ -98,6 +108,7 @@ struct sys_info_stu {
     uint8_t can_protocol_sub;
     uint8_t sys_updata_falg; //bit0表示sys_param
     uint8_t ota_flag;
+    uint8_t static_cali_flag;
 };
 struct sys_set_var_stu{
     uint8_t sys_poweroff_flag;
@@ -110,7 +121,7 @@ struct sys_set_var_stu{
 
 #pragma pack()
 
-#define SOFTVER "1.0"
+#define SOFTVER "1.1"
 #define HWVER   "1.0"
 #define DEFAULT_MANUFACTURER  "ENGWE" 
 #define DEFAULT_DNS "114.114.114.114"
@@ -130,4 +141,7 @@ void app_sys_init();
 int64_t systm_tick_diff(int64_t time);
 void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len);
 void app_system_thread(void *param);
+void flash_partition_erase(FLASH_PARTITION flash_part);
+void flash_partition_write(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift);
+void flash_partition_read(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift);
 #endif

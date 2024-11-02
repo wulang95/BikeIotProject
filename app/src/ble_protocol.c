@@ -728,6 +728,9 @@ void ble_protocol_large_query_service(uint16_t cmd)
         case BLE_CMD_Q_ATSPHLIGHT_TIMTASK:
             ble_atsphlight_task_query();
         break;
+        case BLE_CMD_Q_IOT_VER:
+            query_iot_soft_ver();
+        break;
         default:
         break;
     }
@@ -1019,7 +1022,7 @@ void ble_protocol_recv_thread(void *param)
     uint8_t buf[256];
     uint16_t len, cmd_w, lenth;
 
-    while(1){
+    while(1) {
         len = ble_trans_data_block_read(buf, 256, RTOS_WAIT_FOREVER);
         LOG_I("ble trans is recv, len:%d", len);
         if(len == 0)continue;

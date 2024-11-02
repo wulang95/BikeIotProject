@@ -3,23 +3,27 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "hal_drv_iic.h"
+
 
 #if defined(QST_USE_SPI)
 #define QMI8658_USE_SPI
 #endif
-#define QMI8658_SYNC_SAMPLE_MODE
-//#define QMI8658_USE_CALI
-
+ #define QMI8658_SYNC_SAMPLE_MODE
 //#define QMI8658_USE_FIFO
-//#define QMI8658_USE_WOM
 //#define QMI8658_USE_AMD
 //#define QMI8658_USE_NO_MOTION
 //#define QMI8658_USE_SIG_MOTION
 //#define QMI8658_USE_TAP
 //#define QMI8658_USE_PEDOMETER
-#define QMI8658_USE_HW_SELFTEST				/* firmware >= 1.2.53*/
-#define QMI8658_USE_GYRO_STARTUP_TEST
+//#define QMI8658_USE_HW_SELFTEST				/* firmware >= 1.2.53*/
+//#define QMI8658_USE_GYRO_STARTUP_TEST
+#define STATIC_CALIBRATION
+#define GYRO_DYNAMIC_CALIBRATION
+//#define QMI8658_EN_CGAIN	0x0006002A
+
+#define MAX_STATIC_CALI_COUNTER   200
 
 #define QMI8658_SLAVE_ADDR_L			0x6a
 #define QMI8658_SLAVE_ADDR_H			0x6b
@@ -46,6 +50,34 @@
 
 #define QMI8658_FIFO_MAP_INT1			0x04	// ctrl1
 #define QMI8658_FIFO_MAP_INT2			~0x04
+
+
+
+
+#if defined(QMI8658_EN_CGAIN)
+unsigned char qmi8658_read_cgain(void);
+
+#define SYS_CLK_CFG							0x000600AF
+#define OPT_REG_GEN_CTRL					0x00020000
+#define OPT_REG_GEN_CTRL_0				(OPT_REG_GEN_CTRL + 0)
+#define OPT_REG_GEN_CTRL_1				(OPT_REG_GEN_CTRL + 1)
+#define OPT_REG_GEN_CTRL_2				(OPT_REG_GEN_CTRL + 2)
+#define OPT_REG_GEN_CTRL_3				(OPT_REG_GEN_CTRL + 3)
+
+#define OPT_REG_BDMA_CTRL				0x0002000c
+#define OPT_REG_BDMA_CTRL_0				(OPT_REG_BDMA_CTRL + 0)
+#define OPT_REG_BDMA_CTRL_1				(OPT_REG_BDMA_CTRL + 1)
+#define OPT_REG_BDMA_CTRL_2				(OPT_REG_BDMA_CTRL + 2)
+#define OPT_REG_BDMA_CTRL_3				(OPT_REG_BDMA_CTRL + 3)
+
+#define BANK0_INDIRECT_CTRL_ADDR			111
+#define BANK0_INDIRECT_SYS_ADDR_7_0_ADDR	112
+#define BANK0_INDIRECT_SYS_ADDR_15_8_ADDR	113
+#define BANK0_INDIRECT_SYS_ADDR_23_16_ADDR	114
+#define BANK0_INDIRECT_SYS_ADDR_31_24_ADDR	115
+#define BANK0_INDIRECT_SYS_DATA_ADDR		116
+#endif
+
 
 
 enum Qmi8658Register
@@ -366,10 +398,6 @@ extern float qmi8658_readTemp(void);
 extern void qmi8658_read_timestamp(unsigned int *tim_count);
 extern void qmi8658_read_xyz(float acc[3], float gyro[3]);
 extern void qmi8658_read_sensor_data(float acc[3], float gyro[3]);
-#if defined(QMI8658_USE_WOM)
-void qmi8658_enable_wom(int enable, enum qmi8658_Interrupt int_map);
-#endif
-
 #if defined(QMI8658_USE_AMD)||defined(QMI8658_USE_NO_MOTION)||defined(QMI8658_USE_SIG_MOTION)
 void qmi8658_config_motion(void);
 #endif

@@ -18,7 +18,7 @@ def_rtos_queue_t can_rcv_que;
 def_rtos_queue_t mcu_cmd_que;
 GPS_DATA gps_info;
 int64_t gps_resh_time_t;
-uint8_t mcu_cmd_table[] = {0X0C, 0X0E, 0X0D, 0x0f, 0x0b, 0x0a, 0x09};
+uint8_t mcu_cmd_table[] = {0X0C, 0X0E, 0X0D, 0x0f, 0x0b, 0x0a, 0x09, 0X08};
 struct mcu_cmd_order_stu{
     uint8_t need_ask;
     uint16_t rely_timeout;
@@ -33,6 +33,7 @@ struct mcu_cmd_order_stu mcu_cmd_order_table[] = {
     {false,     0,          0},     //CMD_GPS_TRANS
     {true,      1000,       3},     //CMD_GPS_DEEPSLEEP
     {true,      1000,       3},     //CMD_GPS_HOST_START
+    {true,      1000,       3},
 };
 
 struct mcu_cmd_send_crtl_stu
@@ -235,6 +236,8 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
     case CMD_GPS_DEEPSLEEP:
     break;
     case CMD_GPS_HOST_START:
+    break;
+    case CMD_CAT_REPOWERON:
     break;
     default:
         break;

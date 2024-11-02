@@ -1,7 +1,10 @@
 #include "app_system.h"
 #include "ql_http_client.h"
 #include "ql_fs.h"
-
+#include "http_upgrade_ota.h"
+#include "ql_api_dev.h"
+#include "hal_drv_net.h"
+#include "ql_api_fota.h"
 #define DBG_TAG         "http_upgrade"
 
 #ifdef HTTP_UPGRADE_DEBUG
@@ -71,12 +74,23 @@ int ota_http_init(struct fota_http_client_stu *fota_http_cli_p)
     fota_http_cli_p->sim_id = 0;
     fota_http_cli_p->e_stage = OTA_HTTP_DOWN_INIT;
     fota_http_cli_p->i_save_size = 0;
-    memcpy(fota_http_cli_p->fota_packname, "UFS:fota.pack", strlen("UFS:fota.pack"));
-
+    
     fota_http_cli_p->b_is_have_space = true;
     fota_http_cli_p->http_progress.is_show = true;
     fota_http_cli_p->last_precent = 0;
     fota_http_cli_p->chunk_encode = 0;
+    switch(http_upgrade_info.req_type)
+    {
+        case IOT_FIRMWARE_TYPE:
+        case BLUE_FIRMWARE_TYPE:
+        case ECU_FIRMWARE_TYPE:
+        case BMS1_FIRMWARE_TYPE:
+        case BMS2_FIRMWARE_TYPE:
+        case HMI_FIRMWARE_TYPE:
+            memcpy(fota_http_cli_p->fota_packname, "UFS:fota.pack", strlen("UFS:fota.pack"));
+        break;
+    }
+    
     fd = ql_fopen(fota_http_cli_p->fota_packname, "wb+");
     if(fd < 0) {
         LOG_E("init file name:[%s] ret:%d", fota_http_cli_p->fota_packname, fd);
@@ -445,6 +459,7 @@ exit: ql_httpc_release(&(fota_http_cli_p->http_cli));
 
 static int ota_http_download_pacfile(struct fota_http_client_stu *fota_http_cli_p)
 {
+    ql_errcode_fota_e ret;
     fota_http_info_cfg(fota_http_cli_p);
     if(ota_http_evn_request(fota_http_cli_p) != 0)
     {
@@ -455,7 +470,23 @@ static int ota_http_download_pacfile(struct fota_http_client_stu *fota_http_cli_
     fota_http_info_cfg(fota_http_cli_p);
     if(fota_http_cli_p->e_stage == OTA_HTTP_DOWN_DOWNED)
     {
-
+        switch (http_upgrade_info.farme_type){
+            case IOT_FIRMWARE_TYPE:
+             ret = ql_fota_image_verify(fota_http_cli_p->fota_packname);
+		    if ( ret != RTOS_SUCEESS )
+		    {
+			    //下载完成校验不成功删除文件
+			    ql_remove(fota_http_cli_p->fota_packname);
+			    LOG_E("[%s]package is invalid", fota_http_cli_p->fota_packname);
+			    return -3;
+		    } else {
+			//校验成功
+			    LOG_I("download is sucess ,system will reset power!");
+                def_rtos_task_sleep_s(5);
+	            sys_reset();
+		    }
+            break;
+        }
     }
     return 0;
 }
@@ -473,6 +504,9 @@ void app_http_ota_thread(void *param)
     def_rtosStaus res;
     uint8_t down_times;
     struct fota_http_client_stu  fota_http_cli_p;
+    char version_buf[256] = {0};
+    ql_dev_get_firmware_version(version_buf, sizeof(version_buf));
+    LOG_I("current version:  %s", version_buf);
     while(1){
         res = def_rtos_semaphore_wait(http_upgrade_info.http_ota_sem, RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) {

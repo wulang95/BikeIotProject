@@ -65,7 +65,7 @@ void app_set_led_ind(LED_IND led_ind_sta)
     led_set_value(O_WHITE_IND, 0);
     led_set_value(O_RED_IND, 0);
     led_cur_ind = led_control_que[led_ind_sta];
-    ql_rtos_timer_start(led_timer, 10, 0);
+    def_rtos_timer_start(led_timer, 10, 0);
 }
 
 
@@ -75,14 +75,14 @@ void app_led_timer_func(void *param)
     switch (led_cur_ind[led_step].active){
         case LED_LOOP:
             led_step = 0;
-            ql_rtos_timer_start(led_timer, 10, 0);
+            def_rtos_timer_start(led_timer, 10, 0);
         break;
         case LED_STOP:
             led_set_value(led_cur_ind[led_step].led, led_cur_ind[led_step].value);
         break;
         default:
             led_set_value(led_cur_ind[led_step].led, led_cur_ind[led_step].value);
-            ql_rtos_timer_start(led_timer, led_cur_ind[led_step].active, 0);
+            def_rtos_timer_start(led_timer, led_cur_ind[led_step].active, 0);
             led_step++;
         break;
     }

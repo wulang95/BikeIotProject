@@ -11,7 +11,7 @@
 #include    "log_port.h"
 
 //#define QMI8658_UINT_MG_DPS
-#define M_PI			(3.14159265358979323846f)
+//#define M_PI			(3.14159265358979323846f)
 #define ONE_G			(9.807f)
 #define QFABS(x)		(((x)<0.0f)?(-1.0f*(x)):(x))
 
@@ -20,6 +20,28 @@ static qmi8658_state g_imu;
 #if defined(QMI8658_USE_CALI)
 static qmi8658_cali g_cali;
 #endif
+
+#if defined(GYRO_DYNAMIC_CALIBRATION)
+#define BUFFSER_SIZE_ 10
+#define MAX_STATIC_COUNT_ 20
+
+float gyro_buffer_speed_[BUFFSER_SIZE_] = {0, 0};
+
+float gyro_static_offset_[3] = {0, 0, 0};
+uint32_t static_delay_ = 0;
+uint32_t static_flag_ = 0;
+uint8_t imu_offset_static_ = 0;
+uint8_t imu_offset_flag_ = 0;
+float gyro_raw_static_deviation = 0;
+float standard_deviation0 = 0;
+float standard_deviation1 = 0;
+float standard_deviation2 = 0;
+float standard_deviation3 = 0;
+uint16_t cali_count_static_ = 0;
+float gyro_staticn_sum_[3] = {0.0, 0.0, 0.0};
+
+#endif
+static qmi8658_state g_imu;
 
 int qmi8658_write_reg(unsigned char reg, unsigned char value)
 {
@@ -86,16 +108,14 @@ void qmi8658_delay_us(unsigned int us)
 }
 
 
-void qmi8658_axis_convert(float data_a[3], float data_g[3], int layout)
+void qmi8658_axis_convert(short data_a[3], short data_g[3], int layout)
 {
-	float raw[3],raw_g[3];
+	short raw[3],raw_g[3];
 
 	raw[0] = data_a[0];
 	raw[1] = data_a[1];
-	//raw[2] = data[2];
 	raw_g[0] = data_g[0];
 	raw_g[1] = data_g[1];
-	//raw_g[2] = data_g[2];
 
 	if(layout >=4 && layout <= 7)
 	{
@@ -131,214 +151,6 @@ void qmi8658_axis_convert(float data_a[3], float data_g[3], int layout)
 		data_g[1] = -data_g[1];
 	}
 }
-
-#if defined(QMI8658_USE_CALI)
-void qmi8658_data_cali(unsigned char sensor, float data[3])
-{
-	float data_diff[3];
-
-	if(sensor == 1) 	// accel
-	{
-		data_diff[0] = QFABS((data[0]-g_cali.acc_last[0]));
-		data_diff[1] = QFABS((data[1]-g_cali.acc_last[1]));
-		data_diff[2] = QFABS((data[2]-g_cali.acc_last[2]));
-		g_cali.acc_last[0] = data[0];
-		g_cali.acc_last[1] = data[1];
-		g_cali.acc_last[2] = data[2];
-
-//		qmi8658_log("acc diff : %f	", (data_diff[0]+data_diff[1]+data_diff[2]));
-		if((data_diff[0]+data_diff[1]+data_diff[2]) < 0.5f)
-		{
-			if(g_cali.acc_cali_num == 0)
-			{
-				g_cali.acc_sum[0] = 0.0f;
-				g_cali.acc_sum[1] = 0.0f;
-				g_cali.acc_sum[2] = 0.0f;
-			}
-			if(g_cali.acc_cali_num < QMI8658_CALI_DATA_NUM)
-			{
-				g_cali.acc_cali_num++;
-				g_cali.acc_sum[0] += data[0];
-				g_cali.acc_sum[1] += data[1];
-				g_cali.acc_sum[2] += data[2];
-				if(g_cali.acc_cali_num == QMI8658_CALI_DATA_NUM)
-				{
-					if((g_cali.acc_cali_flag == 0)&&(data[2]<11.8f)&&(data[2]>7.8f))
-					{
-						g_cali.acc_sum[0] = g_cali.acc_sum[0]/QMI8658_CALI_DATA_NUM;
-						g_cali.acc_sum[1] = g_cali.acc_sum[1]/QMI8658_CALI_DATA_NUM;
-						g_cali.acc_sum[2] = g_cali.acc_sum[2]/QMI8658_CALI_DATA_NUM;
-
-						g_cali.acc_bias[0] = 0.0f - g_cali.acc_sum[0];
-						g_cali.acc_bias[1] = 0.0f - g_cali.acc_sum[1];
-						g_cali.acc_bias[2] = 9.807f - g_cali.acc_sum[2];
-						g_cali.acc_cali_flag = 1;
-					}
-					g_cali.imu_static_flag = 1;
-					qmi8658_log("qmi8658 acc static!!!\n");
-				}
-			}
-
-			if(g_cali.imu_static_flag)
-			{
-				if(g_cali.acc_fix_flag == 0)
-				{
-					g_cali.acc_fix_flag = 1;
-					g_cali.acc_fix[0] = data[0];
-					g_cali.acc_fix[1] = data[1];
-					g_cali.acc_fix[2] = data[2];
-				}
-			}
-			else
-			{
-				g_cali.acc_fix_flag = 0;
-				g_cali.gyr_fix_flag = 0;
-			}
-		}
-		else
-		{
-			g_cali.acc_cali_num = 0;
-			g_cali.acc_sum[0] = 0.0f;
-			g_cali.acc_sum[1] = 0.0f;
-			g_cali.acc_sum[2] = 0.0f;
-
-			g_cali.imu_static_flag = 0;
-			g_cali.acc_fix_flag = 0;
-			g_cali.gyr_fix_flag = 0;
-		}
-
-		if(g_cali.acc_fix_flag)
-		{
-			if(g_cali.acc_fix_index != 0)
-				g_cali.acc_fix_index = 0;
-			else
-				g_cali.acc_fix_index = 1;
-
-			data[0] = g_cali.acc_fix[0] + g_cali.acc_fix_index*0.01f;
-			data[1] = g_cali.acc_fix[1] + g_cali.acc_fix_index*0.01f;
-			data[2] = g_cali.acc_fix[2] + g_cali.acc_fix_index*0.01f;
-		}
-		if(g_cali.acc_cali_flag)
-		{
-			g_cali.acc[0] = data[0] + g_cali.acc_bias[0];
-			g_cali.acc[1] = data[1] + g_cali.acc_bias[1];
-			g_cali.acc[2] = data[2] + g_cali.acc_bias[2];
-			data[0] = g_cali.acc[0];
-			data[1] = g_cali.acc[1];
-			data[2] = g_cali.acc[2];
-		}
-		else
-		{
-			g_cali.acc[0] = data[0];
-			g_cali.acc[1] = data[1];
-			g_cali.acc[2] = data[2];
-		}
-	}
-	else if(sensor == 2)			// gyroscope
-	{
-		data_diff[0] = QFABS((data[0]-g_cali.gyr_last[0]));
-		data_diff[1] = QFABS((data[1]-g_cali.gyr_last[1]));
-		data_diff[2] = QFABS((data[2]-g_cali.gyr_last[2]));
-		g_cali.gyr_last[0] = data[0];
-		g_cali.gyr_last[1] = data[1];
-		g_cali.gyr_last[2] = data[2];
-		
-//		qmi8658_log("gyr diff : %f	\n", (data_diff[0]+data_diff[1]+data_diff[2]));
-		if(((data_diff[0]+data_diff[1]+data_diff[2]) < 0.03f)
-			&& ((data[0]>-1.0f)&&(data[0]<1.0f))
-			&& ((data[1]>-1.0f)&&(data[1]<1.0f))
-			&& ((data[2]>-1.0f)&&(data[2]<1.0f))
-			)
-		{
-			if(g_cali.gyr_cali_num == 0)
-			{
-				g_cali.gyr_sum[0] = 0.0f;
-				g_cali.gyr_sum[1] = 0.0f;
-				g_cali.gyr_sum[2] = 0.0f;
-			}
-			if(g_cali.gyr_cali_num < QMI8658_CALI_DATA_NUM)
-			{
-				g_cali.gyr_cali_num++;
-				g_cali.gyr_sum[0] += data[0];
-				g_cali.gyr_sum[1] += data[1];
-				g_cali.gyr_sum[2] += data[2];
-				if(g_cali.gyr_cali_num == QMI8658_CALI_DATA_NUM)
-				{
-					if(g_cali.gyr_cali_flag == 0)
-					{
-						g_cali.gyr_sum[0] = g_cali.gyr_sum[0]/QMI8658_CALI_DATA_NUM;
-						g_cali.gyr_sum[1] = g_cali.gyr_sum[1]/QMI8658_CALI_DATA_NUM;
-						g_cali.gyr_sum[2] = g_cali.gyr_sum[2]/QMI8658_CALI_DATA_NUM;
-			
-						g_cali.gyr_bias[0] = 0.0f - g_cali.gyr_sum[0];
-						g_cali.gyr_bias[1] = 0.0f - g_cali.gyr_sum[1];
-						g_cali.gyr_bias[2] = 0.0f - g_cali.gyr_sum[2];
-						g_cali.gyr_cali_flag = 1;
-					}
-					g_cali.imu_static_flag = 1;
-					qmi8658_log("qmi8658 gyro static!!!\n");
-				}
-			}
-			
-			if(g_cali.imu_static_flag)
-			{
-				if(g_cali.gyr_fix_flag == 0)
-				{
-					g_cali.gyr_fix_flag = 1;
-					g_cali.gyr_fix[0] = data[0];
-					g_cali.gyr_fix[1] = data[1];
-					g_cali.gyr_fix[2] = data[2];
-				}
-			}
-			else
-			{
-				g_cali.gyr_fix_flag = 0;
-				g_cali.acc_fix_flag = 0;
-			}
-		}
-		else
-		{
-			g_cali.gyr_cali_num = 0;
-			g_cali.gyr_sum[0] = 0.0f;
-			g_cali.gyr_sum[1] = 0.0f;
-			g_cali.gyr_sum[2] = 0.0f;
-			
-			g_cali.imu_static_flag = 0;
-			g_cali.gyr_fix_flag = 0;
-			g_cali.acc_fix_flag = 0;
-		}
-
-		if(g_cali.gyr_fix_flag)
-		{		
-			if(g_cali.gyr_fix_index != 0)
-				g_cali.gyr_fix_index = 0;
-			else
-				g_cali.gyr_fix_index = 1;
-
-			data[0] = g_cali.gyr_fix[0] + g_cali.gyr_fix_index*0.00005f;
-			data[1] = g_cali.gyr_fix[1] + g_cali.gyr_fix_index*0.00005f;
-			data[2] = g_cali.gyr_fix[2] + g_cali.gyr_fix_index*0.00005f;
-		}
-
-		if(g_cali.gyr_cali_flag)
-		{
-			g_cali.gyr[0] = data[0] + g_cali.gyr_bias[0];
-			g_cali.gyr[1] = data[1] + g_cali.gyr_bias[1];
-			g_cali.gyr[2] = data[2] + g_cali.gyr_bias[2];
-			data[0] = g_cali.gyr[0];
-			data[1] = g_cali.gyr[1];
-			data[2] = g_cali.gyr[2];
-		}
-		else
-		{		
-			g_cali.gyr[0] = data[0];
-			g_cali.gyr[1] = data[1];
-			g_cali.gyr[2] = data[2];
-		}
-	}
-}
-
-#endif
 
 void qmi8658_config_acc(enum qmi8658_AccRange range, enum qmi8658_AccOdr odr, enum qmi8658_LpfConfig lpfEnable, enum qmi8658_StConfig stEnable)
 {
@@ -585,6 +397,167 @@ void qmi8658_read_timestamp(unsigned int *tim_count)
 	}
 }
 
+
+#if defined(STATIC_CALIBRATION)
+
+static int accel_static_calibration_sum[3];
+static int gyro_static_calibration_sum[3];
+struct sensor_calibration_data_stu sensor_calibration_data;
+uint8_t imu_static_calibration(short acc_raw[3], short gyro_raw[3])
+{
+	static uint8_t static_cali_count = 0;
+	uint8_t axis;
+
+	if(sys_info.static_cali_flag == 1) return 1;
+	flash_partition_read(SENSEOR_CALIBRATION_ADR,  (void *)&sensor_calibration_data, sizeof(struct sensor_calibration_data_stu), 0);
+	
+	if(sensor_calibration_data.magic == IOT_MAGIC\
+	&& sensor_calibration_data.crc32 == GetCrc32((uint8_t *)&sensor_calibration_data, sizeof(sensor_calibration_data) - 4)) {
+		sys_info.static_cali_flag = 1;
+		return 1;
+	}
+	
+    if(static_cali_count == 0)
+    {
+        memset((void *)accel_static_calibration_sum, 0, sizeof(accel_static_calibration_sum));
+        memset((void *)gyro_static_calibration_sum, 0, sizeof(gyro_static_calibration_sum));
+        static_cali_count++;
+    }
+    else if(static_cali_count < MAX_STATIC_CALI_COUNTER)
+    {
+        for(axis = 0; axis < 3; axis++)
+        {
+            gyro_static_calibration_sum[axis] += gyro_raw[axis];
+            if(axis == 2)
+            {
+					accel_static_calibration_sum[axis] += (acc_raw[axis] - g_imu.ssvt_a);			
+            }
+            else
+            {
+              accel_static_calibration_sum[axis] += acc_raw[axis];
+            }
+        }
+        static_cali_count++;
+    }
+    else if(static_cali_count == MAX_STATIC_CALI_COUNTER)
+    {
+			for(axis = 0; axis < 3; axis++)
+			{
+				sensor_calibration_data.static_offset_acc[axis] = (accel_static_calibration_sum[axis] / (MAX_STATIC_CALI_COUNTER - 1));
+				sensor_calibration_data.static_offset_gyro[axis] = (gyro_static_calibration_sum[axis] / (MAX_STATIC_CALI_COUNTER - 1));
+				qmi8658_log("static_offset_acc[%d]:%f, static_offset_gyro[%d]:%f", sensor_calibration_data.static_offset_acc[axis], sensor_calibration_data.static_offset_gyro[axis]);
+			}
+			static_cali_count = 0;
+			sensor_calibration_data.magic = IOT_MAGIC;
+			sensor_calibration_data.crc32 = GetCrc32((uint8_t *)&sensor_calibration_data, sizeof(sensor_calibration_data) - 4);	
+			flash_partition_erase(SENSEOR_CALIBRATION_ADR);
+			flash_partition_write(SENSEOR_CALIBRATION_ADR, (void *)&sensor_calibration_data, sizeof(sensor_calibration_data) , 0);
+			sys_info.static_cali_flag = 1;
+			return 1;
+    }
+	return 0;
+}
+
+#endif
+
+#if defined(GYRO_DYNAMIC_CALIBRATION)
+
+void qst_fusion_raw_offset_update(int16_t fusion_gyro[3])
+{
+    unsigned char axis = 0;
+
+    float gyro_recip_norm = sqrtf(fusion_gyro[0] * fusion_gyro[0] + fusion_gyro[1] * fusion_gyro[1] + fusion_gyro[2] * fusion_gyro[2]);
+
+    float gyro_sum = 0;
+    for(axis = 0; axis < BUFFSER_SIZE_ - 1; axis++)
+    {
+        gyro_buffer_speed_[axis] = gyro_buffer_speed_[axis + 1];
+        gyro_sum = gyro_sum + gyro_buffer_speed_[axis];
+    }
+
+    gyro_buffer_speed_[axis] = gyro_recip_norm;
+    gyro_sum = gyro_sum + gyro_buffer_speed_[axis];
+    float gyro_average = gyro_sum / BUFFSER_SIZE_;
+
+    gyro_sum = 0;
+    for(axis = 0; axis < BUFFSER_SIZE_; axis++)
+    {
+        gyro_sum = gyro_sum + (gyro_buffer_speed_[axis] - gyro_average) * (gyro_buffer_speed_[axis] - gyro_average);
+    }
+    float gyro_standard_deviation = sqrtf(gyro_sum / BUFFSER_SIZE_);
+    
+	if(imu_offset_flag_ == 1 ){
+		gyro_raw_static_deviation = standard_deviation1;
+	}
+	if(imu_offset_flag_ == 2 ){
+		gyro_raw_static_deviation = standard_deviation2;
+	}
+	if(imu_offset_flag_ == 3 ){
+		gyro_raw_static_deviation = standard_deviation3;
+	}
+	//printf("GYRO_DYNAMIC:%d %f, %f %f %f\n", static_flag_, gyro_standard_deviation, gyro_static_offset_[0], gyro_static_offset_[1], gyro_static_offset_[2]);	
+	if(gyro_standard_deviation < gyro_raw_static_deviation)
+	{
+		if(static_flag_ == 0)
+		{
+			if(static_delay_ < 60)
+			{
+				static_delay_++;
+			}
+			else
+			{
+				static_delay_ = 0;
+				static_flag_ = 1;
+			}
+		}
+		else
+		{
+			if(imu_offset_static_ != 1)
+			{
+				if(cali_count_static_ == 0)
+				{
+					for(axis = 0; axis < 3; axis++)
+					{
+						gyro_staticn_sum_[axis] = 0;
+					}
+					cali_count_static_++;
+				}
+				else if(cali_count_static_ < MAX_STATIC_COUNT_ + 1)
+				{
+					for(axis = 0; axis < 3; axis++)
+					{
+						gyro_staticn_sum_[axis] += fusion_gyro[axis];
+					}
+					cali_count_static_++;
+				}
+				else if(cali_count_static_ == MAX_STATIC_COUNT_ + 1)
+				{
+					for(axis = 0; axis < 3; axis++)
+					{
+						gyro_static_offset_[axis] = (gyro_staticn_sum_[axis] / MAX_STATIC_COUNT_);
+					}
+
+					imu_offset_static_ = 1;
+					cali_count_static_ = 0;
+					imu_offset_flag_++;
+					if(imu_offset_flag_ > 10)
+						imu_offset_flag_ = 10;
+				}
+			}
+		}
+	}
+	else
+	{
+		static_delay_ = 0;
+		static_flag_ = 0;
+		imu_offset_static_ = 0;
+		cali_count_static_ = 0;
+	}
+}
+
+#endif
+
+
 void qmi8658_read_sensor_data(float acc[3], float gyro[3])
 {
 	unsigned char	buf_reg[12];
@@ -600,6 +573,26 @@ void qmi8658_read_sensor_data(float acc[3], float gyro[3])
 	raw_gyro_xyz[1] = (short)((unsigned short)(buf_reg[9]<<8) |( buf_reg[8]));
 	raw_gyro_xyz[2] = (short)((unsigned short)(buf_reg[11]<<8) |( buf_reg[10]));
 
+	qmi8658_axis_convert(raw_acc_xyz, raw_gyro_xyz, 0);
+#if defined(STATIC_CALIBRATION)
+
+	if(imu_static_calibration(raw_acc_xyz,raw_gyro_xyz) == 1)
+	{
+
+		raw_acc_xyz[0] = raw_acc_xyz[0] - sensor_calibration_data.static_offset_acc[0];
+		raw_acc_xyz[1] = raw_acc_xyz[1] - sensor_calibration_data.static_offset_acc[1];
+		raw_acc_xyz[2] = raw_acc_xyz[2] - sensor_calibration_data.static_offset_acc[2];
+		raw_gyro_xyz[0] = raw_gyro_xyz[0] - sensor_calibration_data.static_offset_gyro[0];
+		raw_gyro_xyz[1] = raw_gyro_xyz[1] - sensor_calibration_data.static_offset_gyro[1];
+		raw_gyro_xyz[2] = raw_gyro_xyz[2] - sensor_calibration_data.static_offset_gyro[2];
+	}
+#endif
+#if defined(GYRO_DYNAMIC_CALIBRATION)	
+	qst_fusion_raw_offset_update(raw_gyro_xyz);
+	raw_gyro_xyz[0] = raw_gyro_xyz[0] - gyro_static_offset_[0];
+	raw_gyro_xyz[1] = raw_gyro_xyz[1] - gyro_static_offset_[1];
+	raw_gyro_xyz[2] = raw_gyro_xyz[2] - gyro_static_offset_[2];
+#endif	
 #if defined(QMI8658_UINT_MG_DPS)
 	// mg
 	acc[0] = (float)(raw_acc_xyz[0]*1000.0f)/g_imu.ssvt_a;
@@ -625,6 +618,44 @@ void qmi8658_read_sensor_data(float acc[3], float gyro[3])
 #endif
 }
 
+
+
+#if defined(QMI8658_EN_CGAIN)
+static void readIndirectData(unsigned int startAddr, unsigned char *buf, unsigned char bytesNum)
+{
+	unsigned char addrList[4];
+	unsigned char ctrlData = 0;
+
+	qmi8658_delay(1);
+	qmi8658_write_reg(BANK0_INDIRECT_CTRL_ADDR, 0x7F);
+	ctrlData = (1 << 7)+ (bytesNum << 3) + (0 << 2)+ (0 << 1)+ 1;
+	qmi8658_write_reg(BANK0_INDIRECT_CTRL_ADDR, ctrlData);	// apply new settings
+	qmi8658_delay(1);
+	// Start reading the data
+	qmi8658_read_reg(BANK0_INDIRECT_SYS_DATA_ADDR, buf, bytesNum);
+}
+
+unsigned char qmi8658_read_cgain(void)
+{
+	unsigned char data, start_en, cgain;
+		
+	readIndirectData(QMI8658_EN_CGAIN, &data, 1);
+	start_en = (data & 0x80) >> 7;
+	cgain = data & 0x3F;
+//	printf("qmi8658_read_cgain: %d %d\r\n", cgain, start_en);
+	if(cgain >= 63)
+	{
+		qmi8658_write_reg(Qmi8658Register_Ctrl7, 0x00);
+		qmi8658_delay(10);
+		qmi8658_enableSensors(QMI8658_ACCGYR_ENABLE);
+		qmi8658_delay(10);
+	}
+
+	return cgain;
+}
+#endif
+
+
 void qmi8658_read_xyz(float acc[3], float gyro[3])
 {
 	unsigned char	status = 0;
@@ -633,6 +664,9 @@ void qmi8658_read_xyz(float acc[3], float gyro[3])
 
 	while(retry++ < 3)
 	{
+#if defined(QMI8658_EN_CGAIN)
+		qmi8658_read_cgain();
+#endif		
 #if defined(QMI8658_SYNC_SAMPLE_MODE)
 		qmi8658_read_reg(Qmi8658Register_StatusInt, &status, 1);
 		if((status&0x01)&&(status&0x02))
@@ -654,11 +688,6 @@ void qmi8658_read_xyz(float acc[3], float gyro[3])
 	if(data_ready)
 	{
 		qmi8658_read_sensor_data(acc, gyro);
-		qmi8658_axis_convert(acc, gyro, 0);
-#if defined(QMI8658_USE_CALI)
-		qmi8658_data_cali(1, acc);
-		qmi8658_data_cali(2, gyro);
-#endif
 		g_imu.imu[0] = acc[0];
 		g_imu.imu[1] = acc[1];
 		g_imu.imu[2] = acc[2];
@@ -720,13 +749,7 @@ void qmi8658_dump_reg(void)
     //qmi8658_log("FIFO reg[0x%x 0x%x 0x%x 0x%x]\n", read_data[0],read_data[1],read_data[2],read_data[3]);
     qmi8658_log("\n");
 #else
-	unsigned char read_data[8];
 
-	for(int i=0; i<=Qmi8658Register_Reset; i++)
-	{
-		qmi8658_read_reg(i, read_data, 1);
-		qmi8658_log("reg %02d = 0x%x\n", i, read_data[0]);
-	}
 #endif
 }
 
@@ -790,7 +813,6 @@ void qmi8658_apply_gyr_gain(unsigned char cod_data[6])
 void qmi8658_on_demand_cali(void)
 {
 	unsigned char cod_status = 0x00;
-
 	qmi8658_log("qmi8658_on_demand_cali start\n");
 	qmi8658_write_reg(Qmi8658Register_Ctrl9, (unsigned char)qmi8658_Ctrl9_Cmd_On_Demand_Cali);
 	qmi8658_delay(2200);	// delay 2000ms above
@@ -886,12 +908,16 @@ unsigned char qmi8658_get_id(void)
 #endif
 #if defined(QMI8658_USE_HW_SELFTEST)
 			qmi8658_do_hw_selftest(QMI8658_ACCGYR_ENABLE);
-			//qmi8658_soft_reset();
-			//qmi8658_write_reg(Qmi8658Register_Ctrl1, 0x60|QMI8658_INT2_ENABLE|QMI8658_INT1_ENABLE);
 #endif
 			qmi8658_on_demand_cali();
 			qmi8658_write_reg(Qmi8658Register_Ctrl7, 0x00);
 			qmi8658_write_reg(Qmi8658Register_Ctrl8, g_imu.cfg.ctrl8_value);
+#if defined(QMI8658_EN_CGAIN)
+			qmi8658_write_reg(BANK0_INDIRECT_SYS_ADDR_7_0_ADDR, 0x2a);
+			qmi8658_write_reg(BANK0_INDIRECT_SYS_ADDR_15_8_ADDR, 0x00);
+			qmi8658_write_reg(BANK0_INDIRECT_SYS_ADDR_23_16_ADDR, 0x06);
+			qmi8658_write_reg(BANK0_INDIRECT_SYS_ADDR_31_24_ADDR, 0x00);
+#endif
 			break;
 		}
 		iCount++;
@@ -903,50 +929,6 @@ unsigned char qmi8658_get_id(void)
 
 	return qmi8658_chip_id;
 }
-
-#if defined(QMI8658_USE_WOM)
-void qmi8658_enable_wom(int enable, enum qmi8658_Interrupt int_map)
-{
-	unsigned char ctrl1 = 0x00;
-	unsigned char wom_int = 0x00;
-
-	if(enable)
-	{
-		wom_int |= 0x0a;	// Blanking Time
-		if(int_map == qmi8658_Int2)
-		{
-			wom_int |= (0x01<<6);		// map to int2
-		}
-		//int_map |= (0x01<<7); 	// int iniial state is high
-		//qmi8658_soft_reset();
-		qmi8658_enableSensors(QMI8658_DISABLE_ALL);
-		qmi8658_delay(2);
-		qmi8658_config_acc(Qmi8658AccRange_8g, Qmi8658AccOdr_31_25Hz ,Qmi8658Lpf_Disable,Qmi8658St_Disable);
-		qmi8658_write_reg(Qmi8658Register_Cal1_L, 255);		// threshold  mg
-		qmi8658_write_reg(Qmi8658Register_Cal1_H, wom_int);
-		qmi8658_send_ctl9cmd(qmi8658_Ctrl9_Cmd_WoM_Setting);
-		qmi8658_enableSensors(QMI8658_ACC_ENABLE);
-
-		qmi8658_read_reg(Qmi8658Register_Ctrl1, &ctrl1, 1);
-		if(int_map == qmi8658_Int1)
-		{
-			ctrl1 |= QMI8658_INT1_ENABLE;
-		}
-		else if(int_map == qmi8658_Int2)
-		{
-			ctrl1 |= QMI8658_INT2_ENABLE;
-		}
-		qmi8658_write_reg(Qmi8658Register_Ctrl1, ctrl1);// enable int for dev-E
-	}
-	else
-	{
-		qmi8658_enableSensors(QMI8658_DISABLE_ALL);
-		qmi8658_write_reg(Qmi8658Register_Cal1_L, 0);
-		qmi8658_write_reg(Qmi8658Register_Cal1_H, 0);
-		qmi8658_send_ctl9cmd(qmi8658_Ctrl9_Cmd_WoM_Setting);
-	}
-}
-#endif
 
 #if defined(QMI8658_USE_AMD)||defined(QMI8658_USE_NO_MOTION)||defined(QMI8658_USE_SIG_MOTION)
 void qmi8658_config_motion(void)
@@ -1236,45 +1218,46 @@ void qmi8658_reset_pedometer(void)
 #endif
 
 #if defined(QMI8658_USE_FIFO)
-void qmi8658_config_fifo(unsigned char watermark,enum qmi8658_FifoSize size,enum qmi8658_FifoMode mode,enum qmi8658_Interrupt int_map, uint8_t sensor)
+void qmi8658_config_fifo(unsigned char watermark, enum qmi8658_FifoSize size, enum qmi8658_FifoMode mode, enum qmi8658_Interrupt int_map, unsigned char sensor)
 {
-	unsigned char ctrl1;
+    unsigned char ctrl1;
 
-	qmi8658_write_reg(Qmi8658Register_FifoCtrl, 0x00);
-	qmi8658_enableSensors(QMI8658_DISABLE_ALL);
-	qmi8658_delay(2);
-	qmi8658_read_reg(Qmi8658Register_Ctrl1, &ctrl1, 1);
-	if(int_map == qmi8658_Int1)
-	{
-		ctrl1 |= QMI8658_FIFO_MAP_INT1;
-	}
-	else if(int_map == qmi8658_Int2)
-	{
-		ctrl1 &= QMI8658_FIFO_MAP_INT2;
-	}
-	qmi8658_write_reg(Qmi8658Register_Ctrl1, ctrl1);
+    qmi8658_write_reg(Qmi8658Register_FifoCtrl, 0x00);
+    qmi8658_enableSensors(QMI8658_DISABLE_ALL);
+    qmi8658_delay(2);
+    qmi8658_read_reg(Qmi8658Register_Ctrl1, &ctrl1, 1);
+    if (int_map == qmi8658_Int1)
+    {
+        ctrl1 |= QMI8658_FIFO_MAP_INT1;
+    }
+    else if (int_map == qmi8658_Int2)
+    {
+        ctrl1 &= QMI8658_FIFO_MAP_INT2;
+    }
+    qmi8658_write_reg(Qmi8658Register_Ctrl1, ctrl1);
 
-	g_imu.cfg.fifo_ctrl = (unsigned char)(size | mode);
-	qmi8658_write_reg(Qmi8658Register_FifoCtrl, g_imu.cfg.fifo_ctrl);
-	qmi8658_write_reg(Qmi8658Register_FifoWmkTh, watermark);
+    g_imu.cfg.fifo_ctrl = (unsigned char)(size | mode);
+		qmi8658_send_ctl9cmd(qmi8658_Ctrl9_Cmd_Rst_Fifo);
+    qmi8658_write_reg(Qmi8658Register_FifoCtrl, g_imu.cfg.fifo_ctrl);
+    qmi8658_write_reg(Qmi8658Register_FifoWmkTh, watermark);
 
-	qmi8658_send_ctl9cmd(qmi8658_Ctrl9_Cmd_Rst_Fifo);
 	qmi8658_enableSensors(sensor);
 }
 
-unsigned short qmi8658_read_fifo(unsigned char* data)
+unsigned short qmi8658_read_fifo(unsigned char *data)
 {
-	unsigned char fifo_status[2] = {0,0};
+	unsigned char fifo_status[2] = {0, 0};
 	unsigned char fifo_sensors = 1;
 	unsigned short fifo_bytes = 0;
 	unsigned short fifo_level = 0;
-	
-	if((g_imu.cfg.fifo_ctrl&0x03)!=qmi8658_Fifo_Bypass)
+
+	if((g_imu.cfg.fifo_ctrl & 0x03) != qmi8658_Fifo_Bypass)
 	{
-		//qmi8658_send_ctl9cmd(qmi8658_Ctrl9_Cmd_Req_Fifo);
+		qmi8658_send_ctl9cmd(qmi8658_Ctrl9_Cmd_Req_Fifo);
+
 		qmi8658_read_reg(Qmi8658Register_FifoCount, fifo_status, 2);
-		fifo_bytes = (unsigned short)(((fifo_status[1]&0x03)<<8)|fifo_status[0]);
-		if((g_imu.cfg.enSensors == QMI8658_ACC_ENABLE)||(g_imu.cfg.enSensors == QMI8658_GYR_ENABLE))
+		fifo_bytes = (unsigned short)(((fifo_status[1] & 0x03) << 8) | fifo_status[0]);
+		if((g_imu.cfg.enSensors == QMI8658_ACC_ENABLE) || (g_imu.cfg.enSensors == QMI8658_GYR_ENABLE))
 		{
 			fifo_sensors = 1;
 		}
@@ -1282,23 +1265,29 @@ unsigned short qmi8658_read_fifo(unsigned char* data)
 		{
 			fifo_sensors = 2;
 		}
-		fifo_level = fifo_bytes/(3*fifo_sensors);
-		fifo_bytes = fifo_level*(6*fifo_sensors);
-		//qmi8658_log("fifo-level : %d\n", fifo_level);
-		if(fifo_level > 0)
-		{	
-			qmi8658_send_ctl9cmd(qmi8658_Ctrl9_Cmd_Req_Fifo);
-#if 0
+		fifo_level = fifo_bytes / (3 * fifo_sensors);
+		fifo_bytes = fifo_level * (6 * fifo_sensors);
+	
+		if (fifo_level > 0)
+		{
+			#if 0
 			for(int i=0; i<fifo_level; i++)
 			{
 				qmi8658_read_reg(Qmi8658Register_FifoData, &data[i*fifo_sensors*6], fifo_sensors*6);
 			}
-#else
+			#else
 			qmi8658_read_reg(Qmi8658Register_FifoData, data, fifo_bytes);
-#endif
-			qmi8658_write_reg(Qmi8658Register_FifoCtrl, g_imu.cfg.fifo_ctrl);
+			#endif
+		
+			qmi8658_read_reg(Qmi8658Register_FifoCount, fifo_status, 2);
+			fifo_bytes = (unsigned short)(((fifo_status[1]&0x03)<<8)|fifo_status[0]);
+			if(fifo_bytes > 0)
+			{
+				qmi8658_send_ctl9cmd(qmi8658_Ctrl9_Cmd_Rst_Fifo);
+			}
 		}
-		//qmi8658_send_ctl9cmd(qmi8658_Ctrl9_Cmd_Rst_Fifo);
+	
+		qmi8658_write_reg(Qmi8658Register_FifoCtrl, g_imu.cfg.fifo_ctrl);
 	}
 
 	return fifo_level;
@@ -1406,7 +1395,7 @@ void qmi8658_do_hw_selftest(int enSensor)
 		g_imu.st_out[3] = st_out[0];
 		g_imu.st_out[4] = st_out[1];
 		g_imu.st_out[5] = st_out[2];
-		if((QFABS(st_out[0]) > 380) && (QFABS(st_out[1]) > 380) && (QFABS(st_out[2]) > 380))
+		if((QFABS(st_out[0]) > 300) && (QFABS(st_out[1]) > 300) && (QFABS(st_out[2]) > 300))
 		{
 			qmi8658_log("gyr-selftest raw[%d	%d	%d] out[%f	%f	%f] Pass!\n", raw[0],raw[1],raw[2],st_out[0],st_out[1],st_out[2]);
 		}
@@ -1450,9 +1439,14 @@ unsigned char qmi8658_init(void)
 		qmi8658_config_reg(0);
 		qmi8658_enableSensors(g_imu.cfg.enSensors);
 		qmi8658_dump_reg();
-#if defined(QMI8658_USE_CALI)
-		memset(&g_cali, 0, sizeof(g_cali));
+#if defined(GYRO_DYNAMIC_CALIBRATION)
+		standard_deviation0 = 0.04f*57.29578f*g_imu.ssvt_g;
+		standard_deviation1 = 0.02f*57.29578f*g_imu.ssvt_g;
+		standard_deviation2 = 0.01f*57.29578f*g_imu.ssvt_g;
+		standard_deviation3 = 0.005f*57.29578f*g_imu.ssvt_g;
+		gyro_raw_static_deviation = standard_deviation0;
 #endif
+		
 		qmi8658_delay(300);
 
 		return 1;
