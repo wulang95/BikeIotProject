@@ -842,7 +842,7 @@ void qmi8658_config_reg(unsigned char low_power)
 		g_imu.cfg.accRange = Qmi8658AccRange_8g;
 		g_imu.cfg.accOdr = Qmi8658AccOdr_LowPower_21Hz;
 		g_imu.cfg.gyrRange = Qmi8658GyrRange_1024dps;
-		g_imu.cfg.gyrOdr = Qmi8658GyrOdr_125Hz;
+		g_imu.cfg.gyrOdr = Qmi8658GyrOdr_500Hz;
 	}
 	else
 	{
@@ -850,7 +850,7 @@ void qmi8658_config_reg(unsigned char low_power)
 		g_imu.cfg.accRange = Qmi8658AccRange_8g;
 		g_imu.cfg.accOdr = Qmi8658AccOdr_250Hz;
 		g_imu.cfg.gyrRange = Qmi8658GyrRange_1024dps;
-		g_imu.cfg.gyrOdr = Qmi8658GyrOdr_125Hz;
+		g_imu.cfg.gyrOdr = Qmi8658GyrOdr_500Hz;
 	}
 	
 	if(g_imu.cfg.enSensors & QMI8658_ACC_ENABLE)
@@ -938,9 +938,9 @@ void qmi8658_config_motion(void)
 	qmi8658_delay(2);
 	qmi8658_enableSensors(QMI8658_DISABLE_ALL);
 
-	qmi8658_write_reg(Qmi8658Register_Cal1_L, 0x03);		// any motion X threshold(uint 1/32 g)
-	qmi8658_write_reg(Qmi8658Register_Cal1_H, 0x03);		// any motion Y threshold(uint 1/32 g)
-	qmi8658_write_reg(Qmi8658Register_Cal2_L, 0x03);		// any motion Z threshold(uint 1/32 g)
+	qmi8658_write_reg(Qmi8658Register_Cal1_L, 0x01);		// any motion X threshold(uint 1/32 g)
+	qmi8658_write_reg(Qmi8658Register_Cal1_H, 0x01);		// any motion Y threshold(uint 1/32 g)
+	qmi8658_write_reg(Qmi8658Register_Cal2_L, 0x01);		// any motion Z threshold(uint 1/32 g)
 	qmi8658_write_reg(Qmi8658Register_Cal2_H, 0x02);		// no motion X threshold(uint 1/32 g)
 	qmi8658_write_reg(Qmi8658Register_Cal3_L, 0x02);		// no motion X threshold(uint 1/32 g)
 	qmi8658_write_reg(Qmi8658Register_Cal3_H, 0x02);		// no motion X threshold(uint 1/32 g)
@@ -989,7 +989,7 @@ void qmi8658_enable_amd(unsigned char enable, enum qmi8658_Interrupt int_map, un
 		g_imu.cfg.ctrl8_value |= QMI8658_CTRL8_ANYMOTION_EN;
 		qmi8658_write_reg(Qmi8658Register_Ctrl8, g_imu.cfg.ctrl8_value);
 		qmi8658_delay(1);
-		qmi8658_enableSensors(g_imu.cfg.enSensors);
+		qmi8658_enableSensors(g_imu.cfg.enSensors | 0x20);
 	}
 	else
 	{
@@ -1437,7 +1437,7 @@ unsigned char qmi8658_init(void)
 		qmi8658_enable_pedometer(1);
 #endif
 		qmi8658_config_reg(0);
-		qmi8658_enableSensors(g_imu.cfg.enSensors);
+		qmi8658_enableSensors(g_imu.cfg.enSensors|(1<< 5));
 		qmi8658_dump_reg();
 #if defined(GYRO_DYNAMIC_CALIBRATION)
 		standard_deviation0 = 0.04f*57.29578f*g_imu.ssvt_g;

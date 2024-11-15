@@ -17,6 +17,8 @@
 #include    "http_upgrade_ota.h"
 #include    "app_sensor.h"
 #include    "app_audio.h"
+#include    "GPS_control.h"
+#include "hal_drv_gpio.h"
 
 extern def_rtos_task_t app_system_task;
 void assert_handler(const char *ex_string, const char *func, size_t line);
@@ -92,10 +94,12 @@ struct sensor_calibration_data_stu {
 
 #pragma pack(1)
 struct sys_info_stu {
+    uint8_t car_init;
     uint16_t bat_val;
     uint8_t bat_soc;
     uint8_t bat_soh;
     uint8_t fault;
+    uint8_t audio_init : 1;
     uint8_t pdp_reg :1;
     uint8_t paltform_connect :1;
     uint8_t gps_state :1;
@@ -123,7 +127,7 @@ struct sys_set_var_stu{
 
 #define SOFTVER "1.1"
 #define HWVER   "1.0"
-#define DEFAULT_MANUFACTURER  "ENGWE" 
+#define DEFAULT_MANUFACTURER  "EG" 
 #define DEFAULT_DNS "114.114.114.114"
 #define DEFAULT_SN      "123456789" 
 #define DEFAULT_DEV_TYPE    "K10" 
@@ -133,6 +137,9 @@ struct sys_set_var_stu{
 
 #define BLE_NAME    "ENGWE"
 #define BLE_SUUID   0X1820
+
+#define OTA_FILE    "UFS:YGW-M13-CAN-V127-2024-11-12_OTA.bin"
+
 extern struct sys_set_var_stu sys_set_var;
 extern struct sys_param_set_stu sys_param_set;
 extern struct sys_info_stu sys_info;
@@ -141,7 +148,8 @@ void app_sys_init();
 int64_t systm_tick_diff(int64_t time);
 void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len);
 void app_system_thread(void *param);
-void flash_partition_erase(FLASH_PARTITION flash_part);
-void flash_partition_write(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift);
-void flash_partition_read(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift);
+int flash_partition_erase(FLASH_PARTITION flash_part);
+int flash_partition_write(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift);
+int flash_partition_read(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift);
+int flash_partition_size(FLASH_PARTITION flash_part);
 #endif

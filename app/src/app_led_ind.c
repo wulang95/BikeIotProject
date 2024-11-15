@@ -39,9 +39,38 @@ LED_CONTROL_STU sys_ota_ind[] = {
     {O_WHITE_IND, 0, LED_STOP},
 };
 
+LED_CONTROL_STU sys_test[] = {
+    {O_WHITE_IND, 1, 5000},
+    {O_WHITE_IND, 0, 1000},
+    {O_WHITE_IND, 1, 1000},
+    {O_WHITE_IND, 0, 1000},
+    {O_WHITE_IND, 1, 1000},
+    {O_WHITE_IND, 0, 1000},
+    {O_WHITE_IND, 1, 1000},
+    {O_WHITE_IND, 0, 1000},
+    {O_WHITE_IND, 1, 1000},
+    {O_WHITE_IND, 0, 1000},
+    {O_WHITE_IND, 1, 1000},
+    {O_WHITE_IND, 0, 1000},
+    {O_RED_IND, 1, 5000},
+    {O_RED_IND, 0, 1000},
+    {O_RED_IND, 1, 1000},
+    {O_RED_IND, 0, 1000},
+    {O_RED_IND, 1, 1000},
+    {O_RED_IND, 0, 1000},
+    {O_RED_IND, 1, 1000},
+    {O_RED_IND, 0, 1000},
+    {O_RED_IND, 1, 1000},
+    {O_RED_IND, 0, 1000},
+    {O_RED_IND, 1, 1000},
+    {O_RED_IND, 0, 1000},
+    {O_WHITE_IND, 0, LED_LOOP},
+};
+
 LED_CONTROL_STU *led_control_que[] = {
         sys_fault_ind,
-        sys_ota_ind
+        sys_ota_ind,
+        sys_test,
 };
 
 

@@ -29,14 +29,15 @@ typedef struct {
     };   
 } CAN_PDU_STU;
 
+
 #pragma pack()
-enum {
+typedef enum {
    HMI_ADR =  0X28,
    CONTROL_ADR = 0XEF,
    BMS_ADR = 0XF4,
    IOT_ADR = 0X21,
    LOCK_ADR = 0X60,
-};
+} DEV_ID;
 
 /*IOT指令*/
 enum {
@@ -179,6 +180,7 @@ struct trans_can_control_stu {
     uint8_t rq_data[8];
 };
 
+
 extern struct trans_can_control_stu  trans_can_control;
 void iot_can_heart_fun();
 void can_protocol_rx_thread(void *param);
@@ -188,8 +190,7 @@ void can_png_quest(uint8_t dst, uint16_t png, uint8_t direct);
 void iot_can_cmd_control(uint8_t cmd, uint8_t *cmdvar, uint8_t direct);
 void iot_can_png_control(uint8_t cmd, uint8_t direct);
 void iot_can_trans_func(uint32_t can_id, uint8_t *data, uint8_t direct);
-
-
+int can_ota_task(DEV_ID dev_id);
 
 
 

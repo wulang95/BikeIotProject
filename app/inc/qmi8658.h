@@ -10,9 +10,9 @@
 #if defined(QST_USE_SPI)
 #define QMI8658_USE_SPI
 #endif
- #define QMI8658_SYNC_SAMPLE_MODE
+ //#define QMI8658_SYNC_SAMPLE_MODE
 //#define QMI8658_USE_FIFO
-//#define QMI8658_USE_AMD
+#define QMI8658_USE_AMD
 //#define QMI8658_USE_NO_MOTION
 //#define QMI8658_USE_SIG_MOTION
 //#define QMI8658_USE_TAP

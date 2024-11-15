@@ -13,11 +13,9 @@
 #define HEADH  0XAA
 #define HEADL  0X55
 
-uint8_t GPS_MODE;
 def_rtos_queue_t can_rcv_que;
 def_rtos_queue_t mcu_cmd_que;
-GPS_DATA gps_info;
-int64_t gps_resh_time_t;
+
 uint8_t mcu_cmd_table[] = {0X0C, 0X0E, 0X0D, 0x0f, 0x0b, 0x0a, 0x09, 0X08};
 struct mcu_cmd_order_stu{
     uint8_t need_ask;
@@ -83,6 +81,7 @@ void mcu_uart_send(uint8_t *data, uint16_t len)
     hal_drv_uart_send(MCU_UART, data, len);
     debug_data_printf("mcu_send", data, len);
 }
+
 void can_data_send(stc_can_rxframe_t can_txframe)
 {
     uint8_t buf[56];
@@ -93,125 +92,6 @@ void can_data_send(stc_can_rxframe_t can_txframe)
 
 
 
-static uint8_t GGA_info_prase(char *pstart, uint16_t len, GPS_DATA *gps_info)
-{
-		/*$GNGGA,093314.00,3110.4880379,N,12135.9872231,E,1,37,0.5,17.362,M,0.000,M,,*74<CR><LF>*/
-		
-		char *p_s, *p_e;
-		if(len <= 10) return -1;
-		p_s = strchr(pstart, ',');
-		p_s = p_s + 1;
-		p_e = strchr(p_s, ',');
-		memcpy(gps_info->Time1, p_s, p_e - p_s);
-		p_s = p_e+1;
-		p_e = strchr(p_s, ',');
-		p_e = strchr(p_e + 1, ',');
-		p_e = strchr(p_e + 1, ',');
-		p_e = strchr(p_e + 1, ',');	
-		memcpy(gps_info->LatLongData, p_s, p_e - p_s);
-		p_s = strchr(p_e + 1, ',');
-		p_s = p_s + 1;
-		p_e = strchr(p_s, ',');
-		memcpy(gps_info->SateNumStr, p_s, p_e - p_s);
-
-		p_s = p_e + 1;
-		p_e = strchr(p_s, ',');
-		memcpy(gps_info->HDOP, p_s, p_e - p_s);
-		p_s = p_e + 1;
-		p_e = strchr(p_s, ',');
-		p_e = strchr(p_e+1, ',');
-		p_s = p_e + 1;
-		p_e = strchr(p_s+1, ',');
-		p_e = strchr(p_e+1, ','); 
-		memcpy(gps_info->SeaLevelH, p_s, p_e - p_s);
-		return 0;
-}
-
-static uint8_t RMC_info_prase(char *pstart, uint16_t len, GPS_DATA *gps_info)
-{
-		/*$GNRMC,093314.00,A,3110.4880379,N,12135.9872231,E,3.09,30.61,090222,,,A,V*09<CR><LF>*/
-		char *p_s, *p_e;
-		if(len <= 10) return -1;
-		p_s = strchr(pstart, ',');
-		p_s = p_s + 1;
-		p_e = strchr(p_s, ',');
-		memcpy(gps_info->Time1, p_s, p_e - p_s); 
-		p_s = p_e + 1;
-		p_e = strchr(p_s, ',');
-		gps_info->GPSValidFlag = p_s[0];
-		p_s = p_e + 1;
-		p_e = strchr(p_s, ',');
-		p_e = strchr(p_e+1, ',');
-		p_e = strchr(p_e+1, ',');
-		p_e = strchr(p_e+1, ',');
-		memcpy(gps_info->LatLongData, p_s, p_e - p_s);
-		p_s = strchr(p_e+1, ',');
-		p_s = strchr(p_s+1, ',');
-		p_s = p_s + 1;
-		p_e = strchr(p_s, ',');
-		memcpy(gps_info->Time2, p_s, p_e - p_s);
-		
-		p_s = strchr(p_e + 1, ',');
-		p_s = strchr(p_s + 1, ',');
-		p_s = p_s + 1;
-		p_e = strchr(p_s, ',');
-		memcpy(gps_info->Mode, p_s, p_e - p_s);
-		return 0;
-}
-
-// static uint8_t GLL_info_prase(char *pstart, uint16_t len, GPS_DATA *gps_info)
-// {
-// 		/*$GPGLL, 3110.4880379,N,00833.91565,E,093314.00,A,A*60\r\n*/
-// 		char *p_s, *p_e;
-// 		if(len <= 10) return -1;
-// 		p_s = strchr(pstart, ',');
-// 		p_s = p_s + 1;
-// 		p_e = strchr(p_s, ',');
-// 		p_e = strchr(p_e+1, ',');
-// 		p_e = strchr(p_e+1, ',');
-// 		p_e = strchr(p_e+1, ',');
-// 		memcpy(gps_info->LatLongData, p_s, p_e - p_s);
-// 		p_s = p_e + 1;
-// 		p_e = strchr(p_s, ',');
-// 		memcpy(gps_info->Time1, p_s, p_e - p_s);
-// 		p_s = p_e+1;
-// 		p_s = strchr(p_s, ',');
-// 		p_s = p_s + 1;
-// 		p_e = strchr(p_s, ',');
-// 		gps_info->GPSValidFlag = p_s[0];
-// 		return 0;
-// }
-
-
-
-
-void gps_data_handler(char *data, uint16_t len)
-{
-    GPS_DATA gps_info_s = {0};
-    if(strstr(data, "GGA")) {
-        GGA_info_prase(data, len, &gps_info_s);
-        memcpy(gps_info.Time1, gps_info_s.Time1, sizeof(gps_info_s.Time1));
-		memcpy(gps_info.LatLongData, gps_info_s.LatLongData, sizeof(gps_info_s.LatLongData));
-		memcpy(gps_info.SateNumStr, gps_info_s.SateNumStr, sizeof(gps_info_s.SateNumStr));
-		memcpy(gps_info.HDOP, gps_info_s.HDOP, sizeof(gps_info_s.HDOP));
-		memcpy(gps_info.SeaLevelH, gps_info_s.SeaLevelH, sizeof(gps_info_s.SeaLevelH));	
-    } else if(strstr(data, "RMC")) {  
-        RMC_info_prase(data, len, &gps_info_s);
-        memcpy(gps_info.Time1, gps_info_s.Time1, sizeof(gps_info_s.Time1));
-		gps_info.GPSValidFlag = gps_info_s.GPSValidFlag;
-		memcpy(gps_info.LatLongData, gps_info_s.LatLongData, sizeof(gps_info_s.LatLongData));
-		memcpy(gps_info.Time2, gps_info_s.Time2, sizeof(gps_info_s.Time2));
-		memcpy(gps_info.Mode, gps_info_s.Mode, sizeof(gps_info_s.Mode));
-    } 
-    LOG_I("gps_info.Time1:%s", gps_info.Time1);
-    LOG_I("gps_info.LatLongData:%s", gps_info.LatLongData);
-    LOG_I("gps_info.SateNumStr:%s", gps_info.SateNumStr);
-    LOG_I("gps_info.HDOP:%s", gps_info.HDOP);
-    LOG_I("gps_info.SeaLevelH:%s", gps_info.SeaLevelH);
-    LOG_I("gps_info.Mode:%s", gps_info.Mode);
-    LOG_I("gps_info.GPSValidFla:%c", gps_info.GPSValidFlag);
-    LOG_I("gps_info.Time2:%s", gps_info.Time2);
-}
 
 void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
 {
@@ -229,9 +109,7 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
     break;
     case CMD_GPS_DATA:
         LOG_I("GPS_data:%s", (char *)data);
-        gps_resh_time_t = def_rtos_get_system_tick();
-        gps_info.RefreshFlag = 1;
-        gps_data_handler((char *)data, data_len);
+        gps_data_trans(data, data_len);
     break;
     case CMD_GPS_DEEPSLEEP:
     break;
@@ -249,13 +127,14 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
 
 void MCU_CMD_MARK(uint8_t cmd)
 {
+    LOG_I("CMD:%d", cmd);
     if(cmd == CMD_CAN_TRANS_INDEX || cmd == CMD_GPS_DATA || cmd == CMD_GPS_TRANS_INDEX) return;
     def_rtos_queue_release(mcu_cmd_que, sizeof(uint8_t), &cmd, RTOS_WAIT_FOREVER);
 }
 
 void mcu_send_fail()
 {
-
+    LOG_E("mcu_send_fail");
 }
 
 void mcu_uart_send_thread(void *param)
@@ -294,7 +173,6 @@ void mcu_uart_send_thread(void *param)
             } else break;
         }
         mcu_cmd_send_crtl.send_flag = 0;
-
     }
     def_rtos_task_delete(NULL);
 }
@@ -375,14 +253,12 @@ void mcu_uart_recv_thread(void *param)
     def_rtos_task_delete(NULL);
 }
 
-
 void mcu_uart_init()
 {
-    memset(&gps_info, 0, sizeof(gps_info));
-    gps_resh_time_t = 0;
+
     def_rtos_queue_create(&mcu_cmd_que, sizeof(uint8_t), 12);
     def_rtos_queue_create(&can_rcv_que, sizeof(stc_can_rxframe_t), 12);
     hal_drv_uart_init(MCU_UART, MCU_BAUD, MCU_PARITY);
-    MCU_CMD_MARK(CMD_GPS_HOST_START_INDEX);
+    GPS_Init();
     LOG_I("mcu_uart_init is ok");
 }

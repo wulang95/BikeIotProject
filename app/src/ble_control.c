@@ -60,8 +60,6 @@ def_rtos_sem_t ble_trans_recv_sem;
 
 
 
-
-
 struct ble_info_s ble_info;
 void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint16_t *buf_len)
 {
@@ -135,6 +133,7 @@ void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint1
 
 void ble_cmd_mark(uint8_t cmd)
 {
+    LOG_I("CMD:%d", cmd);
     def_rtos_queue_release(ble_send_cmd_que, sizeof(uint8_t), &cmd,  RTOS_WAIT_FOREVER);
 }
 
@@ -149,7 +148,6 @@ void ble_cmd_send_fail(uint8_t cmd)
 
 }
   
-
 void ble_control_send_thread(void *param)
 {
     def_rtosStaus res;
@@ -201,6 +199,69 @@ uint16_t ble_trans_data_block_read(uint8_t *buf, uint16_t len, uint32_t time_out
     return 0;
 }
 
+void ble_param_init()
+{
+    ble_info.ble_adv_param.adv_inv_max = 600;
+    ble_info.ble_adv_param.adv_inv_min = 600;
+    ble_info.ble_con_param.con_inv_max = 12;
+    ble_info.ble_con_param.con_inv_min = 12;
+    ble_info.ble_con_param.con_latency = 0;
+    ble_info.ble_con_param.con_timeout = 800;
+}
+
+void ble_set_adv_data(uint8_t *data, uint8_t len)
+{
+    memcpy(ble_info.ble_adv_data.data, data, len);
+    ble_info.ble_adv_data.len = len;
+    ble_cmd_mark(BLE_SET_ADV_DATA_INDEX);
+}
+
+void ble_set_scanrsp_data(uint8_t *data, uint8_t len)
+{
+    memcpy(ble_info.ble_scanrsp_data.data, data, len);
+    ble_info.ble_scanrsp_data.len = len;
+    ble_cmd_mark(BLE_SET_SCANRSP_DATA_INDEX);
+}
+
+void sys_set_ble_adv_start()
+{
+    uint8_t buf[32];
+    char str[30];
+    uint8_t len = 0;
+    sprintf(str, "%s-%02X", BLE_NAME, ble_info.mac[5]);
+    LOG_I("%s", str);
+    buf[1+len] = GAP_ADVTYPE_LOCAL_NAME_COMPLETE;
+    len++;
+    memcpy(&buf[1+len], str, strlen(str));
+    len += strlen(str);
+    buf[0] = len;
+    len += 1;
+    buf[len++] = 3;
+    buf[len++] = GAP_ADVTYPE_16BIT_MORE;
+    buf[len++] = BLE_SUUID >> 8;
+    buf[len++] = BLE_SUUID&0XFF;
+    ble_set_adv_data(buf, len);
+    debug_data_printf("ble_adv_data", buf, len);
+
+    len = 0;
+    buf[1 +len] = GAP_ADVTYPE_MANUFACTURER_SPECIFIC;
+    len++;
+    memcpy(&buf[1+len], &ble_info.mac[0], 6);
+    len += 6;
+    memcpy(&buf[1+len], DEFAULT_MANUFACTURER, 2);
+    len += 2;
+    memcpy(&buf[1+len], DEFAULT_DEV_TYPE, 2);
+    len += 2;
+    memcpy(&buf[1+len], &ble_info.ver[0], strlen(ble_info.ver));
+    len += strlen(ble_info.ver);
+    buf[0] = len;
+    len++;
+    ble_set_scanrsp_data(buf, len);
+    debug_data_printf("ble_scanrsp_data", buf, len);
+    ble_cmd_mark(BLE_ADV_START_INDEX);
+    ble_info.adv_sta = 1;
+}
+
 void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
 {
     char *p = NULL;
@@ -227,6 +288,8 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
         case CMD_BLE_GET_VER:
             LOG_I("BLE_VER:%s", (char *)data);
             memcpy(&ble_info.ver[0], &data[0], strlen((char *)data));
+            if(ble_info.adv_sta == 0)
+            sys_set_ble_adv_start();
             break;
         case CMD_BLE_GET_MAC:
             memcpy(ble_info.mac, data, 6);
@@ -321,11 +384,12 @@ void ble_control_recv_thread(void *param)
 
 static void ble_power_init()
 {
+
     char buf[24], *p;
     uint16_t len;
     uint8_t i;
     hal_drv_write_gpio_value(O_BLE_POWER, LOW_L);
-    for(i = 0; i < 3; i++){
+    for(i = 0; i < 3; i++) {
         def_rtos_task_sleep_ms(10);
         len = hal_drv_uart_read(BLE_UART, (uint8_t *)buf, 24, 300);
         if(len) {
@@ -342,7 +406,7 @@ static void ble_power_init()
             def_rtos_task_sleep_ms(8000);
         }
         hal_drv_write_gpio_value(O_BLE_POWER, LOW_L);
-        def_rtos_task_sleep_ms(10);
+        def_rtos_task_sleep_ms(80);
     }
     if(ble_info.init != 1) {
         LOG_E("ble init fail");
@@ -350,61 +414,6 @@ static void ble_power_init()
     } 
 } 
 
-void ble_param_init()
-{
-    ble_info.ble_adv_param.adv_inv_max = 600;
-    ble_info.ble_adv_param.adv_inv_min = 600;
-    ble_info.ble_con_param.con_inv_max = 12;
-    ble_info.ble_con_param.con_inv_min = 12;
-    ble_info.ble_con_param.con_latency = 0;
-    ble_info.ble_con_param.con_timeout = 800;
-}
-
-void ble_set_adv_data(uint8_t *data, uint8_t len)
-{
-    memcpy(ble_info.ble_adv_data.data, data, len);
-    ble_info.ble_adv_data.len = len;
-    ble_cmd_mark(BLE_SET_ADV_DATA_INDEX);
-}
-
-void ble_set_scanrsp_data(uint8_t *data, uint8_t len)
-{
-    memcpy(ble_info.ble_scanrsp_data.data, data, len);
-    ble_info.ble_scanrsp_data.len = len;
-    ble_cmd_mark(BLE_SET_SCANRSP_DATA_INDEX);
-}
-
-void sys_set_ble_adv_start()
-{
-    uint8_t buf[32];
-    char str[30];
-    uint8_t len = 0;
-    sprintf(str, "%s-%02X", BLE_NAME, ble_info.mac[5]);
-    LOG_I("%s", str);
-    buf[1+len] = GAP_ADVTYPE_LOCAL_NAME_COMPLETE;
-    len++;
-    memcpy(&buf[1+len], str, strlen(str));
-    len += strlen(str);
-    buf[0] = len;
-    len += 1;
-    buf[len++] = 3;
-    buf[len++] = GAP_ADVTYPE_16BIT_MORE;
-    buf[len++] = BLE_SUUID >> 8;
-    buf[len++] = BLE_SUUID&0XFF;
-    ble_set_adv_data(buf, len);
-    debug_data_printf("ble_adv_data", buf, len);
-
-    len = 0;
-    buf[1 +len] = GAP_ADVTYPE_MANUFACTURER_SPECIFIC;
-    len++;
-    memcpy(&buf[1+len], &ble_info.mac[0], 6);
-    len += 6;
-    buf[0] = len;
-    len++;
-    ble_set_scanrsp_data(buf, len);
-    debug_data_printf("ble_scanrsp_data", buf, len);
-    ble_cmd_mark(BLE_ADV_START_INDEX);
-}
 
 void ble_control_init()
 {
@@ -419,7 +428,7 @@ void ble_control_init()
     ble_power_init();
     ble_param_init();
     ble_cmd_mark(BLE_GET_VER_INDEX);
-    sys_set_ble_adv_start();
+    
     LOG_I("ble_control_init is ok");
 }
 

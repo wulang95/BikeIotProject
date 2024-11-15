@@ -9,10 +9,10 @@ extern "C" {
 #include <stdlib.h>
 
 
-#define   LOCK_VOICE_FILE                   "lock.wav"
-#define   UNLOCK_VOICE_FILE                 "unlock.wav"
+#define   LOCK_VOICE_FILE                   "close_lock.wav"
+#define   UNLOCK_VOICE_FILE                 "open_lock.wav"
 #define   ALARM_VOICE_FILE                  "alarm.wav"
-#define   LOOK_CAR_VOICE_FILE               "look_car.wav"
+#define   LOOK_CAR_VOICE_FILE               "look_car.mp3"
 #define   ENTER_PENALTY_AREA_VOICE_FILE     "enter_penalty_area.wav"
 #define   ENTER_FEASIBLE_AREA_VOICE_FILE    "enter_feasible_area.wav"  
 
@@ -32,9 +32,10 @@ typedef enum {
 
 
 
-
-
-
+void voice_play_mark(VOICE_TYPE type);
+void voice_play_off();
+void app_audio_init();
+void app_audio_thread(void *param);
 
 
 

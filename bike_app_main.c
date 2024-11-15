@@ -26,27 +26,29 @@ def_rtos_task_t can_protocol_send_task = NULL;
 def_rtos_task_t net_protocol_send_task = NULL;
 def_rtos_task_t mcu_uart_send_task =NULL;
 def_rtos_task_t http_ota_task = NULL;
+def_rtos_task_t gps_control_task = NULL;
+def_rtos_task_t app_audio_task = NULL;
 void app_start_thread(void *param)
 {
     LOG_I("app start thread is run");
     def_rtosStaus err = RTOS_SUCEESS;
-    err = def_rtos_task_create(&ble_control_task_recv, 2048, TASK_PRIORITY_NORMAL, ble_control_recv_thread);
+    err = def_rtos_task_create(&ble_control_task_recv, 1024*4, TASK_PRIORITY_NORMAL, ble_control_recv_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("ble_control_recv_thread is create fail!");
     }
-    err = def_rtos_task_create(&ble_control_task_send, 2048, TASK_PRIORITY_NORMAL, ble_control_send_thread);
+    err = def_rtos_task_create(&ble_control_task_send, 1024*4, TASK_PRIORITY_NORMAL, ble_control_send_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("ble_control_recv_thread is create fail!");
     }
-    err = def_rtos_task_create(&ble_protocol_task_recv, 2048, TASK_PRIORITY_NORMAL, ble_protocol_recv_thread);
+    err = def_rtos_task_create(&ble_protocol_task_recv, 1024*4, TASK_PRIORITY_NORMAL, ble_protocol_recv_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("ble_protocol_recv_thread is create fail!");
     }
-    err = def_rtos_task_create(&ble_protocol_task_send, 2048, TASK_PRIORITY_NORMAL, ble_protocol_send_thread);
+    err = def_rtos_task_create(&ble_protocol_task_send, 1024*4, TASK_PRIORITY_NORMAL, ble_protocol_send_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("ble_protocol_send_thread is create fail!");
     }
-    err = def_rtos_task_create(&app_rtc_event_task, 1024, TASK_PRIORITY_NORMAL, app_rtc_event_thread);
+    err = def_rtos_task_create(&app_rtc_event_task, 1024*2, TASK_PRIORITY_NORMAL, app_rtc_event_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("app_rtc_event_thread is create fail!");
     }
@@ -55,10 +57,16 @@ void app_start_thread(void *param)
     if(err != RTOS_SUCEESS){
         LOG_E("app_virt_uart_thread is create fail!");
     }
-    err = def_rtos_task_create(&can_protocol_recv_task, 2048, TASK_PRIORITY_NORMAL, can_protocol_rx_thread); 
+    err = def_rtos_task_create(&can_protocol_recv_task, 1024*4, TASK_PRIORITY_NORMAL, can_protocol_rx_thread); 
     if(err != RTOS_SUCEESS){
         LOG_E("can_protocol_rx_thread is create fail!");
     }
+
+    err = def_rtos_task_create(&gps_control_task, 1024*4, TASK_PRIORITY_NORMAL, gps_control_thread); 
+    if(err != RTOS_SUCEESS){
+        LOG_E("gps_control_thread is create fail!");
+    }
+
     err = def_rtos_task_create(&mcu_uart_recv_task, 1024*4, TASK_PRIORITY_NORMAL, mcu_uart_recv_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("mcu_uart_recv_thread is create fail!");
@@ -75,16 +83,13 @@ void app_start_thread(void *param)
     if(err != RTOS_SUCEESS){
         LOG_E("can_protocol_tx_thread is create fail!");
     }
-    err = def_rtos_task_create(&app_system_task, 2048, TASK_PRIORITY_NORMAL, app_system_thread);
-    if(err != RTOS_SUCEESS){
-        LOG_E("system_timer_thread is create fail!");
-    }
+    
     err = def_rtos_task_create(&net_protocol_send_task, 2048, TASK_PRIORITY_NORMAL, net_protocol_send_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("net_protocol_send_thread is create fail!");
     }
 
-    err = def_rtos_task_create(&mcu_uart_send_task, 2048, TASK_PRIORITY_NORMAL, mcu_uart_send_thread);
+    err = def_rtos_task_create(&mcu_uart_send_task, 1024*4, TASK_PRIORITY_NORMAL, mcu_uart_send_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("mcu_uart_send_thread is create fail!");
     }
@@ -97,6 +102,14 @@ void app_start_thread(void *param)
     err = def_rtos_task_create(&imu_algo_task, 1024*2, TASK_PRIORITY_NORMAL, imu_algo_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("imu_algo_thread is create fail!");
+    }
+    err = def_rtos_task_create(&app_audio_task, 1024*4, TASK_PRIORITY_NORMAL, app_audio_thread);
+    if(err != RTOS_SUCEESS){
+        LOG_E("app_audio_thread is create fail!");
+    }
+    err = def_rtos_task_create(&app_system_task, 1024*4, TASK_PRIORITY_NORMAL, app_system_thread);
+    if(err != RTOS_SUCEESS){
+        LOG_E("system_timer_thread is create fail!");
     }
     def_rtos_task_delete(NULL);
 }

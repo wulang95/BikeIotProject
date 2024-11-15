@@ -13,6 +13,7 @@ extern "C" {
 typedef enum {
     LED_SYS_FAULT = 0,
     LED_SYS_OTA,
+    LED_TEST,
 }LED_IND;
 
 void app_set_led_ind(LED_IND led_ind_sta);

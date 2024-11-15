@@ -497,7 +497,7 @@ void app_http_ota_init()
     def_rtos_semaphore_create(&http_upgrade_info.http_ota_sem, 0);
     memset(http_upgrade_info.url, 0, sizeof(http_upgrade_info.url)); 
 }
-
+uint8_t temp_flag;
 void app_http_ota_thread(void *param)
 {
     int64_t http_start_time_t;
@@ -507,7 +507,14 @@ void app_http_ota_thread(void *param)
     char version_buf[256] = {0};
     ql_dev_get_firmware_version(version_buf, sizeof(version_buf));
     LOG_I("current version:  %s", version_buf);
-    while(1){
+    def_rtos_task_sleep_ms(10000);
+    temp_flag = 1;
+    while(1) {  
+        if(temp_flag == 1){
+            LOG_I("enter can_ota_task");
+            can_ota_task(HMI_ADR);
+            temp_flag = 0;
+        }
         res = def_rtos_semaphore_wait(http_upgrade_info.http_ota_sem, RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) {
             continue;

@@ -1,6 +1,12 @@
 #include "app_common.h"
+#define DBG_TAG         "app_common"
 
-
+#ifdef APP_COMMON_DEBUG
+#define DBG_LVL    DBG_LOG
+#else
+#define DBG_LVL   DBG_INFO
+#endif
+#include    "log_port.h"
 
 unsigned int CRC32Table[256] = {
     0x00000000,0x77073096,0xEE0E612C,0x990951BA,0x076DC419,0x706AF48F,0xE963A535,0x9E6495A3,
@@ -112,6 +118,7 @@ uint8_t const auchCRCLo[] =
 0x44, 0x84, 0x85, 0x45, 0x87, 0x47, 0x46, 0x86, 0x82, 0x42,
 0x43, 0x83, 0x41, 0x81, 0x80, 0x40
 };
+
 uint16_t drv_modbus_crc16(uint8_t *puchMsg, uint16_t usDataLen)
 {
 uint16_t uIndex ; //索引
@@ -177,6 +184,52 @@ uint16_t  HexSrt_To_Value(uint8_t *Hex,  char *HexSrt, uint16_t HexSrtLen)
         Hex[HexLen++] = Byte;
     }
     return HexLen;
+}
+
+uint8_t String_Para_Intercept(char *StrData, char *pPara[], uint8_t PaprNum, uint8_t *EndFlag, char InterChar, char EndChar)
+{
+    uint8_t Num = 0;
+
+    if(StrData == NULL)
+        return FAIL;
+
+    *EndFlag = -1;
+
+    if(*StrData == InterChar)              //ÎÞ²ÎÊý
+        pPara[Num] = NULL;
+    else
+        pPara[Num] = StrData;
+    Num++;
+    do
+    {
+        if(*StrData == InterChar)
+        {
+            *StrData = 0;
+            if((PaprNum != 0) && (Num >= PaprNum))        //²»Îª0£¬Ö¸¶¨¶ÁÈ¡µÄ²ÎÊý¸öÊý
+                break;
+
+            if((*(StrData + 1) == InterChar) || (*(StrData + 1) == EndChar)) //ºóÐøÎª¼ä¸ô·û»ò½áÊø·û£¬ÎÞ²ÎÊý
+                pPara[Num] = NULL;
+            else
+                pPara[Num] = StrData + 1;
+            Num++;
+        }
+        else if(*StrData == EndChar)    			     //½áÎ²
+        {
+            *StrData = 0;
+            *EndFlag = 0;
+            break;
+        }
+        else if((*StrData == '\n') || (*StrData == '\r')) //Ö¸Áî½áÊø
+        {
+            *EndFlag = 0;
+            break;
+        }
+        StrData++;
+    }
+    while(*StrData);
+
+    return Num;
 }
 
 

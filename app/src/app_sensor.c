@@ -18,7 +18,7 @@ QST_Filter_Buffer accel_buf[3];
 static float accl[3],gyro[3];
 static float accel_correct[3] = {0, 0, 0};
 static float gyro_correct[3] = {0, 0, 0};
-static float dt = 0.01f;
+static float dt = 0.05f;
 float euler_angle[3] = {0, 0, 0};
 static float quater[4] = {0, 0, 0, 0};
 static float line_acc[3] = {0, 0, 0};
@@ -29,14 +29,14 @@ def_rtos_sem_t imu_algo_sem;
 
 void qst_algo_inti(void)
 {
-	set_cutoff_frequency(100, 1, &gyro_filter);      //第一个参数为频率100hz，与算法库调用周期有关，如例程中算法库调用周期为10ms 
-	set_cutoff_frequency(100, 2, &accel_filter);
+	set_cutoff_frequency(20, 1, &gyro_filter);      //第一个参数为频率100hz，与算法库调用周期有关，如例程中算法库调用周期为10ms 
+	set_cutoff_frequency(20, 2, &accel_filter);
 }
 
 void imu_algo_thread(void *param)
 {
 	def_rtosStaus res;
-	def_rtos_timer_start(algo_timer, 10, 1);
+	def_rtos_timer_start(algo_timer, 50, 1);
 	while(1)
 	{
 		res = def_rtos_semaphore_wait(imu_algo_sem, RTOS_WAIT_FOREVER);
@@ -44,8 +44,8 @@ void imu_algo_thread(void *param)
             continue;
         }
 		qmi8658_read_xyz(accl, gyro);		
-	//	LOG_I("accl[0]:%0.2f, accl[1]:%0.2f, accl[2]:%0.2f", accl[0], accl[1], accl[2]);
-	//	LOG_I("gyro[0]:%0.2f, gyro[1]:%0.2f, gyro[2]:%0.2f", gyro[0], gyro[1], gyro[2]);	
+		LOG_I("accl[0]:%0.2f, accl[1]:%0.2f, accl[2]:%0.2f", accl[0], accl[1], accl[2]);
+		LOG_I("gyro[0]:%0.2f, gyro[1]:%0.2f, gyro[2]:%0.2f", gyro[0], gyro[1], gyro[2]);	
 		accel_correct[0] = Filter_Apply(accl[0],&accel_buf[0],&accel_filter);
 		accel_correct[1] = Filter_Apply(accl[1],&accel_buf[1],&accel_filter);
 		accel_correct[2] = Filter_Apply(accl[2],&accel_buf[2],&accel_filter);
@@ -63,10 +63,20 @@ void imu_algo_timer()     // 10ms调用1次
     def_rtos_smaphore_release(imu_algo_sem);
 }
 
+void imu_algo_timer_start()
+{
+	def_rtos_timer_start(algo_timer, 50, 1);
+	qmi8658_enable_amd(0, 	qmi8658_Int1, 0);
+	qmi8658_enableSensors(QMI8658_ACCGYR_ENABLE);
+}
+
 void imu_algo_timer_stop()
 {
 	def_rtos_timer_stop(algo_timer);
+	qmi8658_enable_amd(1, 	qmi8658_Int1, 1);
+	LOG_I("imu_algo_timer_stop");
 }
+
 
 
 void qmi8658_sensor_init()

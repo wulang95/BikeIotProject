@@ -1,9 +1,8 @@
 #include "app_system.h"
 #include "hal_drv_flash.h"
-#include "hal_drv_gpio.h"
 #include "hal_drv_uart.h"
 #include "hal_virt_at.h"
-
+#include "ql_fs.h"
 #define DBG_TAG         "app_system"
 
 #ifdef APP_SYS_DEBUG
@@ -17,17 +16,26 @@ struct sys_config_stu sys_config;
 struct sys_config_stu sys_config_back;
 struct sys_param_set_stu sys_param_set;
 struct sys_set_var_stu sys_set_var;
+
+int ota_fd;
+
 void assert_handler(const char *ex_string, const char *func, size_t line)
 {
     LOG_E("(%s) assertion failed at function:%s, line number:%d \n", ex_string, func, line);
     while(1);
 }
 
-void flash_partition_erase(FLASH_PARTITION flash_part)
+
+
+
+int flash_partition_erase(FLASH_PARTITION flash_part)
 {
     switch(flash_part) {
         case DEV_APP_ADR:
-            hal_drv_flash_erase(DEV_APP_ADDR, DEV_APP_SIZE);
+            if(ota_fd > 0) ql_fclose(ota_fd);
+        //    hal_drv_flash_erase(DEV_APP_ADDR, DEV_APP_SIZE);
+            ota_fd = ql_fopen(OTA_FILE, "wb+");
+            if(ota_fd < 0) return FAIL;
             break;
         case SYS_CONFIG_ADR:
             hal_drv_flash_erase(SYS_CONFIG_ADDR, SYS_CONFIG_SIZE);
@@ -44,13 +52,32 @@ void flash_partition_erase(FLASH_PARTITION flash_part)
         default:
             break;
     }
+    return OK;
 }
 
-void flash_partition_write(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift)
+int flash_partition_write(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift)
 {
+    int res;
     switch(flash_part){
         case DEV_APP_ADR:
-            hal_drv_flash_write(DEV_APP_ADDR + shift, data, lenth);
+      //      hal_drv_flash_write(DEV_APP_ADDR + shift, data, lenth);
+            if(ota_fd < 0) {
+                ota_fd = ql_fopen(OTA_FILE, "rb+");
+                if(ota_fd < 0) {
+                    LOG_E("%s open fail", OTA_FILE);
+                    return  FAIL;
+                }
+            } 
+            res = ql_fseek(ota_fd, shift, 0);
+            if(res < 0) {
+                LOG_E("ql_fseek is fail");
+                return FAIL;
+            }
+            res = ql_fwrite(data, lenth, 1, ota_fd);
+            if(res < 0) {
+                LOG_E("ql_fwrite is fail!");
+                return FAIL;
+            }
             break;
         case SYS_CONFIG_ADR:
             hal_drv_flash_write(SYS_CONFIG_ADDR + shift, data, lenth);
@@ -67,13 +94,32 @@ void flash_partition_write(FLASH_PARTITION flash_part, void *data, size_t lenth,
         default:
             break;
     }
+    return OK;
 }
 
-void flash_partition_read(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift)
+int flash_partition_read(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift)
 {
+    int res;
     switch(flash_part) {
         case DEV_APP_ADR:
-            hal_drv_flash_read(DEV_APP_ADDR + shift, data, lenth);
+            if(ota_fd  < 0) {
+                ota_fd = ql_fopen(OTA_FILE, "rb+");
+                if(ota_fd < 0) {
+                    LOG_E("%s open fail", OTA_FILE);
+                    return  FAIL;
+                }
+            } 
+            res = ql_fseek(ota_fd, shift, 0);
+            if(res < 0) {
+                LOG_E("ql_fseek is fail");
+                return FAIL;
+            }
+            res = ql_fread(data, lenth, 1, ota_fd);
+            if(res < 0) {
+                LOG_E("ql_fread is fail");
+                return FAIL;
+            }
+//            hal_drv_flash_read(DEV_APP_ADDR + shift, data, lenth);
             break;
         case SYS_CONFIG_ADR:
             hal_drv_flash_read(SYS_CONFIG_ADDR + shift, data, lenth);
@@ -90,8 +136,29 @@ void flash_partition_read(FLASH_PARTITION flash_part, void *data, size_t lenth, 
         default:
             break;
     }
+    return OK;
 }
 
+int flash_partition_size(FLASH_PARTITION flash_part)
+{
+    switch(flash_part) {
+        case DEV_APP_ADR:
+            if(ota_fd > 0) {
+                return ql_fsize(ota_fd);
+            } else {
+                ota_fd = ql_fopen(OTA_FILE, "rb+");
+                if(ota_fd < 0) {
+                    LOG_E("%s open fail", OTA_FILE);
+                    return  FAIL;
+                }
+                return ql_fsize(ota_fd);
+            }  
+        break; 
+        default:
+        break;
+    }
+    return OK;
+}
 void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len)
 {
     uint16_t i, len;
@@ -117,7 +184,7 @@ int64_t systm_tick_diff(int64_t time)
 
 void sensor_input_handler()
 {
-    
+    LOG_I("algo is week");
 }
 
 static void hal_drv_init()
@@ -128,16 +195,20 @@ static void hal_drv_init()
     hal_drv_gpio_init(O_BAT_CHARGE_CON, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(O_MCU_CONEC, IO_OUTPUT, PULL_NONE_MODE, HIGH_L);
     hal_drv_gpio_init(I_BLE_CON_SIG, IO_INPUT, DOWN_MODE, L_NONE);
+
+    hal_drv_gpio_init(O_KEY_LOW, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(O_KEY_HIGH, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+
     hal_drv_gpio_init(O_BLE_WEEK_SIG, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(I_MCU_WEEK, IO_INPUT, DOWN_MODE, L_NONE);
-    hal_drv_gpio_init(I_36VPOWER_DET, IO_INPUT, DOWN_MODE, L_NONE);
+    hal_drv_gpio_init(I_36VPOWER_DET, IO_INPUT, UP_MODE, L_NONE);
     hal_drv_gpio_init(O_BLE_POWER, IO_OUTPUT, PULL_NONE_MODE, HIGH_L);
 
     hal_drv_uart_init(BLE_UART, BLE_BAUD, BLE_PARITY);
     hal_drv_uart_init(MCU_UART, MCU_BAUD, MCU_PARITY);
     hal_drv_write_gpio_value(O_MCU_CONEC, HIGH_L);
     hal_virt_at_init();
+    hal_drv_write_gpio_value(O_BAT_CHARGE_CON, HIGH_L);
     LOG_I("hal_drv_init is ok");
 }
 
@@ -214,6 +285,7 @@ void app_system_thread(void *param)
     def_rtosStaus res;
     int64_t csq_time_t = 0;
     uint16_t bat_val;
+    uint8_t TEMP = 0;
     while (1)
     {
         res = def_rtos_semaphore_wait(system_task_sem, RTOS_WAIT_FOREVER);
@@ -235,15 +307,31 @@ void app_system_thread(void *param)
             }
         }
         if(def_rtos_get_system_tick() - gps_resh_time_t > 10*1000) {
-            gps_info.RefreshFlag = 0;
+        //   gps_info.RefreshFlag = 0;
         }   
-        if(def_rtos_get_system_tick() - csq_time_t > 10*1000) {
+        if(def_rtos_get_system_tick() - csq_time_t > 3*1000) {
             net_update_singal_csq();
-            can_png_quest(CONTROL_ADR, CONTROL_HWVER1, 0);
             csq_time_t = def_rtos_get_system_tick();
             LOG_I("CSQ:%d", gsm_info.csq);
             LOG_I("ptich:%.2f,roll:%.2f,yaw:%.2f",euler_angle[0],euler_angle[1],euler_angle[2]);
-            imu_algo_timer_stop();
+            LOG_I("car_info.speed_limit:%d, car_info.pedal_speed:%d", car_info.speed_limit, car_info.pedal_speed);
+            LOG_I("car_info.total_odo:%d, car_info.single_odo:%d", car_info.total_odo, car_info.single_odo);
+            LOG_I("car_info.remain_odo:%d, car_info.wheel:%d", car_info.remain_odo, car_info.wheel);
+            LOG_I("car_info.current:%d, car_info.pedal_torque:%d", car_info.current, car_info.pedal_torque);
+            LOG_I("car_info.bus_voltage:%d, car_info.calorie:%d", car_info.bus_voltage, car_info.calorie);
+            LOG_I("car_info.hmi_info.display_unit:%d, car_info.gear:%d", car_info.hmi_info.display_unit, car_info.gear);
+            LOG_I("car_info.speed:%d, car_info.current_limit:%d", car_info.speed, car_info.current_limit);
+            // if(TEMP == 1) {
+            //     imu_algo_timer_start();
+            //     TEMP = 0;
+            // }
+            if(TEMP == 0) {
+                GPS_Start(GPS_MODE_CONT);
+            //    voice_play_mark(ALARM_VOICE);
+                // LOG_I("imu_algo_timer_stop");
+                // imu_algo_timer_stop();
+                TEMP = 1;
+            } 
         }
         if(sys_set_var.ble_bind_infoClean) {
             ble_cmd_mark(BLE_DELETE_BIND_INDEX);
@@ -252,7 +340,7 @@ void app_system_thread(void *param)
         if(sys_set_var.hid_lock_sw) {
             if(sys_set_var.hid_lock_sw == 1) {
 
-            } else if(sys_set_var.hid_lock_sw ==2){
+            } else if(sys_set_var.hid_lock_sw ==2) {
 
             }
             sys_set_var.hid_lock_sw = 0;
@@ -261,7 +349,7 @@ void app_system_thread(void *param)
             if(sys_set_var.car_power_en == 1) {
 
             } else if(sys_set_var.car_power_en == 2) {
-
+                
             }
             sys_set_var.car_power_en = 0;
         }
@@ -273,6 +361,12 @@ void app_system_thread(void *param)
             }
             sys_set_var.iot_active = 0;
         }
+        if(sys_info.car_init == 0) {
+            if(car_info.lock_sta == CAR_UNLOCK_ATA) {
+                sys_info.car_init = 1;
+            }
+        }
+       
 //        if(car_info.lock_sta == CAR_LOCK_STA) {
       //      car_heart_event();
  //       }
@@ -284,12 +378,13 @@ void app_system_thread(void *param)
         }
 
         if(hal_drv_read_gpio_value(I_36VPOWER_DET) == 0) {    //36V电源检测
-            hal_adc_value_get(BAT_ADC_VAL, (int *)&bat_val);
-            
             sys_info.power_36v = 1;
         } else {
             sys_info.power_36v = 0;
         }
+
+        hal_adc_value_get(BAT_ADC_VAL, (int *)&bat_val);
+        LOG_I("bat_val:%d", bat_val);
     }
     def_rtos_task_delete(NULL);
 }
@@ -301,24 +396,45 @@ void system_timer_fun()
 
 void sys_param_init()
 {
+    ota_fd = -1;
     sys_config_init();
     sys_param_set_init();
     memset(&sys_info, 0, sizeof(sys_info));
 }
+
+
+void ota_test()
+{
+    char ota_str[] = "123456789";
+    char ota_s[4] = {0};
+    if(flash_partition_erase(DEV_APP_ADR) < 0) {
+        LOG_E("ota erase is error");
+    }
+
+    if(flash_partition_write(DEV_APP_ADR, ota_str, sizeof(ota_str), 0) < 0){
+        LOG_E("ota write is error");
+    }
+    if(flash_partition_read(DEV_APP_ADR, ota_s, 3, 6) < 0) {
+        LOG_E("ota read is error");
+    } else {
+        LOG_I("%s", ota_s);
+    }
+}
+
 void app_sys_init()
 {
     hal_drv_init();
     app_led_init();
     app_rtc_init();
+    qmi8658_sensor_init();
     ble_control_init();
     net_control_init();
     sys_param_init();
     can_protocol_init();
     net_protocol_init();
     app_http_ota_init();
-    qmi8658_sensor_init();
- //   rtc_event_register(NET_HEART_EVENT,  8, 1);
-    rtc_event_register(NET_HEART_EVENT,  sys_param_set.net_heart_interval, 1);
+    rtc_event_register(NET_HEART_EVENT,  6, 1);
+ //   rtc_event_register(NET_HEART_EVENT,  sys_param_set.net_heart_interval, 1);
     if(sys_param_set.unlock_car_heart_sw){
         rtc_event_register(CAR_HEART_EVENT, sys_param_set.unlock_car_heart_interval, 1);
     }

@@ -23,6 +23,8 @@ set(APP_FILES
     app/src/http_upgrade_ota.c
     app/src/qmi8658.c
     app/src/app_sensor.c
+    app/src/GPS_control.c
+    app/src/app_audio.c
  )
 
 set(COMMON_FILES 
