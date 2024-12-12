@@ -408,11 +408,11 @@ uint8_t imu_static_calibration(short acc_raw[3], short gyro_raw[3])
 	static uint8_t static_cali_count = 0;
 	uint8_t axis;
 
-	if(sys_info.static_cali_flag == 1) return 1;
+	if(sys_info.static_cali_flag == 1 && sys_set_var.sensor_static_sw == 0) return 1;
 	flash_partition_read(SENSEOR_CALIBRATION_ADR,  (void *)&sensor_calibration_data, sizeof(struct sensor_calibration_data_stu), 0);
 	
 	if(sensor_calibration_data.magic == IOT_MAGIC\
-	&& sensor_calibration_data.crc32 == GetCrc32((uint8_t *)&sensor_calibration_data, sizeof(sensor_calibration_data) - 4)) {
+	&& sensor_calibration_data.crc32 == GetCrc32((uint8_t *)&sensor_calibration_data, sizeof(sensor_calibration_data) - 4) && sys_set_var.sensor_static_sw == 0) {
 		sys_info.static_cali_flag = 1;
 		return 1;
 	}
@@ -453,6 +453,7 @@ uint8_t imu_static_calibration(short acc_raw[3], short gyro_raw[3])
 			flash_partition_erase(SENSEOR_CALIBRATION_ADR);
 			flash_partition_write(SENSEOR_CALIBRATION_ADR, (void *)&sensor_calibration_data, sizeof(sensor_calibration_data) , 0);
 			sys_info.static_cali_flag = 1;
+			sys_set_var.sensor_static_sw = 0;
 			return 1;
     }
 	return 0;
@@ -573,7 +574,7 @@ void qmi8658_read_sensor_data(float acc[3], float gyro[3])
 	raw_gyro_xyz[1] = (short)((unsigned short)(buf_reg[9]<<8) |( buf_reg[8]));
 	raw_gyro_xyz[2] = (short)((unsigned short)(buf_reg[11]<<8) |( buf_reg[10]));
 
-	qmi8658_axis_convert(raw_acc_xyz, raw_gyro_xyz, 0);
+	qmi8658_axis_convert(raw_acc_xyz, raw_gyro_xyz, 4);
 #if defined(STATIC_CALIBRATION)
 
 	if(imu_static_calibration(raw_acc_xyz,raw_gyro_xyz) == 1)
@@ -736,6 +737,15 @@ void qmi8658_enableSensors(unsigned char enableFlags)
 
 	qmi8658_delay(2);
 }
+/*wulang 11/22*/
+void qmi8658_enableSensors_ctrl7_sync(uint8_t value)
+{
+	qmi8658_write_reg(Qmi8658Register_Ctrl7, value);
+	g_imu.cfg.enSensors = value&0x03;
+	qmi8658_delay(2);
+
+}
+
 
 void qmi8658_dump_reg(void)
 {
@@ -842,7 +852,7 @@ void qmi8658_config_reg(unsigned char low_power)
 		g_imu.cfg.accRange = Qmi8658AccRange_8g;
 		g_imu.cfg.accOdr = Qmi8658AccOdr_LowPower_21Hz;
 		g_imu.cfg.gyrRange = Qmi8658GyrRange_1024dps;
-		g_imu.cfg.gyrOdr = Qmi8658GyrOdr_500Hz;
+		g_imu.cfg.gyrOdr = Qmi8658GyrOdr_125Hz;
 	}
 	else
 	{
@@ -850,7 +860,7 @@ void qmi8658_config_reg(unsigned char low_power)
 		g_imu.cfg.accRange = Qmi8658AccRange_8g;
 		g_imu.cfg.accOdr = Qmi8658AccOdr_250Hz;
 		g_imu.cfg.gyrRange = Qmi8658GyrRange_1024dps;
-		g_imu.cfg.gyrOdr = Qmi8658GyrOdr_500Hz;
+		g_imu.cfg.gyrOdr = Qmi8658GyrOdr_125Hz;
 	}
 	
 	if(g_imu.cfg.enSensors & QMI8658_ACC_ENABLE)
@@ -894,7 +904,7 @@ unsigned char qmi8658_get_id(void)
 			qmi8658_write_reg(Qmi8658Register_Ctrl7, 0x03);
 			qmi8658_delay(300);
 			qmi8658_read_reg(0x45, &opt_status, 1);
-			//qmi8658_log("opt_status = 0x%x\n", opt_status);
+			qmi8658_log("opt_status = 0x%x\n", opt_status);
 			if(opt_status != 0x80)
 			{
 				qmi8658_log("**ERROR[0x45=0x%x]\n", opt_status);
@@ -970,10 +980,13 @@ void qmi8658_enable_amd(unsigned char enable, enum qmi8658_Interrupt int_map, un
 		unsigned char ctrl1;
 
 		qmi8658_write_reg(Qmi8658Register_Ctrl8, 0xc0);
-		qmi8658_enableSensors(QMI8658_DISABLE_ALL);
+		qmi8658_enableSensors_ctrl7_sync(QMI8658_DISABLE_ALL); //wulang 11/22
+	//	qmi8658_enableSensors(QMI8658_DISABLE_ALL);
 		qmi8658_config_reg(low_power);
 
 		qmi8658_read_reg(Qmi8658Register_Ctrl1, &ctrl1, 1);
+
+
 		if(int_map == qmi8658_Int1)
 		{
 			ctrl1 |= QMI8658_INT1_ENABLE;
@@ -989,7 +1002,8 @@ void qmi8658_enable_amd(unsigned char enable, enum qmi8658_Interrupt int_map, un
 		g_imu.cfg.ctrl8_value |= QMI8658_CTRL8_ANYMOTION_EN;
 		qmi8658_write_reg(Qmi8658Register_Ctrl8, g_imu.cfg.ctrl8_value);
 		qmi8658_delay(1);
-		qmi8658_enableSensors(g_imu.cfg.enSensors | 0x20);
+		qmi8658_enableSensors_ctrl7_sync(g_imu.cfg.enSensors | 0x20);  //wulang 11/22
+//		qmi8658_enableSensors(g_imu.cfg.enSensors | 0x20);
 	}
 	else
 	{

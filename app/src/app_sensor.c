@@ -33,6 +33,7 @@ void qst_algo_inti(void)
 	set_cutoff_frequency(20, 2, &accel_filter);
 }
 
+
 void imu_algo_thread(void *param)
 {
 	def_rtosStaus res;
@@ -53,6 +54,7 @@ void imu_algo_thread(void *param)
 		gyro_correct[1] = Filter_Apply(gyro[1],&gyro_buf[1],&gyro_filter);
 		gyro_correct[2] = Filter_Apply(gyro[2],&gyro_buf[2],&gyro_filter);
 		qst_fusion_update(accel_correct, gyro_correct, &dt, euler_angle, quater, line_acc);
+		LOG_I("ptich:%.2f,roll:%.2f,yaw:%.2f",euler_angle[0],euler_angle[1],euler_angle[2]);
 	}
 	def_rtos_task_delete(NULL);
 }
@@ -67,13 +69,14 @@ void imu_algo_timer_start()
 {
 	def_rtos_timer_start(algo_timer, 50, 1);
 	qmi8658_enable_amd(0, 	qmi8658_Int1, 0);
-	qmi8658_enableSensors(QMI8658_ACCGYR_ENABLE);
+	qmi8658_enableSensors_ctrl7_sync(0x08|0x03);   //打开同步
+//	qmi8658_enableSensors(QMI8658_ACCGYR_ENABLE);
 }
 
 void imu_algo_timer_stop()
 {
 	def_rtos_timer_stop(algo_timer);
-	qmi8658_enable_amd(1, 	qmi8658_Int1, 1);
+	qmi8658_enable_amd(1, 	qmi8658_Int1, 1);  //关闭同步
 	LOG_I("imu_algo_timer_stop");
 }
 
@@ -82,7 +85,7 @@ void imu_algo_timer_stop()
 void qmi8658_sensor_init()
 {
 	def_rtosStaus res;
-	
+	sys_set_var.sensor_static_sw = 1;
     qst_algo_inti();
     def_rtos_task_sleep_ms(50);
     qmi8658_init();

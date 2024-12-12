@@ -6,11 +6,13 @@
 #include <math.h>
 #include "hal_drv_iic.h"
 
+//进入休眠关掉同步
+//退出休眠打开同步
 
 #if defined(QST_USE_SPI)
 #define QMI8658_USE_SPI
 #endif
- //#define QMI8658_SYNC_SAMPLE_MODE
+#define QMI8658_SYNC_SAMPLE_MODE
 //#define QMI8658_USE_FIFO
 #define QMI8658_USE_AMD
 //#define QMI8658_USE_NO_MOTION
@@ -384,6 +386,7 @@ typedef struct
 	float			st_out[6];
 } qmi8658_state;
 
+extern void qmi8658_enableSensors_ctrl7_sync(uint8_t value);
 extern int qmi8658_write_reg(unsigned char reg, unsigned char value);
 extern int qmi8658_read_reg(unsigned char reg, unsigned char* buf, unsigned short len);
 extern void qmi8658_soft_reset(void);

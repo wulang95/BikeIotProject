@@ -57,7 +57,7 @@ void app_start_thread(void *param)
     if(err != RTOS_SUCEESS){
         LOG_E("app_virt_uart_thread is create fail!");
     }
-    err = def_rtos_task_create(&can_protocol_recv_task, 1024*4, TASK_PRIORITY_NORMAL, can_protocol_rx_thread); 
+    err = def_rtos_task_create(&can_protocol_recv_task, 1024*6, TASK_PRIORITY_NORMAL, can_protocol_rx_thread); 
     if(err != RTOS_SUCEESS){
         LOG_E("can_protocol_rx_thread is create fail!");
     }
@@ -67,7 +67,7 @@ void app_start_thread(void *param)
         LOG_E("gps_control_thread is create fail!");
     }
 
-    err = def_rtos_task_create(&mcu_uart_recv_task, 1024*4, TASK_PRIORITY_NORMAL, mcu_uart_recv_thread);
+    err = def_rtos_task_create(&mcu_uart_recv_task, 1024*6, TASK_PRIORITY_NORMAL, mcu_uart_recv_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("mcu_uart_recv_thread is create fail!");
     }
@@ -89,7 +89,7 @@ void app_start_thread(void *param)
         LOG_E("net_protocol_send_thread is create fail!");
     }
 
-    err = def_rtos_task_create(&mcu_uart_send_task, 1024*4, TASK_PRIORITY_NORMAL, mcu_uart_send_thread);
+    err = def_rtos_task_create(&mcu_uart_send_task, 1024*12, TASK_PRIORITY_NORMAL, mcu_uart_send_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("mcu_uart_send_thread is create fail!");
     }
@@ -99,10 +99,10 @@ void app_start_thread(void *param)
         LOG_E("app_http_ota_thread is create fail!");
     }
     
-    err = def_rtos_task_create(&imu_algo_task, 1024*2, TASK_PRIORITY_NORMAL, imu_algo_thread);
-    if(err != RTOS_SUCEESS){
-        LOG_E("imu_algo_thread is create fail!");
-    }
+    // err = def_rtos_task_create(&imu_algo_task, 1024*4, TASK_PRIORITY_NORMAL, imu_algo_thread);
+    // if(err != RTOS_SUCEESS){
+    //     LOG_E("imu_algo_thread is create fail!");
+    // }
     err = def_rtos_task_create(&app_audio_task, 1024*4, TASK_PRIORITY_NORMAL, app_audio_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("app_audio_thread is create fail!");
@@ -119,7 +119,6 @@ void app_main()
     def_rtosStaus err = RTOS_SUCEESS;
     app_sys_init();         /*外设驱动初始化   系统参数初始化 */
     car_init();             /*  对整车初始化  */
-  //  libtest();
     LOG_I("VERSION softver:%s, hwsoft:%s", SOFTVER, HWVER);
     LOG_I("DATA TIME:%s_%s", __DATE__, __TIME__);
     err =def_rtos_task_create(&app_task_start, 1024, TASK_PRIORITY_NORMAL, app_start_thread);

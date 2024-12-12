@@ -553,7 +553,7 @@ void app_http_ota_thread(void *param)
 			    LOG_E("have no space");
 			    break;
             }
-            def_rtos_task_sleep_s(10);
+            def_rtos_task_sleep_s(40);
         }
         sys_info.ota_flag = 0;
     }

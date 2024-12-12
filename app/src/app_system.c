@@ -2,6 +2,7 @@
 #include "hal_drv_flash.h"
 #include "hal_drv_uart.h"
 #include "hal_virt_at.h"
+#include "hal_drv_net.h"
 #include "ql_fs.h"
 #define DBG_TAG         "app_system"
 
@@ -279,7 +280,6 @@ void sys_config_init()
 def_rtos_task_t app_system_task = NULL;
 def_rtos_timer_t system_timer;
 def_rtos_sem_t system_task_sem;
-
 void app_system_thread(void *param)
 {
     def_rtosStaus res;
@@ -311,9 +311,10 @@ void app_system_thread(void *param)
         }   
         if(def_rtos_get_system_tick() - csq_time_t > 3*1000) {
             net_update_singal_csq();
+            hal_drv_get_operator_info();
             csq_time_t = def_rtos_get_system_tick();
             LOG_I("CSQ:%d", gsm_info.csq);
-            LOG_I("ptich:%.2f,roll:%.2f,yaw:%.2f",euler_angle[0],euler_angle[1],euler_angle[2]);
+        //    LOG_I("ptich:%.2f,roll:%.2f,yaw:%.2f",euler_angle[0],euler_angle[1],euler_angle[2]);
             LOG_I("car_info.speed_limit:%d, car_info.pedal_speed:%d", car_info.speed_limit, car_info.pedal_speed);
             LOG_I("car_info.total_odo:%d, car_info.single_odo:%d", car_info.total_odo, car_info.single_odo);
             LOG_I("car_info.remain_odo:%d, car_info.wheel:%d", car_info.remain_odo, car_info.wheel);
@@ -420,13 +421,14 @@ void ota_test()
         LOG_I("%s", ota_s);
     }
 }
-
+// uint8_t buf[1024] = {0};
+// int res;
 void app_sys_init()
 {
     hal_drv_init();
     app_led_init();
     app_rtc_init();
-    qmi8658_sensor_init();
+ //   qmi8658_sensor_init();
     ble_control_init();
     net_control_init();
     sys_param_init();
@@ -434,12 +436,15 @@ void app_sys_init()
     net_protocol_init();
     app_http_ota_init();
     rtc_event_register(NET_HEART_EVENT,  6, 1);
+    MCU_CMD_MARK(CMD_CAN_OTA_END_INDEX);
  //   rtc_event_register(NET_HEART_EVENT,  sys_param_set.net_heart_interval, 1);
-    if(sys_param_set.unlock_car_heart_sw){
+    if(sys_param_set.unlock_car_heart_sw) {
         rtc_event_register(CAR_HEART_EVENT, sys_param_set.unlock_car_heart_interval, 1);
     }
     def_rtos_semaphore_create(&system_task_sem, 0);
     def_rtos_timer_create(&system_timer, app_system_task, system_timer_fun, NULL);
     def_rtos_timer_start(system_timer, 1000, 1);
+    // res = hal_drv_uart_send(UART1, buf, 517);
+    // LOG_I("RES:%d", res);
     LOG_I("app_sys_init is ok");
 }

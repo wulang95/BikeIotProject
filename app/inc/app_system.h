@@ -120,7 +120,8 @@ struct sys_set_var_stu{
     uint8_t car_power_en;   //0，无效 1， EN下电  2， EN上电
     uint8_t ble_bind_infoClean; //0， 无效  1，删除
     uint8_t iot_active;   //0,无效 1，取消激活 2，激活
-    uint8_t hid_lock_sw;    //0，无效 1，关 2：开       
+    uint8_t hid_lock_sw;    //0，无效 1，关 2：开     
+    uint8_t sensor_static_sw;  //sensor校准开关
 };
 
 #pragma pack()
@@ -138,7 +139,7 @@ struct sys_set_var_stu{
 #define BLE_NAME    "ENGWE"
 #define BLE_SUUID   0X1820
 
-#define OTA_FILE    "UFS:YGW-M13-CAN-V127-2024-11-12_OTA.bin"
+#define OTA_FILE    "UFS:KD686-C-243-09T-V2.08.01-01.14.bin"
 
 extern struct sys_set_var_stu sys_set_var;
 extern struct sys_param_set_stu sys_param_set;

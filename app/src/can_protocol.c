@@ -14,28 +14,12 @@ enum OTA_STEP{
     OTA_QUEST_STEP,
     OTA_PACK_HEAD_STEP,
     OTA_PACK_DATA_STEP,
+    OTA_PACK_DATA_FINISH_STEP,
     OTA_PACK_TAIL_STEP,
-    OTA_PACK_FAIL_STEP,
-    OTA_PACK_SUCCESS_STEP,
     OTA_QUIT_STEP,
 };
 
-struct can_ota_con_stu{
-    uint8_t dev_id;
-    uint8_t last_ota_step;
-    uint8_t ota_step;
-    uint16_t crc16;
-    uint16_t pack_len;
-    uint32_t read_len;
-    uint32_t totalen;
-    uint32_t total_pack;
-    uint32_t pack_cout;
-    uint8_t frame_cout;
-    uint8_t pack_frame;
-    uint8_t buf[4096];
-    uint8_t err_cent;
-    uint8_t retry;
-};
+
 
 struct can_ota_con_stu can_ota_con;
 struct trans_can_control_stu  trans_can_control;
@@ -54,12 +38,14 @@ struct can_cmd_order_s {
     uint8_t max_cnt;
     uint32_t timeout;
 };
+
 struct can_control_cmd_stu {
     uint8_t dts;
     uint8_t cmd_code;
     uint8_t cmd_index;
     uint8_t cmd_len;
 };
+
 static struct can_control_cmd_stu can_control_cmd_table[] = {
     {0x28,  0x14,   0x01,   1}, //HMI_CMD_SET_GEAR
     {0x28,  0x14,   0x02,   1}, //HMI_CMD_SET_HEADLIGHT
@@ -87,23 +73,46 @@ static struct can_control_cmd_stu can_control_cmd_table[] = {
 static struct can_cmd_order_s can_cmd_order[] = {
     {0X14,  true,   3,   1000},  /* 控制指令*/
     {0XEA,  true,   3,   1000}, /*  PNG请求*/
-    {0XEB,  true,   3,   1000},  /*进入OTA*/
-    {0XEE,  true,   3,   1000}, /*退出OTA*/
-    {0XD3,  true,   3,   1000}, /*帧头指令*/
+    {0XEB,  true,   3,   2000},  /*进入OTA*/
+    {0XEE,  false,  0,   2000}, /*退出OTA*/
+    {0XD3,  true,   3,   2000}, /*帧头指令*/
 };
 
 static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
 {
+  //  static uint8_t last_power = 0;   
     if(pdu.pdu1 >= 240){
         switch(pdu.pdu2) {
-            case HMI_MATCH_INFO:
-                car_info.hmi_info.power_on = data[0]&0x80?1:0;
+            case HMI_MATCH_INFO: 
+
+      //          car_info.hmi_info.power_on = data[0]&0x80?1:0;
                 car_info.hmi_info.encry_mode_data = data[0]&0x7f;
                 car_info.hmi_info.key = data[1];
                 car_info.hmi_info.startup_mode = data[3]&0x07;
                 car_info.hmi_info.protocol_major_ver = data[4];
                 car_info.hmi_info.protocol_sub_ver = data[5];
-         //       debug_data_printf("HMI_MATCH_INFO", data, data_len);
+                if((data[0]&0x80) == 0) {
+                    car_info.hmi_info.power_on = 0;
+                    if(car_info.lock_sta == CAR_UNLOCK_ATA) {
+                         car_lock_control(HMI_CMD_LOCK_SRC, CAR_LOCK_STA); 
+                         LOG_I("HMI_CMD_LOCK_SRC CAR_LOCK_STA");
+                    }
+                }
+
+                // if(car_info.hmi_info.power_on == 1 && last_power == 0) {
+                //     if(car_info.lock_sta == CAR_LOCK_STA) {
+                //          car_lock_control(HMI_CMD_LOCK_SRC, CAR_UNLOCK_ATA);
+                //          LOG_I("HMI_CMD_LOCK_SRC CAR_UNLOCK_ATA");
+                //     }
+                // } 
+                // if(car_info.hmi_info.power_on == 0 && last_power == 1) {
+                //     if(car_info.lock_sta == CAR_UNLOCK_ATA){
+                //          car_lock_control(HMI_CMD_LOCK_SRC, CAR_LOCK_STA); 
+                //          LOG_I("HMI_CMD_LOCK_SRC CAR_LOCK_STA");
+                //     }
+                // }
+                // last_power = car_info.hmi_info.power_on;
+                debug_data_printf("HMI_MATCH_INFO", data, data_len);
             break;
             case HMI_DATA:
                 car_info.hmi_info.left_turn_light = (data[7]>>6)&0x01;
@@ -115,14 +124,21 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
             case HMI_STA:
                 car_info.hmi_info.display_unit = data[1]&0x80?1:0;
                 car_info.hmi_info.encry_lock_sta = data[2];
-                if(data[2] == 0xA9) {
-                    if(car_info.lock_sta == CAR_UNLOCK_ATA)
-                        car_lock_control(HMI_CMD_LOCK_SRC, CAR_LOCK_STA);
-                } else if(data[2] == 0x56) {
-                    if(car_info.lock_sta == CAR_LOCK_STA) 
-                        car_lock_control(HMI_CMD_LOCK_SRC, CAR_UNLOCK_ATA);
+                if((7&(data[1]>>4)) == 2) {
+                    car_info.hmi_info.power_on = 1;
+                    if(car_info.lock_sta == CAR_LOCK_STA) {
+                         car_lock_control(HMI_CMD_LOCK_SRC, CAR_UNLOCK_ATA);
+                         LOG_I("HMI_CMD_LOCK_SRC CAR_UNLOCK_ATA");
+                    }
                 }
-          //      debug_data_printf("HMI_STA", data, data_len);  
+                // if(data[2] == 0xA9 || data[2] == 0xA0) {
+                //     if(car_info.lock_sta == CAR_UNLOCK_ATA)
+                //         car_lock_control(HMI_CMD_LOCK_SRC, CAR_LOCK_STA);
+                // } else if(data[2] == 0x56) {
+                //     if(car_info.lock_sta == CAR_LOCK_STA) 
+                //         car_lock_control(HMI_CMD_LOCK_SRC, CAR_UNLOCK_ATA);
+                // }
+                debug_data_printf("HMI_STA", data, data_len);  
             break;
             case HMI_HW_VER1:
                 memcpy(&car_info.hmi_info.hw_ver[0], (char *)data, 8);
@@ -547,7 +563,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
     CAN_PDU_STU send_can_pdu;
     uint16_t pgn;
     
-    LOG_I("CAN_ID:%08x, data_len:%d", rx_can_frame.RBUF32_0, rx_can_frame.Cst.Control_f.DLC);
+  //  LOG_I("CAN_ID:%08x, data_len:%d", rx_can_frame.RBUF32_0, rx_can_frame.Cst.Control_f.DLC);
     can_pdu.can_id = rx_can_frame.RBUF32_0;
     if(can_pdu.pdu.da ==  IOT_ADR) {
         if(can_pdu.pdu.pdu1 == 0XEA) {
@@ -558,11 +574,12 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
         } else if(can_pdu.pdu.pdu1 == 0XD3) {
             if(rx_can_frame.Data[0] == 0x69) {   //异常上报
                 LOG_E("FALUT RES:%02x", rx_can_frame.Data[1]);
-                if(rx_can_frame.Data[1] == 0xA5) {
-                    can_ota_con.ota_step = OTA_IDEL_STEP;//退出异常
-                } else {
-                    can_ota_con.ota_step = OTA_PACK_FAIL_STEP;
-                }
+                can_ota_con.ota_step = OTA_QUIT_STEP;
+                // if(rx_can_frame.Data[1] == 0xA5) {  
+                //     can_ota_con.ota_step = OTA_IDEL_STEP;//退出异常
+                // } else {
+                //     can_ota_con.ota_step = OTA_PACK_FAIL_STEP;
+                // }
                 return;
             }
         }
@@ -587,13 +604,13 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
             if(car_info.hmi_info.init == 0 && can_ota_con.ota_step == OTA_IDEL_STEP){
                 car_info.hmi_info.init = 1;
                 can_png_quest(HMI_ADR, HMI_HW_VER1, 0);
-                can_png_quest(HMI_ADR, HMI_HW_VER2, 0);
-                can_png_quest(HMI_ADR, HMI_SOFT_VER1, 0);
-                can_png_quest(HMI_ADR, HMI_SOFT_VER2, 0);
-                can_png_quest(HMI_ADR, HMI_SN1, 0);
-                can_png_quest(HMI_ADR, HMI_SN2, 0);
-                can_png_quest(HMI_ADR, HMI_SN3, 0);
-                can_png_quest(HMI_ADR, HMI_SN4, 0);
+             //   can_png_quest(HMI_ADR, HMI_HW_VER2, 0);
+            //    can_png_quest(HMI_ADR, HMI_SOFT_VER1, 0);
+           //     can_png_quest(HMI_ADR, HMI_SOFT_VER2, 0);
+            //    can_png_quest(HMI_ADR, HMI_SN1, 0);
+            //    can_png_quest(HMI_ADR, HMI_SN2, 0);
+           //     can_png_quest(HMI_ADR, HMI_SN3, 0);
+           //     can_png_quest(HMI_ADR, HMI_SN4, 0);
             }
             check_hmi_timeout = def_rtos_get_system_tick();
             hmi_info_handle(can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
@@ -604,9 +621,9 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                 can_png_quest(CONTROL_ADR, CONTROL_HWVER1, 0);
                 can_png_quest(CONTROL_ADR, CONTROL_SOFTVER1, 0);
                 can_png_quest(CONTROL_ADR, CONTROL_SN1, 0);
-                can_png_quest(CONTROL_ADR, CONTROL_SN2, 0);
-                can_png_quest(CONTROL_ADR, CONTROL_SN3, 0);
-                can_png_quest(CONTROL_ADR, CONTROL_SN4, 0);
+            //    can_png_quest(CONTROL_ADR, CONTROL_SN2, 0);
+            //    can_png_quest(CONTROL_ADR, CONTROL_SN3, 0);
+            //    can_png_quest(CONTROL_ADR, CONTROL_SN4, 0);
             }
             car_info.control_connect = 1;
             check_control_timeout = def_rtos_get_system_tick();
@@ -618,9 +635,9 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                 can_png_quest(BMS_ADR, BMS_SOFT_VER, 0);
                 can_png_quest(BMS_ADR, BMS_SOFT_VER_EXTEND1, 0);
                 can_png_quest(BMS_ADR, BMS_SOFT_VER_EXTEND2, 0);
-                can_png_quest(BMS_ADR, BMS_SOFT_VER_EXTEND3, 0);
+            //    can_png_quest(BMS_ADR, BMS_SOFT_VER_EXTEND3, 0);
                 can_png_quest(BMS_ADR, BMS_HW_VER_A, 0);
-                can_png_quest(BMS_ADR, BMS_HW_VER_B, 0);
+            //    can_png_quest(BMS_ADR, BMS_HW_VER_B, 0);
                 can_png_quest(BMS_ADR, BMS_HW_VER_B, 0);
             } 
             car_info.bms_connect = 1;
@@ -653,6 +670,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                 }
             break;
             case 0xEB:
+                LOG_I("0XEB:%08X", rx_can_frame.RBUF32_0);
                 if(can_pdu.pdu.pdu1 == 0XEC) {  
                     can_send_cmd.ask_flag = 1; 
                     if(can_ota_con.dev_id == can_pdu.src) {
@@ -661,7 +679,8 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                             can_ota_con.ota_step = OTA_PACK_HEAD_STEP;
                         }
                         else if(rx_can_frame.Data[0] == 0xAA) {   //进入静默
-                            can_ota_con.ota_step = OTA_IDEL_STEP;  
+                            can_ota_con.ota_step = OTA_QUIT_STEP;
+                      //      can_ota_con.ota_step = OTA_IDEL_STEP;  
                         }
                     }    
                 }
@@ -682,7 +701,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                             can_ota_con.err_cent = 0;
                             can_ota_con.ota_step = OTA_PACK_DATA_STEP;
                         } else {
-                            can_ota_con.ota_step = OTA_PACK_FAIL_STEP;
+                            can_ota_con.ota_step = OTA_QUIT_STEP;
                         }
                     }
                 }
@@ -697,13 +716,15 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                                 can_ota_con.ota_step = OTA_PACK_HEAD_STEP;
                                 can_ota_con.retry = 0;
                             }
+                        
                         } else {
-                            if(can_ota_con.err_cent++ >= 3)
-                                can_ota_con.ota_step = OTA_PACK_FAIL_STEP;
-                            else {
-                                can_ota_con.ota_step = OTA_PACK_HEAD_STEP;
-                                can_ota_con.retry = 1;
-                            }     
+                            // if(can_ota_con.err_cent++ >= 3)
+                            //     can_ota_con.ota_step = OTA_PACK_FAIL_STEP;
+                            // else {
+                            //     can_ota_con.ota_step = OTA_PACK_HEAD_STEP;
+                            //     can_ota_con.retry = 1;
+                            // }   
+                            can_ota_con.ota_step = OTA_QUIT_STEP;  
                         }
                     }
                 }
@@ -837,8 +858,8 @@ void can_cmd_send_fail(stc_can_rxframe_t  can_tx_frame)
     switch(can_pdu.pdu.pdu1){
         case 0xeb:
         case 0xd3:
-            LOG_E("OTA_IDEL_STEP");
-            can_ota_con.ota_step = OTA_IDEL_STEP;
+            LOG_E("OTA_QUIT_STEP");
+            can_ota_con.ota_step = OTA_QUIT_STEP;
         break;
     }
 
@@ -1055,9 +1076,11 @@ void can_protocol_init()
     if(res != RTOS_SUCEESS) {
         LOG_E("can_tx_que is create fail");
     }
+    
     LOG_I("can_protocol_init is ok");
 }
 
+struct can_ota_data_uart_stu can_ota_data_uart;
 
 static void can_ota_enter()
 {
@@ -1085,6 +1108,8 @@ static void can_ota_enter()
     can_fram.Data[6] = 0x54;
     can_fram.Data[7] = 0x41;
     LOG_I("enter ota");
+    MCU_CMD_MARK(CMD_CAN_OTA_START_INDEX);
+
     res = def_rtos_queue_release(can_tx_que, sizeof(stc_can_rxframe_t), (uint8_t *)&can_fram, RTOS_WAIT_FOREVER);
     if(res != RTOS_SUCEESS) {
         LOG_E("def_rtos_queue_release is fail");
@@ -1092,10 +1117,6 @@ static void can_ota_enter()
     can_id_s.pdu.da = 0x00;
     can_fram.ExtID = can_id_s.can_id;
     can_data_send(can_fram);
-    // res = def_rtos_queue_release(can_tx_que, sizeof(stc_can_rxframe_t), (uint8_t *)&can_fram, RTOS_WAIT_FOREVER);
-    // if(res != RTOS_SUCEESS) {
-    //     LOG_E("def_rtos_queue_release is fail");
-    // }
     can_ota_con.last_ota_step = can_ota_con.ota_step;
 }
 
@@ -1165,35 +1186,78 @@ static void can_ota_head(uint8_t retry)
     if(res != RTOS_SUCEESS) {
         LOG_E("def_rtos_queue_release is fail");
     }
-    can_ota_con.last_ota_step = can_ota_con.ota_step;
+    def_rtos_smaphore_release(can_ota_data_uart.data_sem);
+    can_ota_con.last_ota_step = can_ota_con.ota_step;  
+    can_ota_data_uart.data_offset = 0;
+    can_ota_data_uart.dev_id = can_ota_con.dev_id;
+    can_ota_data_uart.pack_num = 0;
+    LOG_I("can ota progress %%%d", ((can_ota_con.pack_cout*100)/can_ota_con.total_pack));
+    LOG_I("OTA HEAD");
 }
 
-static void can_ota_data()
+// static void can_ota_data()
+// {
+//     stc_can_rxframe_t can_fram = {0};
+//     CAN_PDU_STU can_id_s = {0};
+//     uint16_t data_offet;
+//     can_id_s.src = IOT_ADR;
+//     can_id_s.pdu.da = can_ota_con.dev_id;
+//     can_id_s.pdu.pdu1 = 0XD0;
+//     if(can_ota_con.frame_cout == 32) {
+//         can_ota_con.frame_cout = 0;
+//         can_ota_con.pack_frame++;
+//     }
+//     can_id_s.can_id |= can_ota_con.frame_cout << 24;
+//     can_fram.ExtID = can_id_s.can_id;
+//     data_offet = (can_ota_con.pack_frame*32 + can_ota_con.frame_cout)* 8;
+//     if((can_ota_con.pack_len - data_offet) <= 8) {
+//         can_fram.Cst.Control_f.DLC = can_ota_con.pack_len - data_offet;
+//         can_ota_con.ota_step = OTA_PACK_TAIL_STEP;
+//     } else {
+//         can_fram.Cst.Control_f.DLC = 8;
+//     }
+//     can_fram.Cst.Control_f.IDE = 1;
+//     can_fram.Cst.Control_f.RTR = 0;
+//     memcpy(can_fram.Data, &can_ota_con.buf[data_offet], can_fram.Cst.Control_f.DLC);
+//     can_ota_con.frame_cout++;
+//     can_data_send(can_fram);
+// }
+
+
+static void can_ota_mcu_data()
 {
-    stc_can_rxframe_t can_fram = {0};
-    CAN_PDU_STU can_id_s = {0};
-    uint16_t data_offet;
-    can_id_s.src = IOT_ADR;
-    can_id_s.pdu.da = can_ota_con.dev_id;
-    can_id_s.pdu.pdu1 = 0XD0;
-    if(can_ota_con.frame_cout == 32) {
-        can_ota_con.frame_cout = 0;
-        can_ota_con.pack_frame++;
+
+    if(def_rtos_semaphore_wait(can_ota_data_uart.data_sem, 10000) != RTOS_SUCEESS) {
+        LOG_E("OTA MCU DATA IS FAIL");
+        can_ota_con.ota_step = OTA_QUIT_STEP;
+        return;
     }
-    can_id_s.can_id |= can_ota_con.frame_cout << 24;
-    can_fram.ExtID = can_id_s.can_id;
-    data_offet = (can_ota_con.pack_frame*32 + can_ota_con.frame_cout)* 8;
-    if((can_ota_con.pack_len - data_offet) <= 8) {
-        can_fram.Cst.Control_f.DLC = can_ota_con.pack_len - data_offet;
-        can_ota_con.ota_step = OTA_PACK_TAIL_STEP;
+    if(can_ota_con.pack_len == can_ota_data_uart.data_offset) {
+        MCU_CMD_MARK(CMD_CAN_OTA_DATA_FINISH_INDEX);
+        can_ota_con.ota_step = OTA_PACK_DATA_FINISH_STEP;
+        return;
+    }
+    if(can_ota_con.pack_len - can_ota_data_uart.data_offset < 128) {
+        can_ota_data_uart.data_len = can_ota_con.pack_len - can_ota_data_uart.data_offset;
     } else {
-        can_fram.Cst.Control_f.DLC = 8;
+        can_ota_data_uart.data_len = 128; 
     }
-    can_fram.Cst.Control_f.IDE = 1;
-    can_fram.Cst.Control_f.RTR = 0;
-    memcpy(can_fram.Data, &can_ota_con.buf[data_offet], can_fram.Cst.Control_f.DLC);
-    can_ota_con.frame_cout++;
-    can_data_send(can_fram);
+    memcpy(can_ota_data_uart.data, &can_ota_con.buf[can_ota_data_uart.data_offset], can_ota_data_uart.data_len);
+    can_ota_data_uart.data_offset += can_ota_data_uart.data_len;
+    can_ota_data_uart.pack_num++;
+    LOG_I("can_ota_data_uart.pack_num:%d", can_ota_data_uart.pack_num);
+    MCU_CMD_MARK(CMD_CAN_OTA_DATA_INDEX);
+}
+
+static void can_ota_mcu_data_finish()
+{
+    LOG_I("OTA_PACK_DATA_FINISH_STEP");
+    if(def_rtos_semaphore_wait(can_ota_data_uart.data_finish_sem, 10000) != RTOS_SUCEESS) {
+        LOG_E("OTA MCU DATA FINISH IS FAIL");
+        can_ota_con.ota_step = OTA_QUIT_STEP;
+        return;
+    }
+    can_ota_con.ota_step = OTA_PACK_TAIL_STEP;
 }
 
 static void can_ota_tail()
@@ -1232,6 +1296,8 @@ void can_ota_quit()
     stc_can_rxframe_t can_fram = {0};
     CAN_PDU_STU can_id_s;
   //  def_rtosStaus res;
+    uint8_t buf[56];
+    uint16_t lenth;
     can_id_s.src = IOT_ADR;
     can_id_s.pdu.da = can_ota_con.dev_id;
     can_id_s.pdu.pdu1 = 0XEE;
@@ -1253,18 +1319,21 @@ void can_ota_quit()
     can_fram.Data[5] = 0x58;
     can_fram.Data[6] = 0x49;
     can_fram.Data[7] = 0x54;
+    LOG_I("OTA_QUIT_STEP");
+
+    mcu_data_pack(CMD_CAN_OTA_END, NULL, 0, buf, &lenth);
+    mcu_uart_send(buf, lenth);
+
+    def_rtos_task_sleep_ms(100);
+    mcu_data_pack(CMD_GPS_POWERON, NULL, 0, buf, &lenth);
+    mcu_uart_send(buf, lenth);
     can_data_send(can_fram);
-    // res = def_rtos_queue_release(can_tx_que, sizeof(stc_can_rxframe_t), (uint8_t *)&can_fram, RTOS_WAIT_FOREVER);
-    // if(res != RTOS_SUCEESS) {
-    //     LOG_E("def_rtos_queue_release is fail");
-    // }
+
+    def_rtos_task_sleep_ms(100);
     can_id_s.pdu.da = 0x00;
     can_fram.ExtID = can_id_s.can_id;
     can_data_send(can_fram);
-    // res = def_rtos_queue_release(can_tx_que, sizeof(stc_can_rxframe_t), (uint8_t *)&can_fram, RTOS_WAIT_FOREVER);
-    // if(res != RTOS_SUCEESS) {
-    //     LOG_E("def_rtos_queue_release is fail");
-    // }
+    can_ota_con.last_ota_step = OTA_QUIT_STEP;
 }
 
 int can_ota_task(DEV_ID dev_id)
@@ -1283,6 +1352,14 @@ int can_ota_task(DEV_ID dev_id)
     can_ota_con.pack_cout = 0;   
     can_ota_con.dev_id = dev_id;
     can_ota_con.retry = 0;
+    if(def_rtos_semaphore_create(&can_ota_data_uart.data_sem, 0) != RTOS_SUCEESS){
+        LOG_E("can_ota_data_uart.data_sem is create fail");
+        return FAIL;
+    }
+    if(def_rtos_semaphore_create(&can_ota_data_uart.data_finish_sem, 0) != RTOS_SUCEESS){
+        LOG_E("can_ota_data_uart.data_finish_sem is create fail");
+        return FAIL;
+    }
     while (1)
     {
         switch (can_ota_con.ota_step)
@@ -1294,29 +1371,30 @@ int can_ota_task(DEV_ID dev_id)
             can_ota_head(can_ota_con.retry);
             break;
         case OTA_PACK_DATA_STEP:
-            can_ota_data();
+            can_ota_mcu_data();
+           // can_ota_data();
+            break;
+        case OTA_PACK_DATA_FINISH_STEP:
+            can_ota_mcu_data_finish();
             break;
         case OTA_PACK_TAIL_STEP:
             can_ota_tail();
             break;
         case OTA_QUIT_STEP:
             can_ota_quit();
+            def_rtos_semaphore_delete(can_ota_data_uart.data_sem);
+            def_rtos_semaphore_delete(can_ota_data_uart.data_finish_sem);
             if(can_ota_con.pack_cout == can_ota_con.total_pack) {
                 LOG_I("CAN OTA IS SUCCESS");
                 return OK;
             } else {
                 return FAIL;
             }
-        case OTA_IDEL_STEP:
-            LOG_I("OTA_IDEL_STEP");
-            return FAIL;
-        case OTA_PACK_FAIL_STEP:
-            LOG_I("OTA_IDEL_STEP");
-            return FAIL;
+            break;
         default:
             break;
         }
-        def_rtos_task_sleep_ms(30);
+        def_rtos_task_sleep_ms(100);
     }
     return OK;
 }

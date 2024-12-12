@@ -168,4 +168,11 @@ void hal_drv_data_call_register_init()
     ql_datacall_register_cb(0, 1, ql_datacall_ind_callback, NULL);
 }
 
+void hal_drv_get_operator_info()
+{
+    ql_nw_operator_info_s oper_i;
+    ql_nw_get_operator_name(0, &oper_i);
+    LOG_I("MCC:%s, MNC:%s", oper_i.mcc, oper_i.mnc);
+}
+
 

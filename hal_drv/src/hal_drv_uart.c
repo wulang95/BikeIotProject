@@ -111,14 +111,16 @@ static void ql_uart1_notify_cb(uint32 ind_type, ql_uart_port_number_e port, uint
         def_rtos_smaphore_release(uart1_rec_sem);
 }
 
-void hal_drv_uart_send(uint8_t uart_num, uint8_t *buf, uint16_t len)
+int hal_drv_uart_send(uint8_t uart_num, uint8_t *buf, uint16_t len)
 {
     if(uart_num == UART2)
-        ql_uart_write(QL_UART_PORT_2, buf, len);
+        return ql_uart_write(QL_UART_PORT_2, buf, len);
 
     if(uart_num == UART1)
-        ql_uart_write(QL_UART_PORT_1, buf, len);
+        return ql_uart_write(QL_UART_PORT_1, buf, len);
+    return -1;
 }
+
 
 void hal_drv_uart_init(uint8_t uart_num, uint32_t buad_rate, uint8_t parity)
 {

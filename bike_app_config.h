@@ -9,8 +9,9 @@
 #define BLE_PARITY  PARITY_NONE
 
 #define MCU_UART    UART1
-#define MCU_BAUD    9600
-#define MCU_PARITY  PARITY_EVENT
+#define MCU_BAUD    115200
+#define MCU_PARITY  PARITY_NONE
+#define OTA_BAUD    9600
 //#define MCU_WEEK
 
 #define BAT_ADC_VAL        QL_ADC1_CHANNEL 

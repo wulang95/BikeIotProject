@@ -61,7 +61,13 @@ enum {
 	CMD_GPS_DEEPSLEEP = 0X0A,
 	CMD_GPS_HOST_START = 0X09,
     CMD_CAT_REPOWERON = 0X08,
+    CMD_CRC_ERROR = 0X07,
+    CMD_CAN_OTA_DATA = 0X06,
+    CMD_CAN_OTA_START = 0X05,
+    CMD_CAN_OTA_END = 0X04,
+    CMD_CAN_OTA_DATA_FINISH = 0X03,
 };
+
 enum {
     CMD_CAN_TRANS_INDEX = 0,
     CMD_GPS_POWERON_INDEX,
@@ -71,6 +77,12 @@ enum {
     CMD_GPS_DEEPSLEEP_INDEX,
     CMD_GPS_HOST_START_INDEX,
     CMD_CAT_REPOWERON_INDEX,
+    CMD_CRC_ERROR_INDEX,
+    CMD_CAN_OTA_DATA_INDEX,
+    CMD_CAN_OTA_START_INDEX,
+    CMD_CAN_OTA_END_INDEX,
+    CMD_CAN_OTA_DATA_FINISH_INDEX,
+    CMD_INDEX_MAX,
 };
 
 
@@ -80,6 +92,9 @@ void can_data_send(stc_can_rxframe_t can_txframe);
 void mcu_uart_recv_thread(void *param);
 void mcu_uart_send_thread(void *param);
 void MCU_CMD_MARK(uint8_t cmd);
+void mcu_data_pack(uint8_t cmd, uint8_t *data, uint16_t data_len, uint8_t *buf, uint16_t *lenth);
+void mcu_uart_send(uint8_t *data, uint16_t len);
+
 
 
 

@@ -16,14 +16,14 @@
 def_rtos_queue_t can_rcv_que;
 def_rtos_queue_t mcu_cmd_que;
 
-uint8_t mcu_cmd_table[] = {0X0C, 0X0E, 0X0D, 0x0f, 0x0b, 0x0a, 0x09, 0X08};
-struct mcu_cmd_order_stu{
+uint8_t mcu_cmd_table[CMD_INDEX_MAX] = {0X0C, 0X0E, 0X0D, 0x0f, 0x0b, 0x0a, 0x09, 0X08, 0X07, 0X06, 0X05, 0X04, 0x03};
+struct mcu_cmd_order_stu {
     uint8_t need_ask;
     uint16_t rely_timeout;
     uint8_t max_send_times;
 };
 
-struct mcu_cmd_order_stu mcu_cmd_order_table[] = {
+struct mcu_cmd_order_stu mcu_cmd_order_table[CMD_INDEX_MAX] = {
     {false,     0,          0},     //CMD_CAN_TRANS
     {true,      1000,       3},     //CMD_GPS_POWERON
     {true,      1000,       3},     //CMD_GPS_POWEROFF
@@ -31,7 +31,12 @@ struct mcu_cmd_order_stu mcu_cmd_order_table[] = {
     {false,     0,          0},     //CMD_GPS_TRANS
     {true,      1000,       3},     //CMD_GPS_DEEPSLEEP
     {true,      1000,       3},     //CMD_GPS_HOST_START
-    {true,      1000,       3},
+    {true,      1000,       3},     //CMD_CAT_REPOWERON
+    {false,      0,         0},     //CMD_CRC_ERROR
+    {true,      3000,       3},    //CMD_CAN_OTA_DATA
+    {true,      1000,       3},     //CMD_CAN_OTA_START
+    {true,      1000,       3},     //CMD_CAN_OTA_END
+    {true,      1000,       3},    //CMD_CAN_OTA_DATA_FINISH
 };
 
 struct mcu_cmd_send_crtl_stu
@@ -59,11 +64,20 @@ void mcu_data_pack(uint8_t cmd, uint8_t *data, uint16_t data_len, uint8_t *buf, 
     p[len++] = HEADH;
     p[len++] = HEADL;
     p[len++] = cmd;
-    p[len++] = data_len>>8;
-    p[len++] = data_len&0xff;
-    if(data != NULL) {
-        memcpy(&p[len], &data[0], data_len);
-        len += data_len;
+    if(cmd == CMD_CAN_OTA_DATA) {
+        p[len++] = (can_ota_data_uart.data_len + 2)>>8;
+        p[len++] = (can_ota_data_uart.data_len + 2)&0xff;
+        p[len++] = can_ota_data_uart.dev_id;
+        p[len++] = can_ota_data_uart.pack_num;
+        memcpy(&p[len], &can_ota_data_uart.data, can_ota_data_uart.data_len);
+        len += can_ota_data_uart.data_len;
+    } else {
+        p[len++] = data_len>>8;
+        p[len++] = data_len&0xff;
+        if(data != NULL) {
+            memcpy(&p[len], &data[0], data_len);
+            len += data_len;
+        }
     }
     crc_val = Package_CheckSum(&p[2], len - 2);
     p[len++] = crc_val&0xff;
@@ -82,6 +96,7 @@ void mcu_uart_send(uint8_t *data, uint16_t len)
     debug_data_printf("mcu_send", data, len);
 }
 
+
 void can_data_send(stc_can_rxframe_t can_txframe)
 {
     uint8_t buf[56];
@@ -96,7 +111,7 @@ void can_data_send(stc_can_rxframe_t can_txframe)
 void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
 {
     stc_can_rxframe_t can_frame;
-    LOG_I("cmd:%02x", cmd);
+    LOG_I("mcu_cmd_send_crtl.cmd:%02x,cmd:%02x", mcu_cmd_send_crtl.cmd,cmd);
     switch (cmd)
     {
     case CMD_CAN_TRANS:
@@ -117,11 +132,26 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
     break;
     case CMD_CAT_REPOWERON:
     break;
+    case CMD_CRC_ERROR:
+        LOG_E("CMD_CRC_ERROR");
+    break;
+    case CMD_CAN_OTA_DATA:
+        LOG_I("CMD_CAN_OTA_DATA");
+        def_rtos_smaphore_release(can_ota_data_uart.data_sem);
+    break;
+    case CMD_CAN_OTA_DATA_FINISH:
+        if(data[0] == 1)  def_rtos_smaphore_release(can_ota_data_uart.data_finish_sem);
+    break;
+    case CMD_CAN_OTA_START:
+    break;
+    case CMD_CAN_OTA_END:
+    break;
     default:
         break;
     }
     if(mcu_cmd_send_crtl.send_flag && mcu_cmd_send_crtl.cmd == cmd) {
         mcu_cmd_send_crtl.ask_flag = 1;
+        LOG_I("RECV ASK OK");
     }
 }
 
@@ -132,9 +162,9 @@ void MCU_CMD_MARK(uint8_t cmd)
     def_rtos_queue_release(mcu_cmd_que, sizeof(uint8_t), &cmd, RTOS_WAIT_FOREVER);
 }
 
-void mcu_send_fail()
+void mcu_send_fail(uint8_t cmd)
 {
-    LOG_E("mcu_send_fail");
+    LOG_E("mcu_send_fail, cmd:%02x", cmd);
 }
 
 void mcu_uart_send_thread(void *param)
@@ -142,12 +172,13 @@ void mcu_uart_send_thread(void *param)
     uint8_t cmd_index;
     def_rtosStaus res;
     int64_t time_t;
-    uint8_t buf[36];
+    uint8_t buf[1024];
     uint16_t lenth;
     while(1) {
         res = def_rtos_queue_wait(mcu_cmd_que, &cmd_index, sizeof(uint8_t), RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) continue;
         mcu_cmd_send_crtl.cmd = mcu_cmd_table[cmd_index];
+        LOG_I("CMD_INDEX:%d, cmd:%02x", cmd_index, mcu_cmd_send_crtl.cmd);
         mcu_cmd_send_crtl.send_flag = 1;
         mcu_cmd_send_crtl.send_cent = 0;
         mcu_cmd_send_crtl.ask_flag = 0;
@@ -157,12 +188,12 @@ void mcu_uart_send_thread(void *param)
         time_t = def_rtos_get_system_tick();
         for(;;) {
             if(mcu_cmd_order_table[cmd_index].need_ask) {
-                if(mcu_cmd_send_crtl.ask_flag == 1){
+                if(mcu_cmd_send_crtl.ask_flag == 1) {
                     break;
                 }
                 if(def_rtos_get_system_tick() - time_t >= mcu_cmd_order_table[cmd_index].rely_timeout) {
                     if(mcu_cmd_send_crtl.send_cent >= mcu_cmd_order_table[cmd_index].max_send_times) {
-                        mcu_send_fail();
+                        mcu_send_fail(mcu_cmd_send_crtl.cmd);
                         break;
                     }
                     mcu_uart_send(buf, lenth);
@@ -172,7 +203,9 @@ void mcu_uart_send_thread(void *param)
                 def_rtos_task_sleep_ms(5);
             } else break;
         }
+        LOG_I("cmd_index:%d, ask_flag:%d, send_cent:%d, need_ask:%d", cmd_index, mcu_cmd_send_crtl.ask_flag, mcu_cmd_send_crtl.send_cent, mcu_cmd_order_table[cmd_index].need_ask);
         mcu_cmd_send_crtl.send_flag = 0;
+        mcu_cmd_send_crtl.cmd = 0;
     }
     def_rtos_task_delete(NULL);
 }
@@ -255,7 +288,6 @@ void mcu_uart_recv_thread(void *param)
 
 void mcu_uart_init()
 {
-
     def_rtos_queue_create(&mcu_cmd_que, sizeof(uint8_t), 12);
     def_rtos_queue_create(&can_rcv_que, sizeof(stc_can_rxframe_t), 12);
     hal_drv_uart_init(MCU_UART, MCU_BAUD, MCU_PARITY);

@@ -179,8 +179,35 @@ struct trans_can_control_stu {
     uint32_t rq_can_id;
     uint8_t rq_data[8];
 };
+struct can_ota_con_stu{
+    uint8_t dev_id;
+    uint8_t last_ota_step;
+    uint8_t ota_step;
+    uint16_t crc16;
+    uint16_t pack_len;
+    uint32_t read_len;
+    uint32_t totalen;
+    uint32_t total_pack;
+    uint32_t pack_cout;
+    uint8_t frame_cout;
+    uint8_t pack_frame;
+    uint8_t buf[4096];
+    uint8_t err_cent;
+    uint8_t retry;
+};
 
+struct can_ota_data_uart_stu 
+{
+    uint8_t dev_id;
+    uint8_t data[512];
+    uint16_t data_len;
+    uint8_t pack_num;
+    uint16_t data_offset;
+    def_rtos_sem_t data_sem;
+    def_rtos_sem_t data_finish_sem;
+};
 
+extern struct can_ota_data_uart_stu can_ota_data_uart;
 extern struct trans_can_control_stu  trans_can_control;
 void iot_can_heart_fun();
 void can_protocol_rx_thread(void *param);

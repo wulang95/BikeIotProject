@@ -19,9 +19,8 @@ enum{
 
 void hal_drv_uart_init(uint8_t uart_num, uint32_t buad_rate, uint8_t parity);
 void hal_drv_uart_deint(uint8_t uart_num);
-void hal_drv_uart_send(uint8_t uart_num, uint8_t *buf, uint16_t len);
+int hal_drv_uart_send(uint8_t uart_num, uint8_t *buf, uint16_t len);
 uint16_t hal_drv_uart_read(uint8_t uart_num,uint8_t *data, uint16_t len, uint32_t time);   /*阻塞接收*/
-
 
 
 
