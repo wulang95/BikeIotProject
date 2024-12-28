@@ -737,6 +737,7 @@ static void ble_cmd_lock_res_ack()
 static void ble_cmd_lock_control(uint8_t dat)
 {
     if(dat == 0x01) {
+        LOG_I("BLE CAR_UNLOCK_ATA");
         car_lock_control(BLE_CMD_LOCK_SRC, CAR_UNLOCK_ATA);
     } else if(dat == 0x02) {
         car_lock_control(BLE_CMD_LOCK_SRC, CAR_LOCK_STA);
@@ -767,7 +768,7 @@ static void ble_cmd_set_power_on_password(uint8_t *dat, uint8_t lenth)
     uint16_t len;
     memset(car_set_save.power_on_psaaword, 0, sizeof(car_set_save.power_on_psaaword));
     memcpy(car_set_save.power_on_psaaword, dat, lenth);
-
+    car_control_cmd(CAR_CMD_SET_POWER_ON_PASSWORD);
     memcpy(&data[data_len], dat, lenth);
     data_len += lenth;
     ble_protocol_data_pack(BLE_CMD_S_APN, &data[0], data_len, &buf[0], &len);
@@ -779,7 +780,12 @@ static void ble_navigation_service(uint8_t *data)
     car_state_data.map_dir = data[0];
     car_state_data.cur_dir_range = data[1] << 16 | data[2] << 8 | data[3];
     car_state_data.total_nav_remaintime = data[4] << 24 | data[5] << 16 | data[6] << 8 | data[7];
-    car_state_data.total_nav_remaintime = data[8]<<16 | data[9]| data[10];
+    car_state_data.total_nav_range = data[8]<<16 | data[9]| data[10];
+    LOG_I("cur_dir_range:%d", car_state_data.cur_dir_range);
+    LOG_I("total_nav_remaintime:%d", car_state_data.total_nav_remaintime);
+    LOG_I("total_nav_range:%d", car_state_data.total_nav_range);
+    iot_can_state2_fun();
+    iot_can_navigation_data();
 }
 
 static void ble_atsphlight_sta_query()
@@ -1166,6 +1172,35 @@ void ble_protocol_audio_play(uint8_t dat)
     ble_send_data(buf, len);
 }
 
+
+void ble_cmd_jump_password(uint8_t dat)
+{
+    uint8_t data[16] = {0}, buf[64];
+    uint16_t data_len = 0;
+    uint16_t len;
+    if(dat == 0xff){
+        car_control_cmd(CAR_CMD_JUMP_PASSWORD);
+    }
+    data[data_len++] = dat;
+    ble_protocol_data_pack(BLE_CMD_S_JUMP_PASSWORD, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
+void ble_cmd_en_power_on_password(uint8_t dat)
+{
+    uint8_t data[16] = {0}, buf[64];
+    uint16_t data_len = 0;
+    uint16_t len;
+    if(dat == 1) {
+        car_set_save.en_power_on_psaaword = 1;
+    } else {
+        car_set_save.en_power_on_psaaword = 0;
+    }
+    car_control_cmd(CAR_CMD_EN_POWER_ON_PASSWORD);
+    data[data_len++] = dat;
+    ble_protocol_data_pack(BLE_CMD_S_POWERPASSWORD_SW, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
 void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 {
     uint16_t i = 0;
@@ -1239,8 +1274,10 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 
         break;
         case BLE_CMD_S_JUMP_PASSWORD:
+            ble_cmd_jump_password(data[0]);
         break;
         case BLE_CMD_S_POWERPASSWORD_SW:
+            ble_cmd_en_power_on_password(data[0]);
         break;
         case BLE_CMD_S_POWER_SW:
         break;
@@ -1373,6 +1410,7 @@ void ble_protocol_recv_thread(void *param)
     uint16_t len, cmd_w, lenth;
     memset(&ble_ota_info, 0, sizeof(ble_ota_info));
     while(1) {
+  //      LOG_I("IS RUN");
         len = ble_trans_data_block_read(buf, 256, RTOS_WAIT_FOREVER);
         LOG_I("ble trans is recv, len:%d", len);
         if(len == 0)continue;

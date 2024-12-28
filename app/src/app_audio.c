@@ -100,6 +100,7 @@ void app_audio_thread(void *param)
     uint8_t type;
     app_audio_init();
     while(1) {
+  //      LOG_I("IS RUN");
         res = def_rtos_queue_wait(audio_que_t, &type, sizeof(uint8_t), RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) continue;
         audio_play = audio_con_table[type];

@@ -24,14 +24,13 @@
 #define I_DOG_WEEK            GPIO_8
 #define O_BLE_RST             GPIO_13
 #define I_BLE_CON_SIG         GPIO_14    //蓝牙连接状态 OK
-#define O_LCD_POWER           GPIO_15
-#define O_KEY_HIGH            GPIO_18   
+#define O_BLE_POWER           GPIO_15   //蓝牙电源控制  OK
+#define O_KEY_HIGH            GPIO_18   //高压驱动
 #define O_BLE_WEEK_SIG        GPIO_19       //唤醒蓝牙 
 #define I_MCU_WEEK            GPIO_20       //MCU唤醒 ok
 #define I_36VPOWER_DET        GPIO_21       //36V电源检测 OK
-#define I_DOG_DONE            GPIO_22    
-#define O_BLE_POWER           GPIO_24       //蓝牙电源控制  OK
-#define O_KEY_LOW             GPIO_25       
+#define I_DOG_DONE            GPIO_22        
+#define O_KEY_LOW             GPIO_0       //低压驱动
 
 #define FLASH_SECTOR_SIZE  4096
 

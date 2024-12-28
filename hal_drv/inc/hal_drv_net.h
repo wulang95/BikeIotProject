@@ -4,6 +4,28 @@
 #include <string.h>
 #include <stdlib.h>
 
+typedef enum {
+    NET_ROAM = 0,
+    NET_HOME,
+}NET_STATE;
+
+typedef enum {
+    GSM_NET = 0,
+    LTE_NET
+} ACCESS_NET;
+
+
+typedef struct {
+    uint16_t mcc;
+    uint16_t mnc;
+    uint16_t lac;
+    uint32_t cid;
+    NET_STATE net_state;
+    ACCESS_NET act;
+    uint8_t fre_band;
+    uint8_t csq;
+    uint8_t bit_error_rate;
+}NET_NW_INFO;
 
 void hal_drv_get_imei(char *data, uint16_t len);
 void hal_drv_get_iccid(char *data, uint16_t len);
@@ -19,7 +41,7 @@ void sys_reset();
 void hal_drv_set_dns_addr(char *dns);
 void hal_drv_data_call_register_init();
 void hal_drv_pdp_detect_block();
-void hal_drv_get_operator_info();
+NET_NW_INFO hal_drv_get_operator_info();
 
 
 

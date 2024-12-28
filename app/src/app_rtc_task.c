@@ -80,6 +80,7 @@ void app_rtc_event_thread(void *param)
     last_time = hal_drv_rtc_get_timestamp();
     while(1)
     {
+ //       LOG_I("IS RUN");
         def_rtos_semaphore_wait(rtc_alarm_sem, RTOS_WAIT_FOREVER);
         cur_time = hal_drv_rtc_get_timestamp();
         difsec = cur_time - last_time;

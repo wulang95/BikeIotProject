@@ -6,6 +6,15 @@ extern "C" {
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
+
+struct ota_config_stu{
+	uint16_t soft_ver;
+	uint16_t hw_ver;
+	uint32_t total_len;
+	uint32_t file_crc32;
+};
+
 typedef struct
 {
     uint8_t DLC          : 4;       ///< Data length code
@@ -66,6 +75,14 @@ enum {
     CMD_CAN_OTA_START = 0X05,
     CMD_CAN_OTA_END = 0X04,
     CMD_CAN_OTA_DATA_FINISH = 0X03,
+    CMD_CAN_LOCK_CAR = 0X10,
+    CMD_CAN_UNLOCK_CAR = 0X11,
+    CMD_CAN_CAR_CONTROL = 0X12,
+    CMD_SHIP_MODE = 0X13,
+    CMD_MCU_OTA_START = 0X14,
+    CMD_MCU_OTA_DATA = 0X15,
+    CMD_MCU_OTA_END = 0X16,
+    CDM_MCU_VER = 0X17,
 };
 
 enum {
@@ -82,6 +99,14 @@ enum {
     CMD_CAN_OTA_START_INDEX,
     CMD_CAN_OTA_END_INDEX,
     CMD_CAN_OTA_DATA_FINISH_INDEX,
+    CMD_CAN_LOCK_CAR_INDEX,
+    CMD_CAN_UNLOCK_CAR_INDEX,
+    CMD_CAN_CAR_CONTROL_INDEX,
+    CMD_SHIP_MODE_INDEX,
+    CMD_MCU_OTA_START_INDEX,
+    CMD_MCU_OTA_DATA_INDEX,
+    CMD_MCU_OTA_END_INDEX,
+    CDM_MCU_VER_INDEX,
     CMD_INDEX_MAX,
 };
 
@@ -94,7 +119,7 @@ void mcu_uart_send_thread(void *param);
 void MCU_CMD_MARK(uint8_t cmd);
 void mcu_data_pack(uint8_t cmd, uint8_t *data, uint16_t data_len, uint8_t *buf, uint16_t *lenth);
 void mcu_uart_send(uint8_t *data, uint16_t len);
-
+int mcu_ota_task();
 
 
 

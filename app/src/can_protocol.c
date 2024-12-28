@@ -25,12 +25,7 @@ struct can_ota_con_stu can_ota_con;
 struct trans_can_control_stu  trans_can_control;
 def_rtos_queue_t can_tx_que;
 static int64_t check_hmi_timeout, check_control_timeout,check_lock_timeout, check_bms_timeout;
-struct can_send_md_stu {
-    stc_can_rxframe_t  can_tx_frame;
-    uint8_t cnt;
-    uint8_t ask_flag;
-    uint8_t cmd_send;
-} can_send_cmd;
+CAN_SEND_CMD_STU can_send_cmd;
 
 struct can_cmd_order_s {
     uint8_t cmd;
@@ -67,13 +62,15 @@ static struct can_control_cmd_stu can_control_cmd_table[] = {
     {0X28,  0X60,   0X0A,   1}, //CMD_SET_ATMOSPHERE_LIGHT_R_VAL
     {0X28,  0X60,   0X0B,   1}, //CMD_SET_ATMOSPHERE_LIGHT_G_VAL
     {0X28,  0X60,   0X0C,   1}, //CMD_SET_ATMOSPHERE_LIGHT_B_VAL
+    {0X28,  0X60,   0X01,   1}, //CMD_EN_POWER_ON_PASSWORD
 };
 
 
 static struct can_cmd_order_s can_cmd_order[] = {
+    {0X60,  true,   3,   1000},  /*参数设置*/
     {0X14,  true,   3,   1000},  /* 控制指令*/
     {0XEA,  true,   3,   1000}, /*  PNG请求*/
-    {0XEB,  true,   3,   2000},  /*进入OTA*/
+    {0XEB,  true,   5,   2000},  /*进入OTA*/
     {0XEE,  false,  0,   2000}, /*退出OTA*/
     {0XD3,  true,   3,   2000}, /*帧头指令*/
 };
@@ -92,11 +89,15 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                 car_info.hmi_info.protocol_major_ver = data[4];
                 car_info.hmi_info.protocol_sub_ver = data[5];
                 if((data[0]&0x80) == 0) {
+                    LOG_I("POWER_OFF");
                     car_info.hmi_info.power_on = 0;
                     if(car_info.lock_sta == CAR_UNLOCK_ATA) {
                          car_lock_control(HMI_CMD_LOCK_SRC, CAR_LOCK_STA); 
                          LOG_I("HMI_CMD_LOCK_SRC CAR_LOCK_STA");
                     }
+                } else if(((data[0]&0x80)>>7) == 1 && car_info.hmi_info.power_on == 0) {
+                    car_info.hmi_info.power_on = 1;
+                    LOG_I("POWER_ON");
                 }
 
                 // if(car_info.hmi_info.power_on == 1 && last_power == 0) {
@@ -124,8 +125,7 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
             case HMI_STA:
                 car_info.hmi_info.display_unit = data[1]&0x80?1:0;
                 car_info.hmi_info.encry_lock_sta = data[2];
-                if((7&(data[1]>>4)) == 2) {
-                    car_info.hmi_info.power_on = 1;
+                if((7&(data[1]>>4)) == 2 && car_info.hmi_info.power_on == 1) {
                     if(car_info.lock_sta == CAR_LOCK_STA) {
                          car_lock_control(HMI_CMD_LOCK_SRC, CAR_UNLOCK_ATA);
                          LOG_I("HMI_CMD_LOCK_SRC CAR_UNLOCK_ATA");
@@ -228,6 +228,7 @@ static void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                 car_info.total_odo = data[2]<<16|data[1]<<8|data[0];
                 car_info.single_odo = data[5]<<16|data[4]<<8|data[3];
                 car_info.remain_odo = data[6] * 10;
+                
                 car_info.wheel = data[7];
              //   debug_data_printf("CONTROL_DATA3", data, data_len);
             break;
@@ -563,7 +564,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
     CAN_PDU_STU send_can_pdu;
     uint16_t pgn;
     
-  //  LOG_I("CAN_ID:%08x, data_len:%d", rx_can_frame.RBUF32_0, rx_can_frame.Cst.Control_f.DLC);
+    LOG_I("CAN_ID:%08x", rx_can_frame.RBUF32_0);
     can_pdu.can_id = rx_can_frame.RBUF32_0;
     if(can_pdu.pdu.da ==  IOT_ADR) {
         if(can_pdu.pdu.pdu1 == 0XEA) {
@@ -655,8 +656,11 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
             lock_info_handle(can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
         break;
     }
+    LOG_I("SEND_ID:%08X, CAN_ID:%08x", can_send_cmd.can_tx_frame.ExtID, rx_can_frame.RBUF32_0);
+    
     if(can_send_cmd.cmd_send) {
         send_can_pdu.can_id = can_send_cmd.can_tx_frame.ExtID;
+        LOG_I("da:%02x, src:%02x", send_can_pdu.pdu.da, can_pdu.src);
         if(send_can_pdu.pdu.da != can_pdu.src) return;
         switch(send_can_pdu.pdu.pdu1){
             case 0xEA:
@@ -715,8 +719,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                             } else {
                                 can_ota_con.ota_step = OTA_PACK_HEAD_STEP;
                                 can_ota_con.retry = 0;
-                            }
-                        
+                            }                       
                         } else {
                             // if(can_ota_con.err_cent++ >= 3)
                             //     can_ota_con.ota_step = OTA_PACK_FAIL_STEP;
@@ -872,6 +875,7 @@ void can_protocol_tx_thread(void *param)
     def_rtosStaus res;
     while(1)
     {
+ //       LOG_I("IS RUN");
         can_send_cmd.cmd_send = 0;
         res = def_rtos_queue_wait(can_tx_que, (uint8_t *)&can_send_cmd.can_tx_frame, sizeof(stc_can_rxframe_t), RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) {
@@ -891,10 +895,10 @@ void can_protocol_tx_thread(void *param)
         can_send_cmd.cnt++;
         for(;;) {
             if(can_cmd_t.need_ask) {
-                if(can_send_cmd.ask_flag){
+                if(can_send_cmd.ask_flag) {
                     break;
                 } 
-                if(def_rtos_get_system_tick() - time_t >= can_cmd_t.timeout){
+                if(def_rtos_get_system_tick() - time_t >= can_cmd_t.timeout) {
                     if(can_send_cmd.cnt >= can_cmd_t.max_cnt) {
                         can_cmd_send_fail(can_send_cmd.can_tx_frame);
                         break;
@@ -917,6 +921,7 @@ void can_protocol_rx_thread(void *param)
     uint8_t res = RTOS_SUCEESS;
     stc_can_rxframe_t rx_can_frame;
     while(1) {
+     //   LOG_I("IS RUN");
         res = can_data_recv(&rx_can_frame, RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) {
             continue;
@@ -982,6 +987,71 @@ void iot_can_png_control(uint8_t cmd, uint8_t direct)
         if(res != RTOS_SUCEESS) {
             LOG_E("def_rtos_queue_release is fail");
         }
+    }
+}
+
+void iot_can_state2_fun()
+{
+    CAN_PDU_STU can_pdu;
+    uint8_t data[8] = {0};
+    stc_can_rxframe_t can_dat = {0};
+    def_rtosStaus res;
+
+    can_pdu.src = IOT_ADR;
+    can_pdu.p = 6;
+    can_pdu.r = 0;
+    can_pdu.dp = 0;
+    can_pdu.res = 0;
+    can_pdu.pdu.pdu2 = IOT_STATE_DATA;
+
+    data[3] = car_state_data.map_dir;
+    data[4] = car_state_data.cur_dir_range & 0xff;
+    data[5] = (car_state_data.cur_dir_range >> 8)& 0xff;
+    data[6] = (car_state_data.cur_dir_range >> 16)& 0xff;
+    data[7] = 0;
+    can_dat.ExtID = can_pdu.can_id;
+    can_dat.Cst.Control_f.DLC = 8;
+    can_dat.Cst.Control_f.IDE = 1;
+    can_dat.Cst.Control_f.RTR = 0;
+    memcpy(can_dat.Data, data, 8);
+    res = def_rtos_queue_release(can_tx_que, sizeof(stc_can_rxframe_t), (uint8_t *)&can_dat, RTOS_WAIT_FOREVER);
+    if(res != RTOS_SUCEESS) {
+        LOG_E("def_rtos_queue_release is fail");
+    }
+}
+
+void iot_can_navigation_data()
+{
+    CAN_PDU_STU can_pdu;
+    uint8_t data[8] = {0};
+    stc_can_rxframe_t can_dat = {0};
+    def_rtosStaus res;
+
+    can_pdu.src = IOT_ADR;
+    can_pdu.p = 6;
+    can_pdu.r = 0;
+    can_pdu.dp = 0;
+    can_pdu.res = 0;
+    can_pdu.pdu.pdu2 = IOT_NAVIGATION_DATA;
+
+    data[4] = 0;
+    data[3] = (car_state_data.total_nav_remaintime >> 24)&0xff;
+    data[2] = (car_state_data.total_nav_remaintime >> 16)&0xff;
+    data[1] = (car_state_data.total_nav_remaintime >> 8)&0xff;
+    data[0] = car_state_data.total_nav_remaintime&0xff;
+
+    data[7] = (car_state_data.total_nav_range>>16)&0xff;
+    data[6] = (car_state_data.total_nav_range>>8)&0xff;
+    data[5] = car_state_data.total_nav_range&0xff;
+
+    can_dat.ExtID = can_pdu.can_id;
+    can_dat.Cst.Control_f.DLC = 8;
+    can_dat.Cst.Control_f.IDE = 1;
+    can_dat.Cst.Control_f.RTR = 0;
+    memcpy(can_dat.Data, data, 8);
+    res = def_rtos_queue_release(can_tx_que, sizeof(stc_can_rxframe_t), (uint8_t *)&can_dat, RTOS_WAIT_FOREVER);
+    if(res != RTOS_SUCEESS) {
+        LOG_E("def_rtos_queue_release is fail");
     }
 }
 
@@ -1338,6 +1408,7 @@ void can_ota_quit()
 
 int can_ota_task(DEV_ID dev_id)
 {
+    can_ota_con.ota_step = OTA_IDEL_STEP;
     if(can_ota_con.ota_step != OTA_IDEL_STEP) return FAIL;
     can_ota_con.ota_step = OTA_QUEST_STEP;
     MCU_CMD_MARK(CMD_GPS_POWEROFF_INDEX);

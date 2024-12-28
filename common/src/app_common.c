@@ -53,7 +53,13 @@ unsigned int GetCrc32(const unsigned char* pData, unsigned int Len)
     return CRC32 ^ 0xFFFFFFFF;
 }
 
+unsigned int GetCrc32_cum(const unsigned char* pData, unsigned int Len, unsigned int CRC32) 
+{
+    for(unsigned int i=0; i<Len; ++i)
+        CRC32 = CRC32Table[ (CRC32^pData[i]) & 0xff ] ^ (CRC32>>8);
 
+    return CRC32 ^ 0xFFFFFFFF;
+}
 
 
 

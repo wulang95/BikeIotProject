@@ -19,7 +19,7 @@
 #define BLE_TRANSBUF_LEN    1024
 struct rt_ringbuffer *ble_transbuf;
 
-uint8_t ble_cmd_table[BLE_INDEX_MAX] = {0x04, 0x01, 0x0c, 0x02, 0x03, 0x0b, 0x05, 0x09, 0x0a, 0x07, 0x08, 0x06, 0x0d};
+uint8_t ble_cmd_table[BLE_INDEX_MAX] = {0x04, 0x01, 0x0c, 0x02, 0x03, 0x0b, 0x05, 0x09, 0x0a, 0x07, 0x08, 0x06, 0x0d, 0x0f, 0x0e};
 
 struct ble_cmd_rely_order_s{
     uint8_t need_ask;           //是否需要应答
@@ -43,6 +43,7 @@ struct ble_cmd_rely_order_s ble_cmd_rely_order[] = {
     {false,              0,                  0        },         /*CMD_BLE_TRANS*/
     {false,              0,                  0        },         /*CMD_BLE_VIRT_AT*/
     {true,              1000,                3        },         /*CMD_BLE_DELETE_BIND_INFO*/
+    {true,              1000,                3        },        /*CMD_BLE_ENTER_SLEEP*/
 };
 
 #define SENDDATALEN         256
@@ -80,6 +81,7 @@ void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint1
         case CMD_BLE_HID_UNLOCK:
         case CMD_BLE_HID_LOCK:
         case CMD_BLE_DELETE_BIND_INFO:
+        case CMD_BLE_ENTER_SLEEP:
             buf[lenth++] = 0x00;
             buf[lenth++] = 0x00;
         break;
@@ -155,6 +157,7 @@ void ble_control_send_thread(void *param)
     uint8_t cmd_index;
     while (1)
     {
+ //       LOG_I("IS RUN");
         res = def_rtos_queue_wait(ble_send_cmd_que, &ble_cmd_send_var.cmd_index, sizeof(uint8_t), RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) continue;
         cmd_index = ble_cmd_send_var.cmd_index;
@@ -276,6 +279,7 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
         case CMD_BLE_SET_CON_PARAM:
         case CMD_BLE_ADV_STOP:
         case CMD_BLE_DELETE_BIND_INFO:
+        case CMD_BLE_ENTER_SLEEP:
             break;
         case CMD_BLE_HID_UNLOCK:
             break;
@@ -315,6 +319,7 @@ void ble_control_recv_thread(void *param)
     uint16_t check_sum = 0, rcv_check = 0;
     int64_t start_t = 0;
     while(1){
+ //       LOG_I("IS RUN");
         len = hal_drv_uart_read(BLE_UART, rcv, 256, RTOS_WAIT_FOREVER);
         if(len == 0) continue;
         debug_data_printf("blerecv",rcv, len);
@@ -388,7 +393,7 @@ static void ble_power_init()
     char buf[24], *p;
     uint16_t len;
     uint8_t i;
-    hal_drv_write_gpio_value(O_BLE_POWER, LOW_L);
+    hal_drv_write_gpio_value(O_BLE_POWER, HIGH_L);
     for(i = 0; i < 3; i++) {
         def_rtos_task_sleep_ms(10);
         len = hal_drv_uart_read(BLE_UART, (uint8_t *)buf, 24, 300);
@@ -401,11 +406,11 @@ static void ble_power_init()
                 break;
             }
         } else {
-            hal_drv_write_gpio_value(O_BLE_POWER, HIGH_L);
+            hal_drv_write_gpio_value(O_BLE_POWER, LOW_L);
             LOG_E("ble init recv fail count:%d", i);
             def_rtos_task_sleep_ms(8000);
         }
-        hal_drv_write_gpio_value(O_BLE_POWER, LOW_L);
+        hal_drv_write_gpio_value(O_BLE_POWER, HIGH_L);
         def_rtos_task_sleep_ms(80);
     }
     if(ble_info.init != 1) {

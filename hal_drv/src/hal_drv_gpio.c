@@ -8,7 +8,7 @@ struct hal_gpio_config_table_s {
 };
 
 struct hal_gpio_config_table_s hal_gpio_config_table[GPIO_MAX] = {
-    {PIN_NONE,       0},        //GPIO_0
+    {GPIO0_PIN,      0},        //GPIO_0
     {GPIO1_PIN,      0},        //GPIO_1
     {GPIO2_PIN,      0},        //GPIO_2
     {GPIO3_PIN,      0},        //GPIO_3

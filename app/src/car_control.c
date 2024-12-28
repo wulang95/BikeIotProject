@@ -11,7 +11,7 @@
 struct car_info_stu car_info;
 struct car_set_save_stu car_set_save;
 struct car_state_data_stu car_state_data;
-
+def_rtos_mutex_t car_con_mutex;
 void car_heart_event()
 {
     iot_can_heart_fun();
@@ -19,32 +19,37 @@ void car_heart_event()
 
 void car_open_lock()
 {
-    uint8_t val = 0XA9;
+ //   uint8_t val = 0XA9;
     hal_drv_write_gpio_value(O_KEY_HIGH, HIGH_L);
-    iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
-    iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
-    iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
-    iot_can_cmd_control(HMI_CMD_ENTER_WEEK, &val, 1);
-    iot_can_cmd_control(HMI_CMD_ENTER_WEEK, &val, 1);
-    iot_can_cmd_control(HMI_CMD_ENTER_WEEK, &val, 1);
+    MCU_CMD_MARK(CMD_CAN_UNLOCK_CAR_INDEX);
+    week_time("lock", -1); 
+    // iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
+    // iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
+    // iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
+    // iot_can_cmd_control(HMI_CMD_ENTER_WEEK, &val, 1);
+    // iot_can_cmd_control(HMI_CMD_ENTER_WEEK, &val, 1);
+    // iot_can_cmd_control(HMI_CMD_ENTER_WEEK, &val, 1);
 }
 
 void car_close_lock()
 {
-    uint8_t val = 0X56;
+//    uint8_t val = 0X56;
     hal_drv_write_gpio_value(O_KEY_HIGH, LOW_L);
-    iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
-    iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
-    iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
-    iot_can_cmd_control(HMI_CMD_ENTER_SLEEP, &val, 1);
-    iot_can_cmd_control(HMI_CMD_ENTER_SLEEP, &val, 1);
-    iot_can_cmd_control(HMI_CMD_ENTER_SLEEP, &val, 1);
+    MCU_CMD_MARK(CMD_CAN_LOCK_CAR_INDEX);
+    week_time("lock", 10);
+    // iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
+    // iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
+    // iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
+    // iot_can_cmd_control(HMI_CMD_ENTER_SLEEP, &val, 1);
+    // iot_can_cmd_control(HMI_CMD_ENTER_SLEEP, &val, 1);
+    // iot_can_cmd_control(HMI_CMD_ENTER_SLEEP, &val, 1);
 }
 
 
 void car_control_cmd(uint8_t cmd)
 {
     uint8_t data = 0;
+    def_rtos_mutex_lock(car_con_mutex, RTOS_WAIT_FOREVER);
     switch (cmd)
     {
     case CAR_CMD_LOCK:
@@ -105,14 +110,19 @@ void car_control_cmd(uint8_t cmd)
         data = 0x56;
         iot_can_cmd_control(HMI_CMD_JUMP_PASSWORD, &data, 0);
         break;
+    case CAR_CMD_EN_POWER_ON_PASSWORD:
+        iot_can_cmd_control(CMD_EN_POWER_ON_PASSWORD, &car_set_save.en_power_on_psaaword, 0);  
+        break;
     default:
         break;
     }
+    def_rtos_mutex_unlock(car_con_mutex);
 }
 
 void car_init()
 {
     memset(&car_info, 0, sizeof(car_info));
+    def_rtos_mutex_create(&car_con_mutex);
  //   car_set_save.mileage_unit= 1;
   //  car_control_cmd(CAR_CMD_SET_ATSPHLIGHT_COLOR_CUSTOM);
  //   car_control_cmd(CAR_CMD_SET_MILEAGE_UNIT);
@@ -122,11 +132,18 @@ void car_init()
 
 void car_lock_control(uint8_t src, uint8_t lock_operate)
 {
+    static int64_t lock_time_t = 0;
+   
     if(lock_operate == car_info.lock_sta) {
         return;
     }
+     if(def_rtos_get_system_tick() - lock_time_t < 5000 && car_info.lock_sta == CAR_LOCK_STA) {
+        return;
+     }
+    LOG_I("%d, %d", src, lock_operate);
     car_info.lock_sta = lock_operate;
     if(car_info.lock_sta == CAR_LOCK_STA) {
+        lock_time_t = def_rtos_get_system_tick();
         car_control_cmd(CAR_CMD_LOCK);
         voice_play_mark(LOCK_VOICE);
         LOG_I("CAR_LOCK_STA");

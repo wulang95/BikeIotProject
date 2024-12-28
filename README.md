@@ -17,3 +17,6 @@ IOT项目相关代码
 GPS算法
 1.数据有效
 2.数据无效
+
+at+qdbgcfg="tracecfg",0,2 切换USB输出
+at+qdbgcfg="tracecfg",0,1 切换debug输出

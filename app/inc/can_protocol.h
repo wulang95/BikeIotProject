@@ -31,6 +31,14 @@ typedef struct {
 
 
 #pragma pack()
+
+typedef struct  {
+    stc_can_rxframe_t  can_tx_frame;
+    uint8_t cnt;
+    uint8_t ask_flag;
+    uint8_t cmd_send;
+} CAN_SEND_CMD_STU;
+
 typedef enum {
    HMI_ADR =  0X28,
    CONTROL_ADR = 0XEF,
@@ -155,6 +163,7 @@ enum {
     CMD_SET_ATMOSPHERE_LIGHT_R_VAL,
     CMD_SET_ATMOSPHERE_LIGHT_G_VAL,
     CMD_SET_ATMOSPHERE_LIGHT_B_VAL,
+    CMD_EN_POWER_ON_PASSWORD,
     CMD_MAX,
 };
 
@@ -206,7 +215,7 @@ struct can_ota_data_uart_stu
     def_rtos_sem_t data_sem;
     def_rtos_sem_t data_finish_sem;
 };
-
+extern CAN_SEND_CMD_STU can_send_cmd;
 extern struct can_ota_data_uart_stu can_ota_data_uart;
 extern struct trans_can_control_stu  trans_can_control;
 void iot_can_heart_fun();
@@ -218,8 +227,8 @@ void iot_can_cmd_control(uint8_t cmd, uint8_t *cmdvar, uint8_t direct);
 void iot_can_png_control(uint8_t cmd, uint8_t direct);
 void iot_can_trans_func(uint32_t can_id, uint8_t *data, uint8_t direct);
 int can_ota_task(DEV_ID dev_id);
-
-
+void iot_can_state2_fun();
+void iot_can_navigation_data();
 
 
 

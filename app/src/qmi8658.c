@@ -402,7 +402,7 @@ void qmi8658_read_timestamp(unsigned int *tim_count)
 
 static int accel_static_calibration_sum[3];
 static int gyro_static_calibration_sum[3];
-struct sensor_calibration_data_stu sensor_calibration_data;
+
 uint8_t imu_static_calibration(short acc_raw[3], short gyro_raw[3])
 {
 	static uint8_t static_cali_count = 0;
@@ -449,9 +449,8 @@ uint8_t imu_static_calibration(short acc_raw[3], short gyro_raw[3])
 			}
 			static_cali_count = 0;
 			sensor_calibration_data.magic = IOT_MAGIC;
+			sys_param_save(SENSEOR_CALIBRATION_ADR);
 			sensor_calibration_data.crc32 = GetCrc32((uint8_t *)&sensor_calibration_data, sizeof(sensor_calibration_data) - 4);	
-			flash_partition_erase(SENSEOR_CALIBRATION_ADR);
-			flash_partition_write(SENSEOR_CALIBRATION_ADR, (void *)&sensor_calibration_data, sizeof(sensor_calibration_data) , 0);
 			sys_info.static_cali_flag = 1;
 			sys_set_var.sensor_static_sw = 0;
 			return 1;

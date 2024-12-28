@@ -781,6 +781,7 @@ void net_protocol_send_thread(void *param)
     def_rtosStaus err = RTOS_SUCEESS;
     int64_t time_t;
     while(1){
+  //      LOG_I("IS RUN");
         net_send_cmd_con.send_flag = 0;
         err = def_rtos_queue_wait(net_protocol_send_que, &net_cmd, sizeof(uint8_t), RTOS_WAIT_FOREVER);
         if(err != RTOS_SUCEESS) continue; 

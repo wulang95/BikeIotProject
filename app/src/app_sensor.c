@@ -54,7 +54,7 @@ void imu_algo_thread(void *param)
 		gyro_correct[1] = Filter_Apply(gyro[1],&gyro_buf[1],&gyro_filter);
 		gyro_correct[2] = Filter_Apply(gyro[2],&gyro_buf[2],&gyro_filter);
 		qst_fusion_update(accel_correct, gyro_correct, &dt, euler_angle, quater, line_acc);
-		LOG_I("ptich:%.2f,roll:%.2f,yaw:%.2f",euler_angle[0],euler_angle[1],euler_angle[2]);
+		LOG_I("ptich:%.2f,roll:%.2f,yaw:%.2f",euler_angle[0],euler_angle[1],euler_angle[2]); 
 	}
 	def_rtos_task_delete(NULL);
 }

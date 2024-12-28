@@ -168,11 +168,33 @@ void hal_drv_data_call_register_init()
     ql_datacall_register_cb(0, 1, ql_datacall_ind_callback, NULL);
 }
 
-void hal_drv_get_operator_info()
+NET_NW_INFO hal_drv_get_operator_info()
 {
+    NET_NW_INFO nw_info;
     ql_nw_operator_info_s oper_i;
+    ql_nw_reg_status_info_s reg_info;
+    ql_nw_signal_strength_info_s pt_info;
+    ql_nw_mode_type_e nw_mode;
+    uint8_t csq;
     ql_nw_get_operator_name(0, &oper_i);
-    LOG_I("MCC:%s, MNC:%s", oper_i.mcc, oper_i.mnc);
+    ql_nw_get_reg_status(0, &reg_info);
+    ql_nw_get_signal_strength(0, &pt_info);
+    ql_nw_get_mode(0, &nw_mode);
+    ql_nw_get_csq(0, &csq);
+    nw_info.mcc = atoi(oper_i.mcc);
+    nw_info.mnc = atoi(oper_i.mnc);
+    nw_info.lac = reg_info.data_reg.lac;
+    nw_info.cid = reg_info.data_reg.cid;
+    nw_info.net_state = (reg_info.data_reg.state == QL_NW_REG_STATE_HOME_NETWORK) ? 1:(reg_info.data_reg.state == QL_NW_REG_STATE_ROAMING)?0:0xff;
+    nw_info.act = (reg_info.data_reg.act == QL_NW_ACCESS_TECH_GSM) ? 0:(reg_info.data_reg.act == QL_NW_ACCESS_TECH_E_UTRAN)?1:0xff;
+    nw_info.csq = csq;
+    nw_info.bit_error_rate = pt_info.bitErrorRate;
+    // LOG_I("MCC:%s, MNC:%s", oper_i.mcc, oper_i.mnc);
+    // LOG_I("lac:%d,cid:%d", reg_info.data_reg.lac, reg_info.data_reg.cid);
+    // LOG_I("CSQ:%d, bitErrorRate:%d", pt_info.rssi, pt_info.bitErrorRate);
+    // LOG_I("nw_neg:%d, act:%d", reg_info.data_reg.state, reg_info.data_reg.act);
+    // LOG_I("nw_mode:%d", nw_mode);
+    return nw_info;
 }
 
 

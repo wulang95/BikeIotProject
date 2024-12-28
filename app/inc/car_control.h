@@ -24,6 +24,7 @@ enum {
     CAR_CMD_SET_ATSPHLIGHT_TURN,
     CAR_CMD_SET_ATSPHLIGHT_COLORTYPE,
     CAR_CMD_JUMP_PASSWORD,
+    CAR_CMD_EN_POWER_ON_PASSWORD,
 };
 
 enum {
@@ -197,13 +198,13 @@ struct car_info_stu {
 
 struct car_state_data_stu {
     uint8_t abnormal_move;
-    uint8_t mobile_operation_sta;
-    uint8_t slope_data;
-    uint8_t attitude;
-    uint8_t map_dir;
-    uint32_t cur_dir_range;
-    uint32_t total_nav_remaintime;
-    uint32_t total_nav_range;
+    uint8_t mobile_operation_sta; //状态标志
+    uint8_t slope_data; //坡度数据
+    uint8_t attitude;  //姿态
+    uint8_t map_dir;   //导航方向
+    uint32_t cur_dir_range;  //剩余距离
+    uint32_t total_nav_remaintime;  //总导航剩余时间
+    uint32_t total_nav_range;   //总导航剩余距离
 };
 
 #pragma pack()
@@ -229,6 +230,7 @@ struct car_set_save_stu{
     uint8_t power_on_psaaword[4];
     uint8_t gear;
     uint8_t jump_password;
+    uint8_t en_power_on_psaaword;
     uint8_t left_turn_light :1;
     uint8_t right_turn_light :1;
     uint8_t tail_light :1;

@@ -2,7 +2,6 @@
 #include "hal_drv_flash.h"
 #include "hal_drv_uart.h"
 #include "hal_virt_at.h"
-#include "hal_drv_net.h"
 #include "ql_fs.h"
 #define DBG_TAG         "app_system"
 
@@ -17,7 +16,8 @@ struct sys_config_stu sys_config;
 struct sys_config_stu sys_config_back;
 struct sys_param_set_stu sys_param_set;
 struct sys_set_var_stu sys_set_var;
-
+struct sensor_calibration_data_stu sensor_calibration_data;
+NET_NW_INFO nw_info;
 int ota_fd;
 
 void assert_handler(const char *ex_string, const char *func, size_t line)
@@ -160,6 +160,35 @@ int flash_partition_size(FLASH_PARTITION flash_part)
     }
     return OK;
 }
+
+void sys_param_save(FLASH_PARTITION flash_part)
+{
+    switch(flash_part) {
+        case SYS_CONFIG_ADR:
+            sys_config.crc32 = GetCrc32((uint8_t *)&sys_config, sizeof(sys_config) - 4);
+            flash_partition_erase(SYS_CONFIG_ADR);
+            flash_partition_write(SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
+        break;
+        case BACK_SYS_CONFIG_ADR:
+            sys_config_back.crc32 = GetCrc32((uint8_t *)&sys_config_back, sizeof(sys_config_back) - 4);
+            flash_partition_erase(BACK_SYS_CONFIG_ADR);
+            flash_partition_write(BACK_SYS_CONFIG_ADR, (void *)&sys_config_back, sizeof(sys_config_back), 0);
+        break;
+        case SYS_SET_ADR:
+            sys_param_set.crc32 = GetCrc32((uint8_t *)&sys_param_set, sizeof(sys_param_set) - 4);
+            flash_partition_erase(SYS_SET_ADR);
+            flash_partition_write(SYS_SET_ADR, (void *)&sys_param_set, sizeof(sys_param_set), 0);
+        break;
+        case SENSEOR_CALIBRATION_ADR:
+            sensor_calibration_data.crc32 = GetCrc32((uint8_t *)&sensor_calibration_data, sizeof(sensor_calibration_data) - 4);	
+            flash_partition_erase(SENSEOR_CALIBRATION_ADR);
+            flash_partition_write(SENSEOR_CALIBRATION_ADR, (void *)&sensor_calibration_data, sizeof(sensor_calibration_data) , 0);
+        break;
+        default:
+            break;
+    }
+}
+
 void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len)
 {
     uint16_t i, len;
@@ -188,6 +217,13 @@ void sensor_input_handler()
     LOG_I("algo is week");
 }
 
+void ble_connect_handler()
+{
+    LOG_I("ble connect");
+    week_time("ble", -1);
+    sys_info.ble_connect = 1;
+}
+
 static void hal_drv_init()
 {
     hal_drv_set_gpio_irq(I_SENSOR_IN, RISING_EDGE, DOWN_MODE, sensor_input_handler);
@@ -195,7 +231,9 @@ static void hal_drv_init()
     hal_drv_gpio_init(O_WHITE_IND, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(O_BAT_CHARGE_CON, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(O_MCU_CONEC, IO_OUTPUT, PULL_NONE_MODE, HIGH_L);
-    hal_drv_gpio_init(I_BLE_CON_SIG, IO_INPUT, DOWN_MODE, L_NONE);
+
+    hal_drv_set_gpio_irq(I_BLE_CON_SIG, RISING_EDGE, DOWN_MODE, ble_connect_handler);
+ //   hal_drv_gpio_init(I_BLE_CON_SIG, IO_INPUT, DOWN_MODE, LOW_L);
 
     hal_drv_gpio_init(O_KEY_LOW, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(O_KEY_HIGH, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
@@ -210,6 +248,7 @@ static void hal_drv_init()
     hal_drv_write_gpio_value(O_MCU_CONEC, HIGH_L);
     hal_virt_at_init();
     hal_drv_write_gpio_value(O_BAT_CHARGE_CON, HIGH_L);
+    hal_drv_write_gpio_value(O_BLE_WEEK_SIG, LOW_L);
     LOG_I("hal_drv_init is ok");
 }
 
@@ -217,6 +256,7 @@ void sys_param_set_default_init()
 {
     memset(&sys_param_set, 0, sizeof(sys_param_set));
     sys_param_set.magic = IOT_MAGIC;
+    sys_param_set.ota_cnt = 0;
     sys_param_set.unlock_car_heart_sw = 0;
     sys_param_set.unlock_car_heart_interval = 10;
     sys_param_set.net_heart_interval = 240;
@@ -232,6 +272,7 @@ void sys_param_set_init()
         sys_param_set_default_init();
         LOG_E("sys_set_param save is fail!");
     }
+    LOG_I("ota_cnt:%d", sys_param_set.ota_cnt);
 }
 
 static void sys_config_default_init()
@@ -280,18 +321,22 @@ void sys_config_init()
 def_rtos_task_t app_system_task = NULL;
 def_rtos_timer_t system_timer;
 def_rtos_sem_t system_task_sem;
+
 void app_system_thread(void *param)
 {
     def_rtosStaus res;
     int64_t csq_time_t = 0;
+    int64_t ble_info_up_time_t = 0;
     uint16_t bat_val;
     uint8_t TEMP = 0;
     while (1)
     {
+  //      LOG_I("IS RUN");
         res = def_rtos_semaphore_wait(system_task_sem, RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) {
             continue;
         }
+
         if(sys_info.sys_updata_falg != 0) {
             if(sys_info.sys_updata_falg & 0x01) {
                 sys_info.sys_updata_falg &= ~0x01;
@@ -311,9 +356,11 @@ void app_system_thread(void *param)
         }   
         if(def_rtos_get_system_tick() - csq_time_t > 3*1000) {
             net_update_singal_csq();
-            hal_drv_get_operator_info();
+            nw_info = hal_drv_get_operator_info();
+            LOG_I("MCC:%d, mnc:%d, lac:%d, cid:%d", nw_info.mcc, nw_info.mnc, nw_info.lac, nw_info.cid);
+            LOG_I("net_state:%d, act:%d, csq:%d, bit_error_rate:%d", nw_info.net_state, nw_info.act, nw_info.csq, nw_info.bit_error_rate);
             csq_time_t = def_rtos_get_system_tick();
-            LOG_I("CSQ:%d", gsm_info.csq);
+          //  LOG_I("CSQ:%d", gsm_info.csq);
         //    LOG_I("ptich:%.2f,roll:%.2f,yaw:%.2f",euler_angle[0],euler_angle[1],euler_angle[2]);
             LOG_I("car_info.speed_limit:%d, car_info.pedal_speed:%d", car_info.speed_limit, car_info.pedal_speed);
             LOG_I("car_info.total_odo:%d, car_info.single_odo:%d", car_info.total_odo, car_info.single_odo);
@@ -372,10 +419,18 @@ void app_system_thread(void *param)
       //      car_heart_event();
  //       }
         if(hal_drv_read_gpio_value(I_BLE_CON_SIG)) {   //蓝牙连接状态检测
-            ble_heart_event();
-            sys_info.ble_connect = 1;
-        } else {
+            if(car_info.lock_sta == CAR_UNLOCK_ATA) {
+                ble_heart_event();
+            } else {
+                if(def_rtos_get_system_tick() - ble_info_up_time_t > 5000) {
+                    ble_heart_event();
+                    ble_info_up_time_t = def_rtos_get_system_tick();
+                }
+            }   
+        } else if(sys_info.ble_connect == 1){  
+            week_time("ble", 10);       
             sys_info.ble_connect = 0;
+            LOG_I("BLE DISCONNECT!");
         }
 
         if(hal_drv_read_gpio_value(I_36VPOWER_DET) == 0) {    //36V电源检测
@@ -395,11 +450,23 @@ void system_timer_fun()
     def_rtos_smaphore_release(system_task_sem);
 }
 
+void system_timer_stop()
+{
+    def_rtos_timer_stop(system_timer);
+}
+
+void system_timer_start()
+{
+    def_rtos_timer_start(system_timer, 1000, 1);
+}
+
+
 void sys_param_init()
 {
     ota_fd = -1;
     sys_config_init();
     sys_param_set_init();
+    LOG_I("OTA_CNT:%d", sys_param_set.ota_cnt);
     memset(&sys_info, 0, sizeof(sys_info));
 }
 
@@ -421,22 +488,27 @@ void ota_test()
         LOG_I("%s", ota_s);
     }
 }
-// uint8_t buf[1024] = {0};
-// int res;
+extern void electron_fence_test();
 void app_sys_init()
 {
     hal_drv_init();
     app_led_init();
     app_rtc_init();
- //   qmi8658_sensor_init();
+    qmi8658_sensor_init();
     ble_control_init();
     net_control_init();
     sys_param_init();
     can_protocol_init();
     net_protocol_init();
     app_http_ota_init();
-    rtc_event_register(NET_HEART_EVENT,  6, 1);
-    MCU_CMD_MARK(CMD_CAN_OTA_END_INDEX);
+    low_power_init();
+    register_module("sys");
+    register_module("ble");
+    register_module("lock");
+ //   flash_partition_erase(DEV_APP_ADR);
+     week_time("sys", -1); 
+     electron_fence_test();
+ //   rtc_event_register(NET_HEART_EVENT,  6, 1);
  //   rtc_event_register(NET_HEART_EVENT,  sys_param_set.net_heart_interval, 1);
     if(sys_param_set.unlock_car_heart_sw) {
         rtc_event_register(CAR_HEART_EVENT, sys_param_set.unlock_car_heart_interval, 1);
@@ -444,7 +516,5 @@ void app_sys_init()
     def_rtos_semaphore_create(&system_task_sem, 0);
     def_rtos_timer_create(&system_timer, app_system_task, system_timer_fun, NULL);
     def_rtos_timer_start(system_timer, 1000, 1);
-    // res = hal_drv_uart_send(UART1, buf, 517);
-    // LOG_I("RES:%d", res);
     LOG_I("app_sys_init is ok");
 }

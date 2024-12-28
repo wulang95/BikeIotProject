@@ -64,6 +64,7 @@ typedef int def_rtosStaus;
 #define def_rtos_timer_start(timerRef, set_Time, cycicalEn)     ql_rtos_timer_start(timerRef, set_Time, cycicalEn)
 #define def_rtos_timer_stop(timerRef)       ql_rtos_timer_stop(timerRef)
 #define def_rtos_timer_delete(timerRef)     ql_rtos_timer_delete(timerRef)
+#define def_rtos_timer_is_running(timerRef)  ql_rtos_timer_is_running(timerRef)
 
 #define def_rtos_get_system_tick   ql_rtos_up_time_ms
 

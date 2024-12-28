@@ -8,6 +8,7 @@
 
 
 /*配置GPIO的引脚号*/
+#define GPIO0_PIN       4
 #define GPIO1_PIN       5 
 #define GPIO2_PIN       6
 #define GPIO3_PIN       7

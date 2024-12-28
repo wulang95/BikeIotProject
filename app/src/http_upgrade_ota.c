@@ -497,24 +497,35 @@ void app_http_ota_init()
     def_rtos_semaphore_create(&http_upgrade_info.http_ota_sem, 0);
     memset(http_upgrade_info.url, 0, sizeof(http_upgrade_info.url)); 
 }
-uint8_t temp_flag;
 void app_http_ota_thread(void *param)
 {
     int64_t http_start_time_t;
     def_rtosStaus res;
     uint8_t down_times;
+    uint8_t temp = 0;
     struct fota_http_client_stu  fota_http_cli_p;
     char version_buf[256] = {0};
     ql_dev_get_firmware_version(version_buf, sizeof(version_buf));
     LOG_I("current version:  %s", version_buf);
     def_rtos_task_sleep_ms(10000);
-    temp_flag = 1;
     while(1) {  
-        if(temp_flag == 1){
-            LOG_I("enter can_ota_task");
-            can_ota_task(HMI_ADR);
-            temp_flag = 0;
-        }
+            // for(;;){
+            //     LOG_I("enter can_ota_task");
+            //     if(can_ota_task(HMI_ADR) == OK){
+            //         sys_param_set.ota_cnt++;
+            //         sys_param_save(SYS_SET_ADR);
+            //         LOG_I("ota_cnt:%d", sys_param_set.ota_cnt);
+            //     }
+            //     def_rtos_task_sleep_s(10);
+            // }
+        if(temp == 0) {
+            temp = 1;
+            LOG_I("enter mcu_ota_task");
+        //    can_ota_task(HMI_ADR);
+    //        mcu_ota_task();
+        }    
+
+    //    LOG_I("IS RUN");
         res = def_rtos_semaphore_wait(http_upgrade_info.http_ota_sem, RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) {
             continue;

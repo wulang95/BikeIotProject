@@ -51,5 +51,3 @@ void app_virt_uart_thread(void *param)
 }
 
 
-
-

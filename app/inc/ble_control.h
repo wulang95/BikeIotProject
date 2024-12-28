@@ -58,6 +58,7 @@ enum {
     BLE_TRANS_INDEX,                /*0x06*/
     BLE_VIRT_INDEX,                 /*0x0d*/
     BLE_DELETE_BIND_INDEX,          /*0x0f*/
+    CMD_BLE_ENTER_SLEEP_INDEX,      /*0X0e*/
     BLE_INDEX_MAX
 };
 
@@ -76,6 +77,7 @@ enum {
     CMD_BLE_TRANS = 0x06,              /*0x06*/
     CMD_BLE_VIRT_AT = 0x0d,             /*0x0d*/ 
     CMD_BLE_DELETE_BIND_INFO = 0x0f,   /*0x0f*/
+    CMD_BLE_ENTER_SLEEP = 0x0e,         /*0x0e*/
 };
 
 extern struct ble_info_s ble_info;

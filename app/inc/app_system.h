@@ -19,6 +19,8 @@
 #include    "app_audio.h"
 #include    "GPS_control.h"
 #include "hal_drv_gpio.h"
+#include "low_power.h"
+#include "hal_drv_net.h"
 
 extern def_rtos_task_t app_system_task;
 void assert_handler(const char *ex_string, const char *func, size_t line);
@@ -68,6 +70,7 @@ struct sys_param_set_stu {
     uint8_t unlock_car_heart_sw;
     uint16_t net_heart_interval;
     uint16_t unlock_car_heart_interval;
+    uint32_t ota_cnt;
     uint32_t crc32;
 };
 
@@ -113,6 +116,8 @@ struct sys_info_stu {
     uint8_t sys_updata_falg; //bit0表示sys_param
     uint8_t ota_flag;
     uint8_t static_cali_flag;
+    uint16_t mcu_soft_ver;
+	uint16_t mcu_hw_ver;
 };
 struct sys_set_var_stu{
     uint8_t sys_poweroff_flag;
@@ -139,13 +144,17 @@ struct sys_set_var_stu{
 #define BLE_NAME    "ENGWE"
 #define BLE_SUUID   0X1820
 
-#define OTA_FILE    "UFS:KD686-C-243-09T-V2.08.01-01.14.bin"
+#define OTA_FILE    "UFS:eng_iot.bin"
 
 extern struct sys_set_var_stu sys_set_var;
 extern struct sys_param_set_stu sys_param_set;
 extern struct sys_info_stu sys_info;
 extern struct sys_config_stu sys_config;
+extern struct sensor_calibration_data_stu sensor_calibration_data;
 void app_sys_init();
+void system_timer_start();
+void system_timer_stop();
+void sys_param_save(FLASH_PARTITION flash_part);
 int64_t systm_tick_diff(int64_t time);
 void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len);
 void app_system_thread(void *param);
