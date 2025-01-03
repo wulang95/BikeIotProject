@@ -573,7 +573,7 @@ void qmi8658_read_sensor_data(float acc[3], float gyro[3])
 	raw_gyro_xyz[1] = (short)((unsigned short)(buf_reg[9]<<8) |( buf_reg[8]));
 	raw_gyro_xyz[2] = (short)((unsigned short)(buf_reg[11]<<8) |( buf_reg[10]));
 
-	qmi8658_axis_convert(raw_acc_xyz, raw_gyro_xyz, 4);
+	qmi8658_axis_convert(raw_acc_xyz, raw_gyro_xyz, 0);
 #if defined(STATIC_CALIBRATION)
 
 	if(imu_static_calibration(raw_acc_xyz,raw_gyro_xyz) == 1)

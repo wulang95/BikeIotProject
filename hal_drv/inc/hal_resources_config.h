@@ -12,7 +12,7 @@
 #define GPIO1_PIN       5 
 #define GPIO2_PIN       6
 #define GPIO3_PIN       7
-#define GPIO4_PIN       1
+#define GPIO4_PIN       108
 #define GPIO5_PIN       20
 #define GPIO8_PIN       104
 #define GPIO13_PIN      21

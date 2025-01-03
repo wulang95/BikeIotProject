@@ -224,12 +224,17 @@ void ble_connect_handler()
     sys_info.ble_connect = 1;
 }
 
+void power_36v_handler()
+{
+    LOG_I("36V power on");
+    sys_info.power_36v = 1;
+}
 static void hal_drv_init()
 {
     hal_drv_set_gpio_irq(I_SENSOR_IN, RISING_EDGE, DOWN_MODE, sensor_input_handler);
     hal_drv_gpio_init(O_RED_IND, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(O_WHITE_IND, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
-    hal_drv_gpio_init(O_BAT_CHARGE_CON, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+  //  hal_drv_gpio_init(O_BAT_CHARGE_CON, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(O_MCU_CONEC, IO_OUTPUT, PULL_NONE_MODE, HIGH_L);
 
     hal_drv_set_gpio_irq(I_BLE_CON_SIG, RISING_EDGE, DOWN_MODE, ble_connect_handler);
@@ -241,13 +246,15 @@ static void hal_drv_init()
     hal_drv_gpio_init(O_BLE_WEEK_SIG, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(I_MCU_WEEK, IO_INPUT, DOWN_MODE, L_NONE);
     hal_drv_gpio_init(I_36VPOWER_DET, IO_INPUT, UP_MODE, L_NONE);
+
+    hal_drv_set_gpio_irq(I_36VPOWER_DET, FALL_EDGE, UP_MODE, power_36v_handler);
     hal_drv_gpio_init(O_BLE_POWER, IO_OUTPUT, PULL_NONE_MODE, HIGH_L);
 
     hal_drv_uart_init(BLE_UART, BLE_BAUD, BLE_PARITY);
     hal_drv_uart_init(MCU_UART, MCU_BAUD, MCU_PARITY);
     hal_drv_write_gpio_value(O_MCU_CONEC, HIGH_L);
     hal_virt_at_init();
-    hal_drv_write_gpio_value(O_BAT_CHARGE_CON, HIGH_L);
+ //   hal_drv_write_gpio_value(O_BAT_CHARGE_CON, HIGH_L);
     hal_drv_write_gpio_value(O_BLE_WEEK_SIG, LOW_L);
     LOG_I("hal_drv_init is ok");
 }
@@ -354,7 +361,7 @@ void app_system_thread(void *param)
         if(def_rtos_get_system_tick() - gps_resh_time_t > 10*1000) {
         //   gps_info.RefreshFlag = 0;
         }   
-        if(def_rtos_get_system_tick() - csq_time_t > 3*1000) {
+        if(def_rtos_get_system_tick() - csq_time_t > 10*1000) {
             net_update_singal_csq();
             nw_info = hal_drv_get_operator_info();
             LOG_I("MCC:%d, mnc:%d, lac:%d, cid:%d", nw_info.mcc, nw_info.mnc, nw_info.lac, nw_info.cid);
@@ -377,7 +384,7 @@ void app_system_thread(void *param)
                 GPS_Start(GPS_MODE_CONT);
             //    voice_play_mark(ALARM_VOICE);
                 // LOG_I("imu_algo_timer_stop");
-                // imu_algo_timer_stop();
+                 imu_algo_timer_stop();
                 TEMP = 1;
             } 
         }
@@ -433,10 +440,11 @@ void app_system_thread(void *param)
             LOG_I("BLE DISCONNECT!");
         }
 
-        if(hal_drv_read_gpio_value(I_36VPOWER_DET) == 0) {    //36V电源检测
-            sys_info.power_36v = 1;
-        } else {
+        if(hal_drv_read_gpio_value(I_36VPOWER_DET) == 1 && sys_info.power_36v == 1) {    //36V电源检测
             sys_info.power_36v = 0;
+        } else if(hal_drv_read_gpio_value(I_36VPOWER_DET) == 0 && sys_info.power_36v == 0) {
+             sys_info.power_36v = 1;
+             LOG_I("36V power on");
         }
 
         hal_adc_value_get(BAT_ADC_VAL, (int *)&bat_val);
@@ -495,7 +503,6 @@ void app_sys_init()
     app_led_init();
     app_rtc_init();
     qmi8658_sensor_init();
-    ble_control_init();
     net_control_init();
     sys_param_init();
     can_protocol_init();
@@ -505,11 +512,12 @@ void app_sys_init()
     register_module("sys");
     register_module("ble");
     register_module("lock");
- //   flash_partition_erase(DEV_APP_ADR);
+  //  flash_partition_erase(DEV_APP_ADR);
      week_time("sys", -1); 
      electron_fence_test();
- //   rtc_event_register(NET_HEART_EVENT,  6, 1);
- //   rtc_event_register(NET_HEART_EVENT,  sys_param_set.net_heart_interval, 1);
+  //   app_set_led_ind(LED_TEST);
+ //  rtc_event_register(NET_HEART_EVENT,  6, 1);
+    rtc_event_register(NET_HEART_EVENT,  sys_param_set.net_heart_interval, 1);
     if(sys_param_set.unlock_car_heart_sw) {
         rtc_event_register(CAR_HEART_EVENT, sys_param_set.unlock_car_heart_interval, 1);
     }

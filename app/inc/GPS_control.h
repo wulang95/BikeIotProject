@@ -72,7 +72,7 @@ void GPS_Init();
 void gps_data_trans(uint8_t *data, uint16_t len);
 void gps_control_thread(void *param);
 void GPS_Start(uint8_t Mode);
-
+void GPS_stop();
 
 
 

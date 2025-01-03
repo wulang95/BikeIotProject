@@ -177,45 +177,6 @@ uint16_t gps_data_block_recv(uint8_t *data, uint16_t len, uint32_t time)
     } else return 0;
 }
 
-uint8_t  GPS_LngLat_Proces(char *Data, GPS_DATA  *pGpsData)
-{
-    char *pPara[16], *pStart;
-    uint8_t EndFlag;
-    const uint8_t ParaNum = 4;                           //½âÎöµÄ²ÎÊý¸öÊý
-
-
-    char *ps = strstr(Data, "N");
-    if(ps == NULL)    return FAIL;
-
-    ps = strstr(Data, "E");
-    if(ps == NULL)    return FAIL;
-
-
-    pStart = Data;                 //²éÕÒÐ£ÑéÊý¾Ý
-    if(pStart == NULL)
-        return FAIL;
-
-    memset(pPara, 0, sizeof(pPara));
-    if(String_Para_Intercept(pStart, pPara, ParaNum, &EndFlag, ',', '*') != ParaNum)
-        return FAIL;
-
-    if(pPara[0] != NULL)
-        pGpsData->Latitude  = strtod(pPara[0], NULL);        //Latitude Î³¶ÈÐÅÏ¢   ¶È·Ö¸ñÊ½
-
-    if(pPara[2] != NULL)
-        pGpsData->Longitude = strtod(pPara[2], NULL);        //Longitude ¾­¶ÈÐÅÏ¢  ¶È·Ö¸ñÊ½
-
-    #ifdef DUBUG_GPS_FLAG
-    #if 1
-    printf("\n\n***GNSS_PQTM_Proces*****\n");
-    printf("Latitude:%lf\n", pGpsData->Latitude);
-    printf("Longitude:%lf\n\n", pGpsData->Longitude);
-    #endif
-    #endif
-
-    return OK;
-}
-
 uint8_t  GPS_Number_Cheek(char *DataStr)
 {
 	#if 0 //²»Ð£Ñé 2023-6-8 17:08:49
@@ -596,13 +557,14 @@ uint8_t GPS_Data_Proces(char *data, uint16_t len)
          P2.lon = GpsDataBuf.Longitude;
          distance = get_distance(P1, P2);
          LOG_I("GPS distance:%.4f", distance);
-        if(distance > 0.2) {
-            memcpy(&GpsDataBuf, &GData, sizeof(GPS_DATA)); 
-        }
-        else if(car_info.speed != 0 && car_info.lock_sta == CAR_UNLOCK_ATA) //车如果不是静止状态，运动时更新位置
-        {
-            memcpy(&GpsDataBuf, &GData, sizeof(GPS_DATA)); 
-        } 
+         memcpy(&GpsDataBuf, &GData, sizeof(GPS_DATA)); 
+        // if(distance > 0.2) {
+        //     memcpy(&GpsDataBuf, &GData, sizeof(GPS_DATA)); 
+        // }
+        // else if(car_info.speed != 0 && car_info.lock_sta == CAR_UNLOCK_ATA) //车如果不是静止状态，运动时更新位置
+        // {
+        //     memcpy(&GpsDataBuf, &GData, sizeof(GPS_DATA)); 
+        // } 
     } else if(GData.GPSValidFlag == 1 && GpsDataBuf.GPSValidFlag == 0) {
         memcpy(&GpsDataBuf, &GData, sizeof(GPS_DATA)); 
     }
@@ -640,10 +602,7 @@ void GPS_stop()
 {
     MCU_CMD_MARK(CMD_GPS_POWEROFF_INDEX);
 }
-void GPS_Up_Pos()
-{
-    
-}
+
 
 void GPS_Start(uint8_t Mode)
 {
@@ -659,7 +618,7 @@ void GPS_Start(uint8_t Mode)
     } else if(Mode == GPS_MODE_TM) {
         if(Gps.GpsMode == GPS_MODE_CONT)
         {
-            GPS_Up_Pos();                                      //ÉÏ´«¶¨Î»
+            NET_CMD_MARK(NET_CMD_Q_LOCATION_D0);
         }
     } else if(Mode == GPS_MODE_CONT) {
         if(Gps.GpsMode != GPS_MODE_CONT) {
@@ -682,6 +641,7 @@ void gps_control_thread(void *param)
         if(Gps.GpsMode == GPS_MODE_TM) {
             if(Gps.GetGPSNum >= GPS_POS_CNT || systm_tick_diff(Gps.Gps_Tm_timeout) > 180*1000) {
                 GPS_Composite_PosData();
+                NET_CMD_MARK(NET_CMD_Q_LOCATION_D0);
                 GPS_stop();
                 if(Gps.GetGPSNum >= GPS_POS_CNT) {
                     LOG_I("**********GPS OK***********");

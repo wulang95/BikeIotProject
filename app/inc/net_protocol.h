@@ -33,6 +33,7 @@ void NET_CMD_MARK(uint8_t cmd);
 void net_recv_data_parse(uint8_t *data, uint16_t len);
 void net_protocol_cmd_send(uint8_t cmd);
 void net_protocol_send_thread(void *param);
+void net_cmd_package_send(char *data, uint16_t len);
 
 
 

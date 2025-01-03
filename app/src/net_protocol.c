@@ -334,12 +334,12 @@ static void net_cmd_voice_play_V0_func(uint8_t send_flag, char (*ppr)[PARAM_LEN]
         }
     }
 }
-
+/*
 void gps_data_net_up()
 {
-/*    char data[156] = {0};
+    char data[156] = {0};
     uint16_t len = 0, lenth = 0;
-    len = sprintf(data, "D0,%d,", GPS_MODE);
+    len = sprintf(data, "D0,%d,", Gps.GpsMode);
     lenth += len;
     if(gps_info.RefreshFlag && gps_info.GPSValidFlag == 'A') {
         len = sprintf(data+ lenth, "%s,", gps_info.Time1);
@@ -363,15 +363,27 @@ void gps_data_net_up()
         lenth += len;
     }
     LOG_I("data:%s, len:%d", data, lenth);
-    net_cmd_package_send(data, lenth);*/
+    net_cmd_package_send(data, lenth);
+} */
+
+void GPS_Up_Pos()
+{
+    char data[156] = {0};
+    uint16_t len = 0, lenth = 0;
+    len = sprintf(data, "D0,%d,", Gps.GpsMode);
+    lenth += len;
+    len = sprintf(data + lenth, "%s", Gps.PosData);
+    lenth += len;
+    LOG_I("data:%s, len:%d", data, lenth);
+    net_cmd_package_send(data, lenth);
 }
 
 static void net_cmd_q_location_D0_func(uint8_t send_flag, char (*ppr)[PARAM_LEN])
 {
     if(send_flag) {
-        gps_data_net_up();
+        GPS_Up_Pos();
     } else {
-      //  GPS_MODE = GPS_SINGAL;
+        GPS_Start(GPS_MODE_TM);
     }
 }
 
@@ -389,9 +401,11 @@ static void net_cmd_location_track_D1_func(uint8_t send_flag, char (*ppr)[PARAM_
     } else {
         car_set_save.gps_track_interval = atoi(ppr[0]);
         if(car_set_save.gps_track_interval) {
+            GPS_Start(GPS_MODE_CONT);
             rtc_event_register(GPS_TRACK_EVENT, car_set_save.gps_track_interval, 1);
         } else{
             rtc_event_unregister(GPS_TRACK_EVENT);
+            GPS_stop();
         }
  //       GPS_MODE = GPS_TRACK;
     }

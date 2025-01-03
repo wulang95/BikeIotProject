@@ -19,7 +19,7 @@
 #define I_SENSOR_IN           GPIO_1     //传感器输入中断   OK
 #define O_RED_IND             GPIO_2     //红灯 OK
 #define O_WHITE_IND           GPIO_3     //白灯 OK
-#define O_BAT_CHARGE_CON      GPIO_4     //备电充电控制 OK
+//#define O_BAT_CHARGE_CON      GPIO_4     //备电充电控制 OK
 #define O_MCU_CONEC           GPIO_5     //cat1运行正常指示 OK
 #define I_DOG_WEEK            GPIO_8
 #define O_BLE_RST             GPIO_13
@@ -30,7 +30,7 @@
 #define I_MCU_WEEK            GPIO_20       //MCU唤醒 ok
 #define I_36VPOWER_DET        GPIO_21       //36V电源检测 OK
 #define I_DOG_DONE            GPIO_22        
-#define O_KEY_LOW             GPIO_0       //低压驱动
+#define O_KEY_LOW             GPIO_4      //低压驱动
 
 #define FLASH_SECTOR_SIZE  4096
 

@@ -8,13 +8,6 @@ extern "C" {
 #include <stdlib.h>
 
 
-struct ota_config_stu{
-	uint16_t soft_ver;
-	uint16_t hw_ver;
-	uint32_t total_len;
-	uint32_t file_crc32;
-};
-
 typedef struct
 {
     uint8_t DLC          : 4;       ///< Data length code

@@ -15,6 +15,8 @@ extern "C" {
 #define GAP_ADVTYPE_LOCAL_NAME_COMPLETE         0x09
 #define GAP_ADVTYPE_16BIT_MORE                  0x02
 
+
+
 struct ble_adv_info_s {
     uint8_t data[32];
     uint8_t len;
@@ -58,7 +60,10 @@ enum {
     BLE_TRANS_INDEX,                /*0x06*/
     BLE_VIRT_INDEX,                 /*0x0d*/
     BLE_DELETE_BIND_INDEX,          /*0x0f*/
-    CMD_BLE_ENTER_SLEEP_INDEX,      /*0X0e*/
+    BLE_ENTER_SLEEP_INDEX,          /*0X0e*/
+    BLE_OTA_START_INDEX,            /*0X10*/
+    BLE_OTA_DATA_INDEX,             /*0X11*/
+    BLE_OTA_END_INDEX,              /*0X12*/
     BLE_INDEX_MAX
 };
 
@@ -78,6 +83,9 @@ enum {
     CMD_BLE_VIRT_AT = 0x0d,             /*0x0d*/ 
     CMD_BLE_DELETE_BIND_INFO = 0x0f,   /*0x0f*/
     CMD_BLE_ENTER_SLEEP = 0x0e,         /*0x0e*/
+    CMD_BLE_OTA_START = 0X10,           /*0X10*/
+    CMD_BLE_OTA_DATA = 0X11,            /*0X11*/
+    CMD_BLE_OTA_END = 0X12,             /*0X12*/
 };
 
 extern struct ble_info_s ble_info;
@@ -90,8 +98,7 @@ void ble_set_adv_data(uint8_t *data, uint8_t len);
 void ble_set_scanrsp_data(uint8_t *data, uint8_t len);
 void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint16_t *buf_len);
 void ble_cmd_mark(uint8_t cmd);
-
-
+int ble_ota_task();
 
 
 

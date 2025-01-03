@@ -19,7 +19,7 @@
 #define BLE_TRANSBUF_LEN    1024
 struct rt_ringbuffer *ble_transbuf;
 
-uint8_t ble_cmd_table[BLE_INDEX_MAX] = {0x04, 0x01, 0x0c, 0x02, 0x03, 0x0b, 0x05, 0x09, 0x0a, 0x07, 0x08, 0x06, 0x0d, 0x0f, 0x0e};
+uint8_t ble_cmd_table[BLE_INDEX_MAX] = {0x04, 0x01, 0x0c, 0x02, 0x03, 0x0b, 0x05, 0x09, 0x0a, 0x07, 0x08, 0x06, 0x0d, 0x0f, 0x0e, 0X10, 0X11,0X12};
 
 struct ble_cmd_rely_order_s{
     uint8_t need_ask;           //是否需要应答
@@ -43,7 +43,10 @@ struct ble_cmd_rely_order_s ble_cmd_rely_order[] = {
     {false,              0,                  0        },         /*CMD_BLE_TRANS*/
     {false,              0,                  0        },         /*CMD_BLE_VIRT_AT*/
     {true,              1000,                3        },         /*CMD_BLE_DELETE_BIND_INFO*/
-    {true,              1000,                3        },        /*CMD_BLE_ENTER_SLEEP*/
+    {true,              1000,                3        },         /*CMD_BLE_ENTER_SLEEP*/
+    {true,              2000,                3        },         /*CMD_BLE_OTA_START*/
+    {true,              2000,                3        },         /*CMD_BLE_OTA_DATA*/
+    {true,              5000,                3        },         /*CMD_BLE_OTA_END*/
 };
 
 #define SENDDATALEN         256
@@ -51,6 +54,7 @@ struct ble_cmd_rely_order_s ble_cmd_rely_order[] = {
 struct ble_cmd_send_var_s{
     uint8_t cmd_index;                //当前发送命令
     uint8_t ask_flag;            //发送完成
+    uint8_t send_flag;              //发送标志
     uint8_t send_cnt;               //发送次数
     uint8_t send_buf[SENDDATALEN];  //发送buffer
     uint16_t sendlen;                //发送长度
@@ -58,10 +62,145 @@ struct ble_cmd_send_var_s{
 
 def_rtos_queue_t ble_send_cmd_que;
 def_rtos_sem_t ble_trans_recv_sem;
-
-
-
 struct ble_info_s ble_info;
+
+struct ble_ota_config_stu{
+    uint32_t firm_ver;
+    uint32_t ota_crc;
+    uint32_t total;
+};
+
+struct ble_ota_ctrl_stu{
+    uint8_t ota_sta;
+    uint32_t offset;
+    uint32_t total_len;
+    uint8_t *data;
+    uint8_t data_len;
+    uint8_t ota_res;
+    uint16_t pack_num;
+    def_rtos_sem_t con_sem_t;
+};
+
+enum {
+    BLE_OTA_IDEL_STEP = 0,
+    BLE_OTA_START_STEP,
+    BLE_OTA_DATA_STEP,
+    BLE_OTA_END_STEP,
+    BLE_OTA_ERROR_STEP,
+};
+
+static struct ble_ota_config_stu ble_ota_config;
+static struct ble_ota_ctrl_stu ble_ota_ctrl;
+static void ble_ota_start()
+{
+    unsigned int CRC32 = 0xFFFFFFFF;
+    uint32_t read_len, offset = 0, total_len;
+    ble_ota_config.firm_ver = 0x01010101;
+    ble_ota_config.total = flash_partition_size(DEV_APP_ADR);
+    ble_ota_ctrl.total_len = ble_ota_config.total;
+    total_len =  ble_ota_config.total;
+    offset = 256;
+    total_len -= offset;
+    while(total_len > 0) {
+        read_len = MIN(total_len, 128);
+        flash_partition_read(DEV_APP_ADR, ble_ota_ctrl.data, read_len, offset);
+        CRC32 = GetCrc32_cum(ble_ota_ctrl.data, read_len, CRC32);
+        offset += read_len;
+        total_len -= read_len; 
+    }
+    ble_ota_config.ota_crc = CRC32;
+    LOG_I("firm_ver:%0x,total_len:%d, CRC:%0x", ble_ota_config.firm_ver, ble_ota_config.total, ble_ota_config.ota_crc);
+    ble_cmd_mark(BLE_OTA_START_INDEX);
+    if(def_rtos_semaphore_wait(ble_ota_ctrl.con_sem_t, 10000) != RTOS_SUCEESS) {
+        LOG_E("BLE OTA START IS FAIL");
+        ble_ota_ctrl.ota_sta = BLE_OTA_ERROR_STEP;
+        return;
+    }
+    ble_ota_ctrl.ota_sta = BLE_OTA_DATA_STEP;
+}
+
+static void ble_ota_data()
+{
+    ble_ota_ctrl.data_len = MIN((ble_ota_ctrl.total_len - ble_ota_ctrl.offset), 128);
+    flash_partition_read(DEV_APP_ADR, &ble_ota_ctrl.data[0], ble_ota_ctrl.data_len , ble_ota_ctrl.offset);
+    ble_ota_ctrl.offset += ble_ota_ctrl.data_len;
+    LOG_I("pack_num:%d, offset:%d", ble_ota_ctrl.pack_num, ble_ota_ctrl.offset);
+    ble_cmd_mark(BLE_OTA_DATA_INDEX);
+    if(def_rtos_semaphore_wait(ble_ota_ctrl.con_sem_t, 10000) != RTOS_SUCEESS) {
+        LOG_E("BLE OTA DATA IS FAIL");
+        ble_ota_ctrl.ota_sta = BLE_OTA_ERROR_STEP;
+        return;
+    }
+    ble_ota_ctrl.pack_num++;
+    if(ble_ota_ctrl.offset%256 == 0){
+        LOG_I("ble ota progress %%%d", ((ble_ota_ctrl.offset*100)/ble_ota_ctrl.total_len));
+    }
+    if(ble_ota_ctrl.total_len == ble_ota_ctrl.offset) {
+        ble_ota_ctrl.ota_sta = BLE_OTA_END_STEP;
+    }
+}
+
+static void ble_ota_end()
+{
+    ble_cmd_mark(BLE_OTA_END_INDEX);
+    LOG_E("BLE_OTA_END_STEP");
+    if(def_rtos_semaphore_wait(ble_ota_ctrl.con_sem_t, 16000) != RTOS_SUCEESS) {
+        LOG_E("BLE OTA END IS FAIL");
+        ble_ota_ctrl.ota_sta = BLE_OTA_ERROR_STEP;
+        return;
+    }
+}
+
+int ble_ota_task()
+{
+    if(ble_ota_ctrl.ota_sta != BLE_OTA_IDEL_STEP) return FAIL;
+    ble_ota_ctrl.data = malloc(128);
+    if(ble_ota_ctrl.data == NULL) return FAIL;
+    if(def_rtos_semaphore_create(&ble_ota_ctrl.con_sem_t, 0) != RTOS_SUCEESS){
+        LOG_E("ble_ota_ctrl.con_sem_t is create fail");
+        return FAIL;
+    }
+    LOG_I("ble_ota_task is run");
+    ble_cmd_mark(BLE_ADV_STOP_INDEX);
+    ble_ota_ctrl.ota_sta = BLE_OTA_START_STEP;
+    ble_ota_ctrl.offset = 0;
+    ble_ota_ctrl.ota_res = 0xff;
+    ble_ota_ctrl.data_len = 0;
+    ble_ota_ctrl.pack_num = 0;
+    while(1){
+        switch(ble_ota_ctrl.ota_sta){
+            case BLE_OTA_START_STEP:
+                ble_ota_start();
+            break;
+            case BLE_OTA_DATA_STEP:
+                ble_ota_data();
+            break;
+            case BLE_OTA_END_STEP:
+                ble_ota_end();
+                free(ble_ota_ctrl.data);
+                def_rtos_semaphore_delete(ble_ota_ctrl.con_sem_t);
+                if(ble_ota_ctrl.ota_res == 0) {
+                    LOG_I("BLE OTA IS SUCCESS");
+                    ble_cmd_mark(BLE_GET_VER_INDEX);
+                    return OK;
+                }
+                else {
+                    ble_cmd_mark(BLE_ADV_START_INDEX);
+                    LOG_I("BLE OTA IS FAIL");
+                    return FAIL;
+                }
+            break;
+            case BLE_OTA_ERROR_STEP:
+                LOG_I("BLE_OTA_ERROR_STEP");
+                ble_cmd_mark(BLE_ADV_START_INDEX);
+                free(ble_ota_ctrl.data);
+                def_rtos_semaphore_delete(ble_ota_ctrl.con_sem_t);
+                return FAIL;
+            break;
+        }
+    }
+}
+
 void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint16_t *buf_len)
 {
     uint16_t lenth = 0;
@@ -82,6 +221,7 @@ void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint1
         case CMD_BLE_HID_LOCK:
         case CMD_BLE_DELETE_BIND_INFO:
         case CMD_BLE_ENTER_SLEEP:
+        case CMD_BLE_OTA_END:
             buf[lenth++] = 0x00;
             buf[lenth++] = 0x00;
         break;
@@ -124,6 +264,20 @@ void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint1
         memcpy(&buf[lenth], data, len);
         lenth += len;
         break;
+        case CMD_BLE_OTA_START:
+            buf[lenth++] = sizeof(struct ble_ota_config_stu) >> 8;
+            buf[lenth++] = sizeof(struct ble_ota_config_stu) & 0xff;
+            memcpy(&buf[lenth], &ble_ota_config, sizeof(struct ble_ota_config_stu));
+            lenth += sizeof(struct ble_ota_config_stu);
+        break;
+        case CMD_BLE_OTA_DATA:
+            buf[lenth++] = (ble_ota_ctrl.data_len + 2) >> 8;
+            buf[lenth++] = (ble_ota_ctrl.data_len + 2)&0xff;
+            memcpy(&buf[lenth], &ble_ota_ctrl.pack_num, 2);
+            lenth += 2;
+            memcpy(&buf[lenth], &ble_ota_ctrl.data[0], ble_ota_ctrl.data_len);
+            lenth += ble_ota_ctrl.data_len;
+        break;
     default:
         break;
     }
@@ -141,13 +295,21 @@ void ble_cmd_mark(uint8_t cmd)
 
 void ble_send_data(uint8_t *data, uint16_t len)
 {
-    hal_drv_uart_send(BLE_UART, data, len);
-    debug_data_printf("ble_send", data, len);
+    uint16_t send_len, offset = 0;
+    while(len > 0){
+        send_len = MIN(60, len);
+        hal_drv_uart_send(BLE_UART, &data[offset], send_len);
+        debug_data_printf("ble_send", &data[offset], send_len);
+        len -= send_len;
+        offset += send_len;
+        def_rtos_task_sleep_ms(5);
+    }
+//  hal_drv_uart_send(BLE_UART, data, len);    
 }
 
 void ble_cmd_send_fail(uint8_t cmd)
 {
-
+    LOG_E("ble send cmd:%02x is fail", cmd);
 }
   
 void ble_control_send_thread(void *param)
@@ -163,6 +325,8 @@ void ble_control_send_thread(void *param)
         cmd_index = ble_cmd_send_var.cmd_index;
         ble_cmd_send_var.ask_flag = 0;
         ble_cmd_send_var.send_cnt = 0;
+        ble_cmd_send_var.send_flag = 1;
+        LOG_I("CMD_INDEX:%d, cmd:%02x", cmd_index, ble_cmd_table[cmd_index]);
         ble_cmd_pack(ble_cmd_table[cmd_index], NULL, 0, ble_cmd_send_var.send_buf, &ble_cmd_send_var.sendlen);
         ble_send_data(ble_cmd_send_var.send_buf, ble_cmd_send_var.sendlen);
         ble_cmd_send_var.send_cnt++;
@@ -174,7 +338,7 @@ void ble_control_send_thread(void *param)
                 } 
                 if(def_rtos_get_system_tick() - time_t >= ble_cmd_rely_order[cmd_index].rely_timeout){
                     if(ble_cmd_send_var.send_cnt >= ble_cmd_rely_order[cmd_index].max_send_times){
-                        ble_cmd_send_fail(ble_cmd_send_var.cmd_index);
+                        ble_cmd_send_fail(ble_cmd_table[cmd_index]);
                         break;
                     }
                     ble_send_data(ble_cmd_send_var.send_buf, ble_cmd_send_var.sendlen);
@@ -184,6 +348,7 @@ void ble_control_send_thread(void *param)
                 def_rtos_task_sleep_ms(5);
             } else break;
         }
+        ble_cmd_send_var.send_flag = 0;
     }
     def_rtos_task_delete(NULL); 
 }
@@ -262,22 +427,28 @@ void sys_set_ble_adv_start()
     ble_set_scanrsp_data(buf, len);
     debug_data_printf("ble_scanrsp_data", buf, len);
     ble_cmd_mark(BLE_ADV_START_INDEX);
-    ble_info.adv_sta = 1;
 }
 
 void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
 {
     char *p = NULL;
-    LOG_I("cmd:%d", cmd);
+    LOG_I("cmd:%0x", cmd);
     switch(cmd)
     {
         case CMD_BLE_ADV_START:
+            ble_info.adv_sta = 1;
+            LOG_I("ble start adv");
+        break;
+        case CMD_BLE_ADV_STOP:
+            ble_info.adv_sta = 0;
+            LOG_I("ble stop adv");
+        break;
         case CMD_BLE_SET_ADV_DATA:
         case CMD_BLE_SET_SCANRSP_DATA:
         case CMD_BLE_DISCONNECT:
         case CMD_BLE_SET_ADV_INTERVAL:
         case CMD_BLE_SET_CON_PARAM:
-        case CMD_BLE_ADV_STOP:
+        
         case CMD_BLE_DELETE_BIND_INFO:
         case CMD_BLE_ENTER_SLEEP:
             break;
@@ -305,8 +476,21 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
             app_virt_uart_write(AT_VIRT_BLE, p);
             free(p);
             break;
+        case CMD_BLE_OTA_START:
+            LOG_I("BLE_OTA_START");
+            def_rtos_smaphore_release(ble_ota_ctrl.con_sem_t);
+            break;
+        case CMD_BLE_OTA_DATA:
+            LOG_I("BLE_OTA_DATA");
+            def_rtos_smaphore_release(ble_ota_ctrl.con_sem_t);
+            break;
+        case CMD_BLE_OTA_END:
+            LOG_I("BLE_OTA_END");
+            ble_ota_ctrl.ota_res = data[0];
+            def_rtos_smaphore_release(ble_ota_ctrl.con_sem_t);
+            break;
     }
-    if(ble_cmd_table[ble_cmd_send_var.cmd_index] == cmd) {
+    if(ble_cmd_table[ble_cmd_send_var.cmd_index] == cmd && ble_cmd_send_var.send_flag == 1) {
         ble_cmd_send_var.ask_flag = 1;
     }
 }
@@ -318,6 +502,7 @@ void ble_control_recv_thread(void *param)
     uint16_t len, i, j;
     uint16_t check_sum = 0, rcv_check = 0;
     int64_t start_t = 0;
+    ble_control_init();
     while(1){
  //       LOG_I("IS RUN");
         len = hal_drv_uart_read(BLE_UART, rcv, 256, RTOS_WAIT_FOREVER);
@@ -380,7 +565,7 @@ void ble_control_recv_thread(void *param)
                 break;    
             }
         }
-        if(systm_tick_diff(start_t) > 500) {
+        if(systm_tick_diff(start_t) > 3000) {
             step = 0;
         }
     }

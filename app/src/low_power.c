@@ -73,7 +73,7 @@ static void enter_low_power()
     if(Gps.GpsPower != GPS_POWER_OFF) {
         MCU_CMD_MARK(CMD_GPS_POWEROFF_INDEX);
     }
-    ble_cmd_mark(CMD_BLE_ENTER_SLEEP_INDEX);
+    ble_cmd_mark(BLE_ENTER_SLEEP_INDEX);
     hal_drv_write_gpio_value(O_BLE_WEEK_SIG, LOW_L);
     system_timer_stop();
 

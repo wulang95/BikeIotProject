@@ -77,6 +77,13 @@ struct mcu_ota_ctrl_stu{
     def_rtos_sem_t con_sem_t;
 };
 
+struct ota_config_stu {
+	uint16_t soft_ver;
+	uint16_t hw_ver;
+	uint32_t total_len;
+	uint32_t file_crc32;
+};
+
 struct mcu_ota_ctrl_stu mcu_ota_ctrl;
 struct ota_config_stu ota_config;
 void mcu_ota_start()

@@ -20,7 +20,7 @@ void car_heart_event()
 void car_open_lock()
 {
  //   uint8_t val = 0XA9;
-    hal_drv_write_gpio_value(O_KEY_HIGH, HIGH_L);
+    hal_drv_write_gpio_value(O_KEY_LOW, HIGH_L);
     MCU_CMD_MARK(CMD_CAN_UNLOCK_CAR_INDEX);
     week_time("lock", -1); 
     // iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
@@ -34,7 +34,7 @@ void car_open_lock()
 void car_close_lock()
 {
 //    uint8_t val = 0X56;
-    hal_drv_write_gpio_value(O_KEY_HIGH, LOW_L);
+    hal_drv_write_gpio_value(O_KEY_LOW, LOW_L);
     MCU_CMD_MARK(CMD_CAN_LOCK_CAR_INDEX);
     week_time("lock", 10);
     // iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);

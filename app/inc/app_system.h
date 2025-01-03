@@ -138,13 +138,13 @@ struct sys_set_var_stu{
 #define DEFAULT_SN      "123456789" 
 #define DEFAULT_DEV_TYPE    "K10" 
 #define DEFAULT_APN     "asia.bics"
-#define DEFAULT_IP     "dev-iot-tcp.engweapp.cn"
-#define DEFAULT_PORT   9507
+#define DEFAULT_IP     "iot.engweapp.cn"
+#define DEFAULT_PORT   9682
 
 #define BLE_NAME    "ENGWE"
 #define BLE_SUUID   0X1820
 
-#define OTA_FILE    "UFS:eng_iot.bin"
+#define OTA_FILE    "UFS:ble_simple_peripheral.bin"
 
 extern struct sys_set_var_stu sys_set_var;
 extern struct sys_param_set_stu sys_param_set;

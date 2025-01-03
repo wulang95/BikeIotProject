@@ -12,7 +12,7 @@ struct hal_gpio_config_table_s hal_gpio_config_table[GPIO_MAX] = {
     {GPIO1_PIN,      0},        //GPIO_1
     {GPIO2_PIN,      0},        //GPIO_2
     {GPIO3_PIN,      0},        //GPIO_3
-    {GPIO4_PIN,      0},        //GPIO_4
+    {GPIO4_PIN,      1},        //GPIO_4
     {GPIO5_PIN,      0},        //GPIO_5
     {PIN_NONE,       0},        //GPIO_6
     {PIN_NONE,       0},        //GPIO_7
