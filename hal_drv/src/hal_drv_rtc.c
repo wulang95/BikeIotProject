@@ -1,5 +1,13 @@
 #include "hal_drv_rtc.h"
 #include "ql_api_rtc.h"
+#define DBG_TAG         "hal_drv_rtc"
+
+#ifdef APP_RTC_DEBUG
+#define DBG_LVL    DBG_LOG
+#else
+#define DBG_LVL   DBG_INFO
+#endif
+#include    "log_port.h"
 
 #define	leapyear(year)		((year) % 4 == 0)
 #define	days_in_year(a)		(leapyear(a) ? 366 : 365)
@@ -139,12 +147,18 @@ void hal_drv_rtc_set_alarm(int64_t sec)
 {
     int64_t time_t;
     ql_rtc_time_t tm;
-    ql_rtc_enable_alarm(0);
+    if(ql_rtc_enable_alarm(0) != 0){
+        LOG_E("ql_rtc_enable_alarm(0) is fail");
+    }
     time_t = hal_drv_rtc_get_timestamp();
     time_t += sec;
     ql_sec_conv_rtc_time(&time_t, &tm);
-    ql_rtc_set_alarm(&tm);
-    ql_rtc_enable_alarm(1);
+    if(ql_rtc_set_alarm(&tm) != 0){
+        LOG_E("ql_rtc_set_alarm is fail");
+    }
+    if(ql_rtc_enable_alarm(1) != 0){
+        LOG_E("ql_rtc_enable_alarm(1) is fail");
+    }
 }
 
 void hal_drv_rtc_time_print()

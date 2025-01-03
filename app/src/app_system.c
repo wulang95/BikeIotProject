@@ -512,7 +512,7 @@ void app_sys_init()
     register_module("sys");
     register_module("ble");
     register_module("lock");
-  //  flash_partition_erase(DEV_APP_ADR);
+ //   flash_partition_erase(DEV_APP_ADR);
      week_time("sys", -1); 
      electron_fence_test();
   //   app_set_led_ind(LED_TEST);

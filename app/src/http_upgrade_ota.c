@@ -520,8 +520,8 @@ void app_http_ota_thread(void *param)
             // }
         if(temp == 0) {
             temp = 1;
-            LOG_I("enter ble_ota_task");
-            ble_ota_task();
+           LOG_I("enter ble_ota_task");
+           ble_ota_task();
         //    can_ota_task(HMI_ADR);
     //        mcu_ota_task();
         }    

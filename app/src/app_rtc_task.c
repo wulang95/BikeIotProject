@@ -92,6 +92,7 @@ void app_rtc_event_thread(void *param)
                     rtc_event_handler(i);
                     if(rtc_week_table[i].cycle_en){
                         rtc_week_table[i].week_time = rtc_week_table[i].reload;
+                        min_sec = rtc_week_table[i].week_time;
                     } else {
                         rtc_week_table[i].vaild = 0;
                     }
