@@ -3,6 +3,7 @@
 #include "hal_drv_uart.h"
 #include "hal_virt_at.h"
 #include "ql_fs.h"
+#include "hal_drv_iic.h"
 #define DBG_TAG         "app_system"
 
 #ifdef APP_SYS_DEBUG
@@ -17,9 +18,12 @@ struct sys_config_stu sys_config_back;
 struct sys_param_set_stu sys_param_set;
 struct sys_set_var_stu sys_set_var;
 struct sensor_calibration_data_stu sensor_calibration_data;
+SHAPE_SET sheepfang_data;
+SHAPE_SET forbidden_zone_data;
 NET_NW_INFO nw_info;
 int ota_fd;
-
+uint16_t shock_cent;
+uint64_t shock_time_out;
 void assert_handler(const char *ex_string, const char *func, size_t line)
 {
     LOG_E("(%s) assertion failed at function:%s, line number:%d \n", ex_string, func, line);
@@ -27,13 +31,42 @@ void assert_handler(const char *ex_string, const char *func, size_t line)
 }
 
 
-
+void sys_power_off_time_set(uint8_t time)
+{
+    switch(time) {
+            case 0x01:
+                rtc_event_register(CAR_AUTO_POWER_OFF, 5*60, 0); 
+            break;
+            case 0x02:
+                rtc_event_register(CAR_AUTO_POWER_OFF, 10*60, 0); 
+            break;
+            case 0x03:
+                rtc_event_register(CAR_AUTO_POWER_OFF, 15*60, 0); 
+            break;
+            case 0x04:
+                rtc_event_register(CAR_AUTO_POWER_OFF, 20*60, 0); 
+            break;
+            case 0x05:
+                rtc_event_register(CAR_AUTO_POWER_OFF, 30*60, 0); 
+            break;
+            case 0x06:
+                rtc_event_register(CAR_AUTO_POWER_OFF, 60*60, 0); 
+            break;
+            case 0x07:
+                rtc_event_register(CAR_AUTO_POWER_OFF, 90*60, 0); 
+            break;
+            case 0xFF:
+                rtc_event_unregister(CAR_AUTO_POWER_OFF);
+            break;
+    }
+}
 
 int flash_partition_erase(FLASH_PARTITION flash_part)
 {
     switch(flash_part) {
         case DEV_APP_ADR:
             if(ota_fd > 0) ql_fclose(ota_fd);
+            ql_remove(OTA_FILE);
         //    hal_drv_flash_erase(DEV_APP_ADDR, DEV_APP_SIZE);
             ota_fd = ql_fopen(OTA_FILE, "wb+");
             if(ota_fd < 0) return FAIL;
@@ -48,7 +81,13 @@ int flash_partition_erase(FLASH_PARTITION flash_part)
             hal_drv_flash_erase(SYS_SET_ADDR, SYS_SET_SIZE);
             break;
         case SENSEOR_CALIBRATION_ADR:
-            hal_drv_flash_erase(SENSOR_CALIBRATION_DATA_ADDR, SENSOR_CALIBRATION_DATA_SEIZE);
+            hal_drv_flash_erase(SENSOR_CALIBRATION_DATA_ADDR, SENSOR_CALIBRATION_DATA_SIZE);
+            break;
+        case SHEEP_FOLD_P_ADR:
+            hal_drv_flash_erase(SHEEP_FOLD_POINT_ADDR, SHEEP_FOLD_POINT_SIZE);
+            break;
+        case FORBIDDEN_ZONE_P_ADR:
+            hal_drv_flash_erase(FORBIDDEN_ZONE_POINT_ADDR, FORBIDDEN_ZONE_SIZE);
             break;
         default:
             break;
@@ -92,6 +131,12 @@ int flash_partition_write(FLASH_PARTITION flash_part, void *data, size_t lenth, 
         case SENSEOR_CALIBRATION_ADR:
             hal_drv_flash_write(SENSOR_CALIBRATION_DATA_ADDR + shift, data, lenth);
             break;
+        case SHEEP_FOLD_P_ADR:  
+            hal_drv_flash_write(SHEEP_FOLD_POINT_ADDR + shift, data, lenth);
+            break;
+        case FORBIDDEN_ZONE_P_ADR:
+            hal_drv_flash_write(FORBIDDEN_ZONE_POINT_ADDR + shift, data, lenth);
+            break;
         default:
             break;
     }
@@ -134,6 +179,12 @@ int flash_partition_read(FLASH_PARTITION flash_part, void *data, size_t lenth, i
         case SENSEOR_CALIBRATION_ADR:
             hal_drv_flash_read(SENSOR_CALIBRATION_DATA_ADDR + shift, data, lenth);
             break;
+        case SHEEP_FOLD_P_ADR:
+            hal_drv_flash_read(SHEEP_FOLD_POINT_ADDR + shift, data, lenth);
+            break;
+        case FORBIDDEN_ZONE_P_ADR:
+            hal_drv_flash_read(FORBIDDEN_ZONE_POINT_ADDR + shift, data, lenth);
+            break;
         default:
             break;
     }
@@ -165,27 +216,43 @@ void sys_param_save(FLASH_PARTITION flash_part)
 {
     switch(flash_part) {
         case SYS_CONFIG_ADR:
+            sys_config.magic = IOT_MAGIC;
             sys_config.crc32 = GetCrc32((uint8_t *)&sys_config, sizeof(sys_config) - 4);
             flash_partition_erase(SYS_CONFIG_ADR);
             flash_partition_write(SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
         break;
         case BACK_SYS_CONFIG_ADR:
+            sys_config_back.magic = IOT_MAGIC;
             sys_config_back.crc32 = GetCrc32((uint8_t *)&sys_config_back, sizeof(sys_config_back) - 4);
             flash_partition_erase(BACK_SYS_CONFIG_ADR);
             flash_partition_write(BACK_SYS_CONFIG_ADR, (void *)&sys_config_back, sizeof(sys_config_back), 0);
         break;
         case SYS_SET_ADR:
+            sys_param_set.magic = IOT_MAGIC;
             sys_param_set.crc32 = GetCrc32((uint8_t *)&sys_param_set, sizeof(sys_param_set) - 4);
             flash_partition_erase(SYS_SET_ADR);
             flash_partition_write(SYS_SET_ADR, (void *)&sys_param_set, sizeof(sys_param_set), 0);
         break;
         case SENSEOR_CALIBRATION_ADR:
+            sensor_calibration_data.magic = IOT_MAGIC;
             sensor_calibration_data.crc32 = GetCrc32((uint8_t *)&sensor_calibration_data, sizeof(sensor_calibration_data) - 4);	
             flash_partition_erase(SENSEOR_CALIBRATION_ADR);
             flash_partition_write(SENSEOR_CALIBRATION_ADR, (void *)&sensor_calibration_data, sizeof(sensor_calibration_data) , 0);
         break;
+        case SHEEP_FOLD_P_ADR:
+            sheepfang_data.magic = IOT_MAGIC;
+            sheepfang_data.crc32 = GetCrc32((uint8_t *)&sheepfang_data, sizeof(sheepfang_data) - 4);
+            flash_partition_erase(SHEEP_FOLD_P_ADR);
+            flash_partition_write(SHEEP_FOLD_P_ADR, (void *)&sheepfang_data, sizeof(sheepfang_data) , 0);
+        break;
+        case FORBIDDEN_ZONE_P_ADR:
+            sheepfang_data.magic = IOT_MAGIC;
+            forbidden_zone_data.crc32 = GetCrc32((uint8_t *)&forbidden_zone_data, sizeof(forbidden_zone_data) - 4);
+            flash_partition_erase(FORBIDDEN_ZONE_P_ADR);
+            flash_partition_write(FORBIDDEN_ZONE_P_ADR, (void *)&forbidden_zone_data, sizeof(forbidden_zone_data) , 0);
+        break;
         default:
-            break;
+        break;
     }
 }
 
@@ -193,7 +260,11 @@ void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len)
 {
     uint16_t i, len;
     char data_str[4];
-    char str[512];
+    char *str;
+    str = malloc(512);
+    if(str == NULL){
+        return;
+    }
     sprintf(str, "%s[%d]:", str_tag, data_len);
     len = data_len > 512?512:data_len;
     for(i = 0; i < len; i++){
@@ -201,6 +272,7 @@ void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len)
         strncat(str, data_str, strlen(data_str));
     }
     LOG_I("%s", str);
+    free(str);
 }
 
 
@@ -215,6 +287,18 @@ int64_t systm_tick_diff(int64_t time)
 void sensor_input_handler()
 {
     LOG_I("algo is week");
+    if(shock_cent == 0){
+        shock_time_out = def_rtos_get_system_tick();
+    } 
+    shock_cent++;
+    if(shock_cent >= sys_param_set.shock_sensitivity) {
+        shock_cent = 0;
+   //     imu_algo_timer_start();
+        week_time("sensor", 10);
+    }
+    if(def_rtos_get_system_tick() - shock_time_out > 2000) {
+        shock_cent = 0;
+    }
 }
 
 void ble_connect_handler()
@@ -259,27 +343,71 @@ static void hal_drv_init()
     LOG_I("hal_drv_init is ok");
 }
 
-void sys_param_set_default_init()
+static void sys_param_set_default_init()
 {
     memset(&sys_param_set, 0, sizeof(sys_param_set));
     sys_param_set.magic = IOT_MAGIC;
     sys_param_set.ota_cnt = 0;
-    sys_param_set.unlock_car_heart_sw = 0;
     sys_param_set.unlock_car_heart_interval = 10;
-    sys_param_set.net_heart_interval = 240;
+    sys_param_set.net_heart_interval = 300;
+    sys_param_set.lock_car_heart_interval = 900;
+    sys_param_set.unlock_car_heart_interval = 60;
+    sys_param_set.internal_battry_work_interval = 3600;
+    sys_param_set.lock_car_heart2_interval = 1;
+    sys_param_set.unlock_car_heart2_interval = 1;
+    sys_param_set.shock_sensitivity = 15;
     sys_param_set.crc32 = GetCrc32((uint8_t *)&sys_param_set, sizeof(sys_param_set) - 4);
     flash_partition_erase(SYS_SET_ADR);
     flash_partition_write(SYS_SET_ADR, (void *)&sys_param_set, sizeof(sys_param_set), 0);
 }
 
-void sys_param_set_init()
+static void sys_param_set_init()
 {
+    sys_param_set_default_init();
     flash_partition_read(SYS_SET_ADR, (void *)&sys_param_set, sizeof(sys_param_set), 0);
     if(sys_param_set.magic != IOT_MAGIC || sys_param_set.crc32 != GetCrc32((uint8_t *)&sys_param_set, sizeof(sys_param_set) - 4)) {
         sys_param_set_default_init();
         LOG_E("sys_set_param save is fail!");
     }
     LOG_I("ota_cnt:%d", sys_param_set.ota_cnt);
+}
+
+static void sheepfang_data_init()
+{
+    uint8_t i = 0;
+    flash_partition_read(SHEEP_FOLD_P_ADR, (void *)&sheepfang_data, sizeof(sheepfang_data), 0);
+    if((sheepfang_data.magic == IOT_MAGIC) && (sheepfang_data.crc32 == GetCrc32((uint8_t *)&sheepfang_data, sizeof(sheepfang_data) - 4))){
+        if(sheepfang_data.shape_type == CIRCLE){
+            LOG_I("CIRCLE");
+            LOG_I("center:%f, %f, radius:%f", sheepfang_data.circle.center.lat, sheepfang_data.circle.center.lon, sheepfang_data.circle.radius);
+        } else if(sheepfang_data.shape_type == POLYGON) {
+            LOG_I("POLYGON");
+            for(i = 0; i < sheepfang_data.polygon.point_num; i++) {
+                LOG_I("P[%d]:%f, %f",i, sheepfang_data.polygon.p[i].lat, sheepfang_data.polygon.p[i].lon);
+            }
+        }
+    } else {
+        memset(&sheepfang_data, 0, sizeof(sheepfang_data));
+    }
+}
+
+static void forbidden_zone_data_init()
+{
+    uint8_t i = 0;
+    flash_partition_read(FORBIDDEN_ZONE_P_ADR, (void *)&forbidden_zone_data, sizeof(forbidden_zone_data), 0);
+    if((forbidden_zone_data.magic == IOT_MAGIC) && (forbidden_zone_data.crc32 == GetCrc32((uint8_t *)&forbidden_zone_data, sizeof(forbidden_zone_data) - 4))){
+        if(forbidden_zone_data.shape_type == CIRCLE){
+            LOG_I("CIRCLE");
+            LOG_I("center:%d, %d, radius:%d", forbidden_zone_data.circle.center.lat, forbidden_zone_data.circle.center.lon, forbidden_zone_data.circle.radius);
+        } else if(forbidden_zone_data.shape_type == POLYGON) {
+            LOG_I("POLYGON");
+            for(i = 0; i < forbidden_zone_data.polygon.point_num; i++) {
+                LOG_I("P[%d]:%d, %d",i, forbidden_zone_data.polygon.p[i].lat, forbidden_zone_data.polygon.p[i].lon);
+            }
+        }
+    } else {
+        memset(&forbidden_zone_data, 0, sizeof(forbidden_zone_data));
+    }
 }
 
 static void sys_config_default_init()
@@ -303,6 +431,7 @@ static void sys_config_default_init()
 
 void sys_config_init()
 {
+   // sys_config_default_init();
     flash_partition_read(SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
     if(sys_config.magic != IOT_MAGIC || sys_config.crc32 != GetCrc32((uint8_t *)&sys_config, sizeof(sys_config) - 4)) {
         flash_partition_read(BACK_SYS_CONFIG_ADR, (void *)&sys_config_back, sizeof(sys_config_back), 0);
@@ -332,7 +461,7 @@ def_rtos_sem_t system_task_sem;
 void app_system_thread(void *param)
 {
     def_rtosStaus res;
-    int64_t csq_time_t = 0;
+    int64_t csq_time_t = def_rtos_get_system_tick();
     int64_t ble_info_up_time_t = 0;
     uint16_t bat_val;
     uint8_t TEMP = 0;
@@ -344,24 +473,33 @@ void app_system_thread(void *param)
             continue;
         }
 
-        if(sys_info.sys_updata_falg != 0) {
-            if(sys_info.sys_updata_falg & 0x01) {
-                sys_info.sys_updata_falg &= ~0x01;
-                flash_partition_erase(SYS_SET_ADR);
-                flash_partition_write(SYS_SET_ADR, (void *)&sys_param_set, sizeof(sys_param_set), 0);
+        if(Gps.GpsPower == GPS_POWER_ON) {
+            if(def_rtos_get_system_tick() - gps_resh_time_t > 3*1000 && (iot_error_check(IOT_ERROR_TYPE, GPS_ERROR) == 0)) {
+                iot_error_set(IOT_ERROR_TYPE, GPS_ERROR);
+            }   
+        }
+
+
+        if(sys_set_var.sys_updata_falg != 0) {
+            if(sys_set_var.sys_updata_falg & (1 << SYS_SET_SAVE)) {
+                sys_set_var.sys_updata_falg &= ~(1 << SYS_SET_SAVE);
+                sys_param_save(SYS_SET_ADR);
             } 
-            if(sys_info.sys_updata_falg & 0x02) {
-                sys_info.sys_updata_falg &= ~0x02;
-                flash_partition_erase(SYS_CONFIG_ADR);
-                flash_partition_erase(BACK_SYS_CONFIG_ADR);
-                flash_partition_write(SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
-                flash_partition_write(BACK_SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
+            if(sys_set_var.sys_updata_falg & (1 << SYS_CONFIG_SAVE)) {
+                sys_set_var.sys_updata_falg &= ~(1 << SYS_CONFIG_SAVE);
+                sys_param_save(SYS_CONFIG_ADR);
+            }
+            if(sys_set_var.sys_updata_falg & (1 << SHEEP_DATA_SAVE)){
+                sys_set_var.sys_updata_falg &= ~(1 << SHEEP_DATA_SAVE);
+                sys_param_save(SHEEP_FOLD_P_ADR);
+            }
+            if(sys_set_var.sys_updata_falg & (1 << FORBIDDEN_DATA_SAVE)){
+                sys_set_var.sys_updata_falg &= ~(1 << FORBIDDEN_DATA_SAVE);
+                sys_param_save(FORBIDDEN_ZONE_P_ADR);
             }
         }
-        if(def_rtos_get_system_tick() - gps_resh_time_t > 10*1000) {
-        //   gps_info.RefreshFlag = 0;
-        }   
-        if(def_rtos_get_system_tick() - csq_time_t > 10*1000) {
+        
+        if(def_rtos_get_system_tick() - csq_time_t > 30*1000) {
             net_update_singal_csq();
             nw_info = hal_drv_get_operator_info();
             LOG_I("MCC:%d, mnc:%d, lac:%d, cid:%d", nw_info.mcc, nw_info.mnc, nw_info.lac, nw_info.cid);
@@ -373,7 +511,7 @@ void app_system_thread(void *param)
             LOG_I("car_info.total_odo:%d, car_info.single_odo:%d", car_info.total_odo, car_info.single_odo);
             LOG_I("car_info.remain_odo:%d, car_info.wheel:%d", car_info.remain_odo, car_info.wheel);
             LOG_I("car_info.current:%d, car_info.pedal_torque:%d", car_info.current, car_info.pedal_torque);
-            LOG_I("car_info.bus_voltage:%d, car_info.calorie:%d", car_info.bus_voltage, car_info.calorie);
+            LOG_I("car_info.bus_voltage:%d, car_info.trip_calorie:%d", car_info.bus_voltage, car_info.ebike_calorie);
             LOG_I("car_info.hmi_info.display_unit:%d, car_info.gear:%d", car_info.hmi_info.display_unit, car_info.gear);
             LOG_I("car_info.speed:%d, car_info.current_limit:%d", car_info.speed, car_info.current_limit);
             // if(TEMP == 1) {
@@ -417,7 +555,7 @@ void app_system_thread(void *param)
             sys_set_var.iot_active = 0;
         }
         if(sys_info.car_init == 0) {
-            if(car_info.lock_sta == CAR_UNLOCK_ATA) {
+            if(car_info.lock_sta == CAR_UNLOCK_STA) {
                 sys_info.car_init = 1;
             }
         }
@@ -426,7 +564,7 @@ void app_system_thread(void *param)
       //      car_heart_event();
  //       }
         if(hal_drv_read_gpio_value(I_BLE_CON_SIG)) {   //蓝牙连接状态检测
-            if(car_info.lock_sta == CAR_UNLOCK_ATA) {
+            if(car_info.lock_sta == CAR_UNLOCK_STA) {
                 ble_heart_event();
             } else {
                 if(def_rtos_get_system_tick() - ble_info_up_time_t > 5000) {
@@ -442,6 +580,7 @@ void app_system_thread(void *param)
 
         if(hal_drv_read_gpio_value(I_36VPOWER_DET) == 1 && sys_info.power_36v == 1) {    //36V电源检测
             sys_info.power_36v = 0;
+            LOG_I("36V power off");
         } else if(hal_drv_read_gpio_value(I_36VPOWER_DET) == 0 && sys_info.power_36v == 0) {
              sys_info.power_36v = 1;
              LOG_I("36V power on");
@@ -468,15 +607,34 @@ void system_timer_start()
     def_rtos_timer_start(system_timer, 1000, 1);
 }
 
+void sensor_cali_param_init()
+{
+    flash_partition_read(SENSEOR_CALIBRATION_ADR,  (void *)&sensor_calibration_data, \
+    sizeof(struct sensor_calibration_data_stu), 0);
+    if(sensor_calibration_data.magic == IOT_MAGIC\
+	&& sensor_calibration_data.crc32 == GetCrc32((uint8_t *)&sensor_calibration_data, sizeof(sensor_calibration_data) - 4)) {
+		sys_info.static_cali_flag = 1;
+        for(uint8_t i = 0; i < 3; i++){
+            LOG_I("static_offset_acc[%d]:%f, static_offset_gyro[%d]:%f",i,\
+            sensor_calibration_data.static_offset_acc[i], i, sensor_calibration_data.static_offset_gyro[i]);
+        }
+	}
+}
 
 void sys_param_init()
 {
     ota_fd = -1;
+    memset(&sys_info, 0, sizeof(sys_info));
+    memset(&sys_set_var, 0, sizeof(sys_set_var));
     sys_config_init();
     sys_param_set_init();
-    LOG_I("OTA_CNT:%d", sys_param_set.ota_cnt);
-    memset(&sys_info, 0, sizeof(sys_info));
+    sheepfang_data_init();
+    forbidden_zone_data_init();
+    sensor_cali_param_init();
+    LOG_I("OTA_CNT:%d", sys_param_set.ota_cnt);   
 }
+
+
 
 
 void ota_test()
@@ -502,25 +660,24 @@ void app_sys_init()
     hal_drv_init();
     app_led_init();
     app_rtc_init();
-    qmi8658_sensor_init();
     net_control_init();
     sys_param_init();
     can_protocol_init();
     net_protocol_init();
     app_http_ota_init();
+    net_engwe_init();
     low_power_init();
+    app_sensor_init();
     register_module("sys");
     register_module("ble");
     register_module("lock");
+    register_module("sensor");
  //   flash_partition_erase(DEV_APP_ADR);
      week_time("sys", -1); 
      electron_fence_test();
+     shock_cent = 0;
   //   app_set_led_ind(LED_TEST);
  //  rtc_event_register(NET_HEART_EVENT,  6, 1);
-    rtc_event_register(NET_HEART_EVENT,  sys_param_set.net_heart_interval, 1);
-    if(sys_param_set.unlock_car_heart_sw) {
-        rtc_event_register(CAR_HEART_EVENT, sys_param_set.unlock_car_heart_interval, 1);
-    }
     def_rtos_semaphore_create(&system_task_sem, 0);
     def_rtos_timer_create(&system_timer, app_system_task, system_timer_fun, NULL);
     def_rtos_timer_start(system_timer, 1000, 1);

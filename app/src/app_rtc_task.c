@@ -25,7 +25,7 @@ void rtc_event_handler(RTC_EVENT rtc_e)
 {
     switch(rtc_e){
         case CAR_HEART_EVENT:
-            if(car_info.lock_sta == CAR_UNLOCK_ATA){
+            if(car_info.lock_sta == CAR_UNLOCK_STA){
                 NET_CMD_MARK(NET_CMD_Q_CAR_INFO_S6);
             }
             LOG_I("CAR_HEART_EVENT");
@@ -35,6 +35,14 @@ void rtc_event_handler(RTC_EVENT rtc_e)
                 NET_CMD_MARK(NET_CMD_GSM_HEART_H0);
             }
             LOG_I("NET_HEART_EVENT");
+            break;
+        case NET_REPORT_EVENT:
+            NET_ENGWE_CMD_MARK(REGULARLY_REPORT_UP);
+            LOG_I("NET_REPORT_EVENT");
+            break;
+        case NET_REPORT2_EVENT:
+            NET_ENGWE_CMD_MARK(REGULARLY_REPORT2_UP);
+            LOG_I("NET_REPORT2_EVENT");
             break;
         case GPS_TRACK_EVENT:
             NET_CMD_MARK(NET_CMD_Q_LOCATION_D0);
@@ -68,6 +76,7 @@ void app_rtc_init()
 {
     hal_drv_rtc_set_time(1725504899);
     hal_drv_rtc_time_print();
+    hal_rtc_cfg_init();
     def_rtos_semaphore_create(&rtc_alarm_sem, 0);
     hal_drv_set_alarm_call_fun(rtc_alarm_call_fun);
     LOG_I("app_rtc_init is ok");

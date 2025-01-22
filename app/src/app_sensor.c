@@ -33,18 +33,49 @@ void qst_algo_inti(void)
 	set_cutoff_frequency(20, 2, &accel_filter);
 }
 
+void imu_algo_timer()     // 10ms调用1次
+{
+    def_rtos_smaphore_release(imu_algo_sem);
+}
+
+void qmi8658_sensor_init()
+{
+    qst_algo_inti();
+    def_rtos_task_sleep_ms(50);
+    if(qmi8658_init() != 1) {
+		hal_drv_iic_release();
+		iot_error_set(IOT_ERROR_TYPE, SENSOR_ERROR);
+		LOG_I("qmi8658_init is fail");
+		return; 
+	}
+	iot_error_clean(IOT_ERROR_TYPE, SENSOR_ERROR);
+    init_state_recognition(&qmi8658_read_reg);
+	LOG_I("qmi8658_sensor_init");
+}
 
 void imu_algo_thread(void *param)
 {
+	float last_accl[3];
+	uint16_t cent = 0;
 	def_rtosStaus res;
+	qmi8658_sensor_init();
 	def_rtos_timer_start(algo_timer, 50, 1);
+	sys_info.algo_timer_run = 1;
 	while(1)
 	{
 		res = def_rtos_semaphore_wait(imu_algo_sem, RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) {
             continue;
         }
-		qmi8658_read_xyz(accl, gyro);		
+		qmi8658_read_xyz(accl, gyro);	
+		if(memcmp(accl, last_accl, 3) == 0) {
+			if(++cent == 10) {
+				iot_error_set(IOT_ERROR_TYPE, SENSOR_ERROR);
+				cent = 0;
+			}
+		} else {
+			cent = 0;
+		}
 		LOG_I("accl[0]:%0.2f, accl[1]:%0.2f, accl[2]:%0.2f", accl[0], accl[1], accl[2]);
 		LOG_I("gyro[0]:%0.2f, gyro[1]:%0.2f, gyro[2]:%0.2f", gyro[0], gyro[1], gyro[2]);	
 		accel_correct[0] = Filter_Apply(accl[0],&accel_buf[0],&accel_filter);
@@ -55,41 +86,35 @@ void imu_algo_thread(void *param)
 		gyro_correct[2] = Filter_Apply(gyro[2],&gyro_buf[2],&gyro_filter);
 		qst_fusion_update(accel_correct, gyro_correct, &dt, euler_angle, quater, line_acc);
 		LOG_I("ptich:%.2f,roll:%.2f,yaw:%.2f",euler_angle[0],euler_angle[1],euler_angle[2]); 
+		memcpy(last_accl, accl, 3);
 	}
 	def_rtos_task_delete(NULL);
 }
 
 
-void imu_algo_timer()     // 10ms调用1次
-{
-    def_rtos_smaphore_release(imu_algo_sem);
-}
+
 
 void imu_algo_timer_start()
 {
+	sys_info.algo_timer_run = 1;
 	def_rtos_timer_start(algo_timer, 50, 1);
-	qmi8658_enable_amd(0, 	qmi8658_Int1, 0);
-	qmi8658_enableSensors_ctrl7_sync(0x08|0x03);   //打开同步
+	QMI8658_Wakeup_Process();
+//	qmi8658_enable_amd(0, 	qmi8658_Int1, 0); 
+//	qmi8658_restart();
 //	qmi8658_enableSensors(QMI8658_ACCGYR_ENABLE);
 }
 
 void imu_algo_timer_stop()
 {
+	sys_info.algo_timer_run = 0;
 	def_rtos_timer_stop(algo_timer);
 	qmi8658_enable_amd(1, 	qmi8658_Int1, 1);  //关闭同步
 	LOG_I("imu_algo_timer_stop");
 }
 
-
-
-void qmi8658_sensor_init()
+void app_sensor_init()
 {
 	def_rtosStaus res;
-	sys_set_var.sensor_static_sw = 1;
-    qst_algo_inti();
-    def_rtos_task_sleep_ms(50);
-    qmi8658_init();
-    init_state_recognition(&qmi8658_read_reg);
 	res = def_rtos_semaphore_create(&imu_algo_sem, 0);
 	if(res != RTOS_SUCEESS) {
 		LOG_E("imu_algo_sem create is fail");
@@ -98,7 +123,6 @@ void qmi8658_sensor_init()
 	if(res != RTOS_SUCEESS) {
 		LOG_E("algo_timer create is fail!");
 	}
-	LOG_I("qmi8658_sensor_init");
 }
 
 

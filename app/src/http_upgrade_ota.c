@@ -491,6 +491,20 @@ static int ota_http_download_pacfile(struct fota_http_client_stu *fota_http_cli_
     return 0;
 }
 
+int app_iot_ota_jump()
+{
+    ql_errcode_fota_e ret;
+    ret = ql_fota_image_verify(OTA_FILE);
+    if(ret != RTOS_SUCEESS) {
+        ql_remove(OTA_FILE);
+        return -3;
+    } else {
+        LOG_I("download is sucess ,system will reset power!");
+        def_rtos_task_sleep_s(5);
+	    sys_reset();
+        return 0;
+    }
+}
 void app_http_ota_init()
 {
     def_rtos_semaphore_create(&ota_http_sem, 0);
@@ -520,8 +534,8 @@ void app_http_ota_thread(void *param)
             // }
         if(temp == 0) {
             temp = 1;
-           LOG_I("enter ble_ota_task");
-           ble_ota_task();
+          // LOG_I("enter ble_ota_task");
+        //   ble_ota_task();
         //    can_ota_task(HMI_ADR);
     //        mcu_ota_task();
         }    

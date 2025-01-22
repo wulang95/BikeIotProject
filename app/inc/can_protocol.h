@@ -43,6 +43,7 @@ typedef enum {
    HMI_ADR =  0X28,
    CONTROL_ADR = 0XEF,
    BMS_ADR = 0XF4,
+   SECOND_BMS_ADR = 0XF7,
    IOT_ADR = 0X21,
    LOCK_ADR = 0X60,
 } DEV_ID;

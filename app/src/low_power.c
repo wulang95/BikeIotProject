@@ -76,7 +76,6 @@ static void enter_low_power()
     ble_cmd_mark(BLE_ENTER_SLEEP_INDEX);
     hal_drv_write_gpio_value(O_BLE_WEEK_SIG, LOW_L);
     system_timer_stop();
-
 }
 
 static void exit_lower_power()
@@ -89,6 +88,7 @@ static void exit_lower_power()
     hal_drv_write_gpio_value(O_BLE_WEEK_SIG, HIGH_L);
     MCU_CMD_MARK(CMD_GPS_POWERON_INDEX);
     system_timer_start();
+    imu_algo_timer_start();
 }
 
 void low_power_thread(void *param)

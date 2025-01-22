@@ -91,8 +91,10 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                 if((data[0]&0x80) == 0) {
                     LOG_I("POWER_OFF");
                     car_info.hmi_info.power_on = 0;
-                    if(car_info.lock_sta == CAR_UNLOCK_ATA) {
-                         car_lock_control(HMI_CMD_LOCK_SRC, CAR_LOCK_STA); 
+                    if(car_info.lock_sta == CAR_UNLOCK_STA) {
+                         week_time("lock", 10);
+                         voice_play_mark(LOCK_VOICE);   
+                         car_info.lock_sta = CAR_LOCK_STA;
                          LOG_I("HMI_CMD_LOCK_SRC CAR_LOCK_STA");
                     }
                 } else if(((data[0]&0x80)>>7) == 1 && car_info.hmi_info.power_on == 0) {
@@ -127,8 +129,10 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                 car_info.hmi_info.encry_lock_sta = data[2];
                 if((7&(data[1]>>4)) == 2 && car_info.hmi_info.power_on == 1) {
                     if(car_info.lock_sta == CAR_LOCK_STA) {
-                         car_lock_control(HMI_CMD_LOCK_SRC, CAR_UNLOCK_ATA);
-                         LOG_I("HMI_CMD_LOCK_SRC CAR_UNLOCK_ATA");
+                        car_info.lock_sta = CAR_UNLOCK_STA;
+                        week_time("lock", -1); 
+                        voice_play_mark(UNLOCK_VOICE);
+                        LOG_I("HMI_CMD_LOCK_SRC CAR_UNLOCK_STA");
                     }
                 }
                 // if(data[2] == 0xA9 || data[2] == 0xA0) {
@@ -259,10 +263,12 @@ static void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
            //     debug_data_printf("CONTROL_DATA7", data, data_len);
             break;
             case CONTROL_DATA8:
-                car_info.calorie = data[2] << 16 | data[1] <<8 | data[0];
+                car_info.trip_calorie = data[2]<<16 | data[1]<<8 | data[0];
+                car_info.ebike_calorie = data[4] <<8 | data[3];
                 car_info.bus_voltage = data[6] << 8 | data[5];
            //     debug_data_printf("CONTROL_DATA8", data, data_len);
             break;
+            
             case CONTROL_HWVER1:
                 memcpy(&car_info.control_hw_ver[0], (char *)&data[0], 8);
                 LOG_I("control_hw_ver:%s", car_info.control_hw_ver);
@@ -323,126 +329,126 @@ static void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
     }
 }
 
-static void bms_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
+static void bms_info_handle(uint8_t bms_num, PDU_STU pdu, uint8_t *data, uint8_t data_len)
 {
     if(pdu.pdu1 >= 240) {
         switch(pdu.pdu2){
             case BMS_MATCH_INFO:
-                car_info.bms_info[0].protocol_major_ver = data[4];
-                car_info.bms_info[0].protocol_sub_ver = data[5];
-                car_info.bms_info[0].key = data[1];
+                car_info.bms_info[bms_num].protocol_major_ver = data[4];
+                car_info.bms_info[bms_num].protocol_sub_ver = data[5];
+                car_info.bms_info[bms_num].key = data[1];
             break;
             case BMS_BATTRY_PACK_TEMP:
-                car_info.bms_info[0].temp_probe_number = data[0];
-                car_info.bms_info[0].cell_temp = data[1];
-                car_info.bms_info[0].mos_temp = data[2];
-                car_info.bms_info[0].board_temp = data[3];
-                car_info.bms_info[0].max_temp = data[4];
-                car_info.bms_info[0].min_temp = data[5];
+                car_info.bms_info[bms_num].temp_probe_number = data[0];
+                car_info.bms_info[bms_num].cell_temp = data[1];
+                car_info.bms_info[bms_num].mos_temp = data[2];
+                car_info.bms_info[bms_num].board_temp = data[3];
+                car_info.bms_info[bms_num].max_temp = data[4];
+                car_info.bms_info[bms_num].min_temp = data[5];
             break;
             case BMS_COMPREHENSIVE_DATA:
-                car_info.bms_info[0].soh = data[0];
-                car_info.bms_info[0].soc = data[1];
-                car_info.bms_info[0].remain_capacity = data[3]<<8 | data[2];
-                car_info.bms_info[0].full_capactity = data[5]<<8 | data[4];
-                car_info.bms_info[0].design_capactity = data[7]<<8 | data[6];
+                car_info.bms_info[bms_num].soh = data[0];
+                car_info.bms_info[bms_num].soc = data[1];
+                car_info.bms_info[bms_num].remain_capacity = data[3]<<8 | data[2];
+                car_info.bms_info[bms_num].full_capactity = data[5]<<8 | data[4];
+                car_info.bms_info[bms_num].design_capactity = data[7]<<8 | data[6];
             break;
             case BMS_CELL_VOL1:
-                car_info.bms_info[0].pack_series_number = data[0];
-                car_info.bms_info[0].pack_series_number = data[1];
-                car_info.bms_info[0].cell_val[0] = data[3] << 8 | data[2];
-                car_info.bms_info[0].cell_val[1] = data[5] << 8 | data[4];
-                car_info.bms_info[0].cell_val[2] = data[7] << 8 | data[6];
+                car_info.bms_info[bms_num].pack_series_number = data[0];
+                car_info.bms_info[bms_num].pack_series_number = data[1];
+                car_info.bms_info[bms_num].cell_val[0] = data[3] << 8 | data[2];
+                car_info.bms_info[bms_num].cell_val[1] = data[5] << 8 | data[4];
+                car_info.bms_info[bms_num].cell_val[2] = data[7] << 8 | data[6];
             break;
             case BMS_CELL_VOL2:
-                car_info.bms_info[0].cell_val[3] = data[1]<< 8 | data[0];
-                car_info.bms_info[0].cell_val[4] = data[3] << 8 | data[2];
-                car_info.bms_info[0].cell_val[5] = data[5] << 8 | data[4];
-                car_info.bms_info[0].cell_val[6] = data[7] << 8 | data[6];
+                car_info.bms_info[bms_num].cell_val[3] = data[1]<< 8 | data[0];
+                car_info.bms_info[bms_num].cell_val[4] = data[3] << 8 | data[2];
+                car_info.bms_info[bms_num].cell_val[5] = data[5] << 8 | data[4];
+                car_info.bms_info[bms_num].cell_val[6] = data[7] << 8 | data[6];
             break;
             case BMS_CELL_VOL3:
-                car_info.bms_info[0].cell_val[7] = data[1]<< 8 | data[0];
-                car_info.bms_info[0].cell_val[8] = data[3] << 8 | data[2];
-                car_info.bms_info[0].cell_val[9] = data[5] << 8 | data[4];
-                car_info.bms_info[0].cell_val[10] = data[7] << 8 | data[6];
+                car_info.bms_info[bms_num].cell_val[7] = data[1]<< 8 | data[0];
+                car_info.bms_info[bms_num].cell_val[8] = data[3] << 8 | data[2];
+                car_info.bms_info[bms_num].cell_val[9] = data[5] << 8 | data[4];
+                car_info.bms_info[bms_num].cell_val[10] = data[7] << 8 | data[6];
             break;
             case BMS_CELL_VOL4:
-                car_info.bms_info[0].cell_val[11] = data[1]<< 8 | data[0];
-                car_info.bms_info[0].cell_val[12] = data[3] << 8 | data[2];
-                car_info.bms_info[0].cell_val[13] = data[5] << 8 | data[4];
-                car_info.bms_info[0].cell_val[14] = data[7] << 8 | data[6];
+                car_info.bms_info[bms_num].cell_val[11] = data[1]<< 8 | data[0];
+                car_info.bms_info[bms_num].cell_val[12] = data[3] << 8 | data[2];
+                car_info.bms_info[bms_num].cell_val[13] = data[5] << 8 | data[4];
+                car_info.bms_info[bms_num].cell_val[14] = data[7] << 8 | data[6];
             break;
             case BMS_REALTIME_VOL_CURRENT:
-                car_info.bms_info[0].pack_vol = data[1] << 8 | data[0];
-                car_info.bms_info[0].pack_current = data[3] << 8 | data[2];
-                car_info.bms_info[0].max_continuous_current = data[4];
-                car_info.bms_info[0].max_charge_current = data[5];
-                car_info.bms_info[0].max_charge_current = data[6];
+                car_info.bms_info[bms_num].pack_vol = data[1] << 8 | data[0];
+                car_info.bms_info[bms_num].pack_current = data[3] << 8 | data[2];
+                car_info.bms_info[bms_num].max_continuous_current = data[4];
+                car_info.bms_info[bms_num].max_charge_current = data[5];
+                car_info.bms_info[bms_num].max_charge_current = data[6];
             break;
             case BMS_FIRST_SENCOND_PROTECTION:
-                memcpy(&car_info.bms_info[0].first_protect[0], &data[0], 4);
-                memcpy(&car_info.bms_info[0].second_protect[0], &data[4], 4);
+                memcpy(&car_info.bms_info[bms_num].first_protect[0], &data[0], 4);
+                memcpy(&car_info.bms_info[bms_num].second_protect[0], &data[4], 4);
             break;
             case BMS_BATTRY_PACK_STA:
-                car_info.bms_info[0].charge_det = data[0]&0x01;
-                car_info.bms_info[0].charge_sta = (data[0]>>1)&0x01;
-                car_info.bms_info[0].discharge_sta = data[1]&0x01;
-                car_info.bms_info[0].charge_mos = data[2]&0x01;
-                car_info.bms_info[0].discharge_mos = (data[2]>>1)&0x01;
-                car_info.bms_info[0].chargefull_sta = (data[2]>>2)&0x01;
-                car_info.bms_info[0].double_bms_sta = data[3]&0x03;
-                car_info.bms_info[0].charge_remain_time = data[5] << 8 | data[4];
-                car_info.bms_info[0].design_val = data[6];
+                car_info.bms_info[bms_num].charge_det = data[0]&0x01;
+                car_info.bms_info[bms_num].charge_sta = (data[0]>>1)&0x01;
+                car_info.bms_info[bms_num].discharge_sta = data[1]&0x01;
+                car_info.bms_info[bms_num].charge_mos = data[2]&0x01;
+                car_info.bms_info[bms_num].discharge_mos = (data[2]>>1)&0x01;
+                car_info.bms_info[bms_num].chargefull_sta = (data[2]>>2)&0x01;
+                car_info.bms_info[bms_num].double_bms_sta = data[3]&0x03;
+                car_info.bms_info[bms_num].charge_remain_time = data[5] << 8 | data[4];
+                car_info.bms_info[bms_num].design_val = data[6];
             break;
             case BMS_BATTRY_PACK_RECORDDATA:
-                car_info.bms_info[0].cycle_number = data[1] << 8 | data[0];
-                car_info.bms_info[0].charge_interval_time = data[3] << 8 | data[2];
-                car_info.bms_info[0].maxcharge_interval_time = data[5] << 8 | data[4];
-                car_info.bms_info[0].alive_time = data[7] << 8 | data[6];
+                car_info.bms_info[bms_num].cycle_number = data[1] << 8 | data[0];
+                car_info.bms_info[bms_num].charge_interval_time = data[3] << 8 | data[2];
+                car_info.bms_info[bms_num].maxcharge_interval_time = data[5] << 8 | data[4];
+                car_info.bms_info[bms_num].alive_time = data[7] << 8 | data[6];
             break;
             case BMS_BATTRY_PACK_CHARGE_PARAM:
-                car_info.bms_info[0].max_charge_val = data[1] << 8 | data[0];
+                car_info.bms_info[bms_num].max_charge_val = data[1] << 8 | data[0];
             break;
             case BMS_PROTECTION_FAULT_INFO:
-                car_info.bms_info[0].first_protect_code = data[1];
-                car_info.bms_info[0].second_protect_code = data[2];
-                car_info.bms_info[0].fault_code = data[4];
+                car_info.bms_info[bms_num].first_protect_code = data[1];
+                car_info.bms_info[bms_num].second_protect_code = data[2];
+                car_info.bms_info[bms_num].fault_code = data[4];
             break;
             case BMS_BARCODE_A:
-                car_info.bms_info[0].code_len = data[0];
-                memcpy(&car_info.bms_info[0].code[0], &data[1], 7);
+                car_info.bms_info[bms_num].code_len = data[0];
+                memcpy(&car_info.bms_info[bms_num].code[0], &data[1], 7);
             break;
             case BMS_BARCODE_B:
-                memcpy(&car_info.bms_info[0].code[7], &data[0], 8);
+                memcpy(&car_info.bms_info[bms_num].code[7], &data[0], 8);
             break;
             case BMS_BARCODE_C:
-                memcpy(&car_info.bms_info[0].code[15], &data[0], 8);
+                memcpy(&car_info.bms_info[bms_num].code[15], &data[0], 8);
             break;
             case BMS_BARCODE_D:
-                memcpy(&car_info.bms_info[0].code[23], &data[0], 8);
+                memcpy(&car_info.bms_info[bms_num].code[23], &data[0], 8);
             break;
             case BMS_SOFT_VER:
-                memcpy(&car_info.bms_info[0].soft_ver[0], &data[0], 8);
+                memcpy(&car_info.bms_info[bms_num].soft_ver[0], &data[0], 8);
                 LOG_I("soft_ver:%s", car_info.bms_info[0].soft_ver);
             break;
             case BMS_SOFT_VER_EXTEND1:
-                memcpy(&car_info.bms_info[0].soft_ver[8], &data[0], 8);
+                memcpy(&car_info.bms_info[bms_num].soft_ver[8], &data[0], 8);
                 LOG_I("soft_ver:%s", car_info.bms_info[0].soft_ver);
             break;
             case BMS_SOFT_VER_EXTEND2:
-                memcpy(&car_info.bms_info[0].soft_ver[16], &data[0], 8);
+                memcpy(&car_info.bms_info[bms_num].soft_ver[16], &data[0], 8);
                 LOG_I("soft_ver:%s", car_info.bms_info[0].soft_ver);
             break;
             case BMS_SOFT_VER_EXTEND3:
-                memcpy(&car_info.bms_info[0].soft_ver[24], &data[0], 8);
+                memcpy(&car_info.bms_info[bms_num].soft_ver[24], &data[0], 8);
                 LOG_I("soft_ver:%s", car_info.bms_info[0].soft_ver);
             break;
             case BMS_HW_VER_A:
-                memcpy(&car_info.bms_info[0].hw_ver[0], &data[0], 8);
+                memcpy(&car_info.bms_info[bms_num].hw_ver[0], &data[0], 8);
                 LOG_I("hw_ver:%s", car_info.bms_info->hw_ver);
             break;
             case BMS_HW_VER_B:
-                memcpy(&car_info.bms_info[0].hw_ver[8], &data[0], 8);
+                memcpy(&car_info.bms_info[bms_num].hw_ver[8], &data[0], 8);
                 LOG_I("hw_ver:%s", car_info.bms_info->hw_ver);
             break;
         }
@@ -641,9 +647,24 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
             //    can_png_quest(BMS_ADR, BMS_HW_VER_B, 0);
                 can_png_quest(BMS_ADR, BMS_HW_VER_B, 0);
             } 
-            car_info.bms_connect = 1;
+            car_info.bms_info[0].connect= 1;
             check_bms_timeout = def_rtos_get_system_tick();
-            bms_info_handle(can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
+            bms_info_handle(0, can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
+        break;
+        case SECOND_BMS_ADR:
+            if(car_info.bms_info[1].init == 0 && can_ota_con.ota_step == OTA_IDEL_STEP) {
+                car_info.bms_info[1].init = 1;
+                can_png_quest(SECOND_BMS_ADR, BMS_SOFT_VER, 0);
+                can_png_quest(SECOND_BMS_ADR, BMS_SOFT_VER_EXTEND1, 0);
+                can_png_quest(SECOND_BMS_ADR, BMS_SOFT_VER_EXTEND2, 0);
+            //    can_png_quest(BMS_ADR, BMS_SOFT_VER_EXTEND3, 0);
+                can_png_quest(SECOND_BMS_ADR, BMS_HW_VER_A, 0);
+            //    can_png_quest(BMS_ADR, BMS_HW_VER_B, 0);
+                can_png_quest(SECOND_BMS_ADR, BMS_HW_VER_B, 0);
+            } 
+            car_info.bms_info[1].connect = 1;
+            check_bms_timeout = def_rtos_get_system_tick();
+            bms_info_handle(1, can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
         break;
         case LOCK_ADR:
             if(car_info.electronic_lock.init == 0 && can_ota_con.ota_step == OTA_IDEL_STEP) {
@@ -1128,7 +1149,7 @@ void iot_can_heart_fun()
         car_info.hmi_connnect = 0;
     }
     if(def_rtos_get_system_tick() - check_bms_timeout > 5000) {
-        car_info.bms_connect = 0;
+        ;//
     }
     if(def_rtos_get_system_tick() - check_control_timeout > 5000) {
         car_info.control_connect = 0;
@@ -1436,7 +1457,7 @@ int can_ota_task(DEV_ID dev_id)
         switch (can_ota_con.ota_step)
         {
         case OTA_QUEST_STEP:
-            can_ota_enter();
+            can_ota_enter();  
             break;
         case OTA_PACK_HEAD_STEP:
             can_ota_head(can_ota_con.retry);

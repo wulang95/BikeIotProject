@@ -31,6 +31,7 @@ typedef enum
     PDP_CONDITIONS_CHECK ,
     PDP_START_ACTIVATION ,
     PDP_ACTIVATION_SUCCESS ,
+    PDP_NTP_SYNC,
     PDP_ACTIVATION_FAILURE ,
     PDP_ACTIVE_DETECT ,
 } pdp_active_state_type;
@@ -85,6 +86,7 @@ static void pdp_active_state_machine(void)
     uint8_t net_reg;
     static int64_t check_csq_timeout = 0;
     static int64_t check_pdp_timeout = 0;
+    static int64_t check_sync_timeout = 0;
     switch (pdp_active_info.pdp_state) {
         case PDP_NOT_ACTIVATED:
             LOG_I("PDP_NOT_ACTIVATED");
@@ -126,10 +128,19 @@ static void pdp_active_state_machine(void)
             LOG_I("PDP_START_ACTIVATION");
             memset(ip4_adr_str, 0, sizeof(ip4_adr_str));
             if(hal_drv_get_data_call_res(ip4_adr_str)) {
-                pdp_active_info.pdp_state  = PDP_ACTIVATION_SUCCESS;
+                pdp_active_info.pdp_state  = PDP_NTP_SYNC;
             }
-            if((check_pdp_timeout - def_rtos_get_system_tick())/1000 > 5*60) {
+            if((def_rtos_get_system_tick() - check_pdp_timeout)/1000 > 5*60) {
                pdp_active_info.pdp_state  = PDP_ACTIVATION_FAILURE;
+            }
+        break;
+        case PDP_NTP_SYNC:
+            LOG_I("PDP_NTP_SYNC");
+            if(hal_net_ntp_sync() == 0){
+                pdp_active_info.pdp_state = PDP_ACTIVATION_SUCCESS;
+            } else if((def_rtos_get_system_tick() - check_sync_timeout)/1000 > 30){
+                LOG_E("PDP_NTP_SYNC IS FAIL");
+                pdp_active_info.pdp_state = PDP_ACTIVATION_SUCCESS;
             }
         break;
         case PDP_ACTIVATION_SUCCESS:
@@ -137,6 +148,7 @@ static void pdp_active_state_machine(void)
             pdp_active_info.pdp_state  = PDP_ACTIVE_DETECT;
             pdp_active_info.pdp_is_active = 1;
             sys_info.pdp_reg = 1; 
+            
         break;
         case PDP_ACTIVATION_FAILURE:
             hal_dev_set_c_fun(MIN_FUN, 0);

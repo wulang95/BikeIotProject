@@ -5,7 +5,8 @@
 #include "ql_api_nw.h"
 #include "ql_power.h"
 #include "ql_osi_def.h"
-
+#include "ql_ntp_client.h"
+#include "ql_api_rtc.h"
 
 #define DBG_TAG         "hal_drv_net"
 
@@ -168,6 +169,7 @@ void hal_drv_data_call_register_init()
     ql_datacall_register_cb(0, 1, ql_datacall_ind_callback, NULL);
 }
 
+
 NET_NW_INFO hal_drv_get_operator_info()
 {
     NET_NW_INFO nw_info;
@@ -197,4 +199,45 @@ NET_NW_INFO hal_drv_get_operator_info()
     return nw_info;
 }
 
+static ntp_client_id  ntp_cli_id = 0;
 
+static void ntp_result_cb(ntp_client_id cli_id, int result, struct tm *sync_time, void *arg)
+{
+    ql_rtc_time_t time;
+	if(ntp_cli_id != cli_id)
+		return;
+
+	if(result == QL_NTP_SUCCESS){
+		char time_str[256] = {0};
+
+		snprintf(time_str, 256, "%04d/%02d/%02d,%02d:%02d:%02d",sync_time->tm_year + 1900, sync_time->tm_mon + 1, sync_time->tm_mday,
+                       sync_time->tm_hour, sync_time->tm_min, sync_time->tm_sec);
+		LOG_I("ntp sync time:%s", time_str);
+	    time.tm_year = sync_time->tm_year+ 1900;
+	    time.tm_mon  = sync_time->tm_mon + 1;
+	    time.tm_mday = sync_time->tm_mday;
+	    time.tm_wday = sync_time->tm_wday;
+	    time.tm_hour = sync_time->tm_hour;
+	    time.tm_min  = sync_time->tm_min;
+	    time.tm_sec  = sync_time->tm_sec;
+		if(ql_rtc_set_time(&time) != QL_RTC_SUCCESS)
+		{
+			LOG_E("ntp set RTC time failed");
+		}
+	}else{
+		LOG_E("ntp sync failed :%d", result);
+	}
+}
+
+int hal_net_ntp_sync()
+{
+    ql_ntp_sync_option  sync_option;
+    int error_num = 0;
+    sync_option.pdp_cid = 1;
+    sync_option.sim_id = 0;
+    sync_option.retry_cnt = 3;
+    sync_option.retry_interval_tm = 60;
+
+    ntp_cli_id = ql_ntp_sync("ntp.aliyun.com", &sync_option, ntp_result_cb, NULL, &error_num);
+    return error_num;
+}

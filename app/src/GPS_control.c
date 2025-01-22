@@ -19,10 +19,7 @@ def_rtos_sem_t gps_sem;
 GPS_DATA GpsDataBuf; 
 GPS_INFO  Gps;
 
-typedef struct {
-    double lon;     //纬度  负代表南纬
-    double lat;     //经度  负代表西经
-}Point;
+
 #define EARTH_RADIUS 6378.137
 Point test_p[5] = {{23, 100}, {30, 120}, {25, 140}, {18,130}, {15, 110}};
 
@@ -392,6 +389,7 @@ uint8_t  GPS_GGA_Proces(char *Data, GPS_DATA  *pGpsData)
             case 9:                                              
                 if((DataLen > 8) || (GPS_Number_Cheek(Buf) != OK)) 
                     return FAIL;
+                pGpsData->high = strtod(Buf, NULL);
                 strcpy(pGpsData->SeaLevelH, Buf);
                 strcat(pGpsData->SeaLevelH, ",");
                 break;
@@ -449,6 +447,7 @@ uint8_t GPS_Data_Proces(char *data, uint16_t len)
     double distance;
     Point P1, P2;
     char *start;
+    memset(&GData, 0, sizeof(GData));
     start = strstr(data, "RMC");
 	if(start) {  
 		memset(&GDataTemp, 0, sizeof(GDataTemp));
@@ -561,7 +560,7 @@ uint8_t GPS_Data_Proces(char *data, uint16_t len)
         // if(distance > 0.2) {
         //     memcpy(&GpsDataBuf, &GData, sizeof(GPS_DATA)); 
         // }
-        // else if(car_info.speed != 0 && car_info.lock_sta == CAR_UNLOCK_ATA) //车如果不是静止状态，运动时更新位置
+        // else if(car_info.speed != 0 && car_info.lock_sta == CAR_UNLOCK_STA) //车如果不是静止状态，运动时更新位置
         // {
         //     memcpy(&GpsDataBuf, &GData, sizeof(GPS_DATA)); 
         // } 
@@ -595,6 +594,13 @@ static void GPS_Composite_PosData()
 	
     Len += sprintf(Gps.PosData + Len, "%s,%s,%s,", GpsDataBuf.LatLongData, GpsDataBuf.SateNumStr, GpsDataBuf.HDOP);
     Len += sprintf(Gps.PosData + Len, "%s,%s,%s", GpsDataBuf.Time2, GpsDataBuf.SeaLevelH, GpsDataBuf.Mode);
+    #else
+    Gps.ground_speed = (uint16_t)(strtod(GpsDataBuf.Ground_speed, NULL)*10);
+    Gps.hdop = (uint8_t)(strtod(GpsDataBuf.HDOP, NULL)*10);
+    Gps.direction = (uint16_t)(strtod(GpsDataBuf.Yaw, NULL)*10);
+    Gps.high = (uint16_t)GpsDataBuf.high;
+    Gps.Lat = GpsDataBuf.Latitude*1000000;
+    Gps.Long = GpsDataBuf.Longitude*1000000;
     #endif
 }
 
@@ -635,6 +641,10 @@ void gps_control_thread(void *param)
   //      LOG_I("IS RUN");
         len = gps_data_block_recv(gps_buf, 256, RTOS_WAIT_FOREVER);
         if(len == 0) continue;
+        gps_resh_time_t = def_rtos_get_system_tick();
+        if(iot_error_check(IOT_ERROR_TYPE, GPS_ERROR) == 1) {
+            iot_error_clean(IOT_ERROR_TYPE, GPS_ERROR);
+        }
 		if(GPS_Data_Proces((char *)gps_buf, len) == OK) {
             Gps.GetGPSNum++;
         } 

@@ -139,8 +139,8 @@ static void net_cmd_lock_open_L0_func(uint8_t send_flag, char (*ppr)[PARAM_LEN])
         timestamp = (uint64_t)atol(ppr[2]);
         if((key == net_lock_control.rand_key) && ((timestamp - net_lock_control.timestamp) < net_lock_control.key_vaild_time)) {
             net_lock_control.timestamp = timestamp;
-            car_lock_control(NET_CMD_LOCK_SRC, CAR_UNLOCK_ATA);
-            if(car_info.lock_sta == CAR_UNLOCK_ATA) {
+            car_lock_control(NET_CAR_CMD_SER, CAR_UNLOCK_STA);
+            if(car_info.lock_sta == CAR_UNLOCK_STA) {
                 net_lock_control.lock_res = 0;
             } else {
                 net_lock_control.lock_res = 1;
@@ -165,7 +165,7 @@ static void net_cmd_lock_close_L1_func(uint8_t send_flag, char (*ppr)[PARAM_LEN]
         timestamp = (uint64_t)atol(ppr[2]);
         if((key == net_lock_control.rand_key) && ((timestamp - net_lock_control.timestamp) < net_lock_control.key_vaild_time)) {
             net_lock_control.timestamp = timestamp;
-            car_lock_control(NET_CMD_LOCK_SRC, CAR_LOCK_STA);
+            car_lock_control(NET_CAR_CMD_SER, CAR_LOCK_STA);
             if(car_info.lock_sta == CAR_LOCK_STA) {
                 net_lock_control.lock_res = 0;
             } else {
@@ -185,7 +185,7 @@ static void net_cmd_iot_dev_config_S5_func(uint8_t send_flag, char (*ppr)[PARAM_
     uint16_t car_heart_intrval;
     uint16_t net_heart_interval;
     if(send_flag) {
-        car_heart_sw = sys_param_set.unlock_car_heart_sw?2:1;
+        car_heart_sw = sys_param_set.net_heart_sw;
         net_heart_interval = sys_param_set.net_heart_interval;
         car_heart_intrval = sys_param_set.unlock_car_heart_interval;
         len = sprintf(data_str,"S5,%d,%d,%d",car_heart_sw,net_heart_interval,car_heart_intrval);
@@ -195,7 +195,7 @@ static void net_cmd_iot_dev_config_S5_func(uint8_t send_flag, char (*ppr)[PARAM_
         net_heart_interval = atoi(ppr[1]);
         car_heart_intrval = atoi(ppr[2]);
         if(car_heart_sw) {
-            sys_param_set.unlock_car_heart_sw = car_heart_sw == 1?0:1;
+    //        sys_param_set.unlock_car_heart_sw = car_heart_sw == 1?0:1;
         } 
         if(net_heart_interval) {
             sys_param_set.net_heart_interval = net_heart_interval;
@@ -203,7 +203,7 @@ static void net_cmd_iot_dev_config_S5_func(uint8_t send_flag, char (*ppr)[PARAM_
         if(car_heart_intrval) {
             sys_param_set.unlock_car_heart_interval = car_heart_intrval;
         }
-        sys_info.sys_updata_falg |= 0x01;
+        sys_set_var.sys_updata_falg |= 0x01;
     }
 }
 
@@ -221,7 +221,7 @@ static void net_cmd_q_car_info_S6_func(uint8_t send_flag, char (*ppr)[PARAM_LEN]
         lenth += len;
         len = sprintf(&data_str[lenth], "%ld,%d,%d,%d,",car_info.single_odo/10, car_info.remain_odo,car_info.speed,car_info.avg_speed);
         lenth += len;
-        len = sprintf(&data_str[lenth], "%d,%ld,%d,%d,",car_info.max_speed,car_info.calorie,car_info.atmosphere_light_info.brightness_val,car_info.atmosphere_light_info.turn_linght_sta);
+        len = sprintf(&data_str[lenth], "%d,%d,%d,%d,",car_info.max_speed,car_info.ebike_calorie,car_info.atmosphere_light_info.brightness_val,car_info.atmosphere_light_info.turn_linght_sta);
         lenth += len;
         len = sprintf(&data_str[lenth], "%d,%d,%d,%d,",car_info.atmosphere_light_info.custom_red,car_info.atmosphere_light_info.custom_green,car_info.atmosphere_light_info.custom_blue,\
         sys_info.ble_connect);

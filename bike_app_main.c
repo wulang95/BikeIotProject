@@ -28,11 +28,13 @@ def_rtos_task_t mcu_uart_send_task =NULL;
 def_rtos_task_t http_ota_task = NULL;
 def_rtos_task_t gps_control_task = NULL;
 def_rtos_task_t app_audio_task = NULL;
+def_rtos_task_t car_control_task = NULL;
+def_rtos_task_t net_engwe_send_task = NULL;
 void app_start_thread(void *param)
 {
     LOG_I("app start thread is run");
     def_rtosStaus err = RTOS_SUCEESS;
-    err = def_rtos_task_create(&ble_control_task_recv, 1024*4, TASK_PRIORITY_NORMAL, ble_control_recv_thread);
+    err = def_rtos_task_create(&ble_control_task_recv, 1024*6, TASK_PRIORITY_NORMAL, ble_control_recv_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("ble_control_recv_thread is create fail!");
     }
@@ -40,7 +42,7 @@ void app_start_thread(void *param)
     if(err != RTOS_SUCEESS){
         LOG_E("ble_control_recv_thread is create fail!");
     }
-    err = def_rtos_task_create(&ble_protocol_task_recv, 1024*4, TASK_PRIORITY_NORMAL, ble_protocol_recv_thread);
+    err = def_rtos_task_create(&ble_protocol_task_recv, 1024*6, TASK_PRIORITY_NORMAL, ble_protocol_recv_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("ble_protocol_recv_thread is create fail!");
     }
@@ -114,6 +116,14 @@ void app_start_thread(void *param)
     err = def_rtos_task_create(&app_system_task, 1024*4, TASK_PRIORITY_NORMAL, app_system_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("system_timer_thread is create fail!");
+    }
+    err = def_rtos_task_create(&car_control_task, 1024*4, TASK_PRIORITY_NORMAL, car_control_thread);
+    if(err != RTOS_SUCEESS){
+        LOG_E("car_control_thread is create fail!");
+    }
+    err = def_rtos_task_create(&net_engwe_send_task, 1024*4, TASK_PRIORITY_NORMAL, net_engwe_send_thread);
+    if(err != RTOS_SUCEESS){
+        LOG_E("net_engwe_send_thread is create fail!");
     }
     def_rtos_task_delete(NULL);
 }

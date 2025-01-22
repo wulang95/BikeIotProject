@@ -168,5 +168,12 @@ void hal_drv_rtc_time_print()
     ql_rtc_print_time(tm);
 }
 
+void hal_rtc_cfg_init()
+{
+    ql_rtc_cfg_t ql_rtc_cfg;
+    ql_rtc_get_cfg(&ql_rtc_cfg);
+    ql_rtc_cfg.nwt_cfg = 1;
+    ql_rtc_set_cfg(&ql_rtc_cfg);
 
+}
 

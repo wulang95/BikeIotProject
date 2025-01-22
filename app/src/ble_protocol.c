@@ -79,7 +79,7 @@ enum {
     BLE_CMD_OTA_REQ = 0X0501,
     BLE_CMD_OTA_REQ_ASK = 0X0502,
     BLE_CMD_OTA_SEND_DATA = 0X0503,
-    BLE_CMD_OTA_SEND_ASK = 0X0504,
+    BLE_CMD_OTA_DATA_ASK = 0X0504,
     BLE_CMD_OTA_Q_VER = 0X0505,
     BLE_CMD_OTA_VER_ASK = 0X0506,
     BLE_CMD_CONFIGFILE_SENDREQ = 0X0601,
@@ -120,6 +120,9 @@ enum {
     BLE_CMD_U_LOG = 0X0B01,
     BLE_CMD_LOG_SW = 0X0B02,
     BLE_CMD_LOG_SW_ASK = 0X0B03,
+
+    BLE_CMD_TRANS_CAN = 0X00FD
+
 };
 
 void ble_protocol_data_pack(uint16_t cmd, uint8_t *data, uint16_t data_len, uint8_t *buf, uint16_t *len)
@@ -397,7 +400,7 @@ static void ble_cmd_car_head_light_sta(uint8_t set, uint8_t query)
     if(query){
         data[data_len++] = car_info.headlight_sta?0xff:0x00;
     } else{
-        if(car_info.lock_sta == CAR_UNLOCK_ATA) {
+        if(car_info.lock_sta == CAR_UNLOCK_STA) {
             if(set == 0x00){
                 car_set_save.head_light = 0;
             } else {
@@ -423,7 +426,7 @@ static void ble_cmd_car_assist_gear_service(uint8_t set, uint8_t query)
     if(query) {
         data[data_len++] = car_info.gear;
     } else {
-        if(car_info.lock_sta == CAR_UNLOCK_ATA) {
+        if(car_info.lock_sta == CAR_UNLOCK_STA) {
             if(set <= 5){
                 car_set_save.gear = set;
                 car_control_cmd(CAR_CMD_SET_GEAR);
@@ -494,7 +497,7 @@ static void ble_cmd_car_speed_limit(uint8_t speed, uint8_t query)
     if(query) {
         data[data_len++] = car_info.speed_limit/10;
     } else {
-        if(car_info.lock_sta == CAR_UNLOCK_ATA) {
+        if(car_info.lock_sta == CAR_UNLOCK_STA) {
             car_set_save.speed_limit = speed * 10;
             car_control_cmd(CAR_CMD_SET_SPEED_LIMIT);
             data[data_len++] = speed;
@@ -613,7 +616,7 @@ void ble_cmd_car_turn_light(uint8_t set, uint8_t query)
         else 
             data[data_len++] = 0x00;
     } else {
-        if(car_info.lock_sta == CAR_UNLOCK_ATA) {
+        if(car_info.lock_sta == CAR_UNLOCK_STA) {
             switch(set) {
             case 0x00:
                 car_set_save.left_turn_light = 0;
@@ -659,7 +662,7 @@ static void ble_cmd_car_unit(uint8_t unit, uint8_t query)
   //      data[data_len++] = car_info.hmi_info.display_unit ? 0x01: 0x02;
         data[data_len++] = car_set_save.mileage_unit ? 0x01: 0x02;
     } else {
-        if(car_info.lock_sta == CAR_UNLOCK_ATA){
+        if(car_info.lock_sta == CAR_UNLOCK_STA){
             if(unit == 0x02) car_set_save.mileage_unit = 0;
             else car_set_save.mileage_unit = 1;
         
@@ -691,7 +694,7 @@ static void ble_cmd_car_brightness_level(uint8_t brightness_level, uint8_t query
             data[data_len++] = 0x04;
         else data[data_len++] = 0x05;
     } else {
-        if(car_info.lock_sta == CAR_UNLOCK_ATA){
+        if(car_info.lock_sta == CAR_UNLOCK_STA){
             if(brightness_level == 0x01) 
                 car_set_save.bright_lev = 20;
             else if(brightness_level == 0x02)
@@ -737,10 +740,10 @@ static void ble_cmd_lock_res_ack()
 static void ble_cmd_lock_control(uint8_t dat)
 {
     if(dat == 0x01) {
-        LOG_I("BLE CAR_UNLOCK_ATA");
-        car_lock_control(BLE_CMD_LOCK_SRC, CAR_UNLOCK_ATA);
+        LOG_I("BLE CAR_UNLOCK_STA");
+        car_lock_control(BLUE_CAR_CMD_SER, CAR_UNLOCK_STA);
     } else if(dat == 0x02) {
-        car_lock_control(BLE_CMD_LOCK_SRC, CAR_LOCK_STA);
+        car_lock_control(BLUE_CAR_CMD_SER, CAR_LOCK_STA);
     }
     ble_cmd_lock_res_ack();
 }
@@ -1043,43 +1046,13 @@ static void ble_apn_query_send()
 
 struct ble_ota_info_stu {
     uint8_t ota_type;
-    uint8_t ver[4];
+    uint32_t ver;
     uint32_t total_len;
-    uint32_t data_len;
+    uint32_t offset;
     uint32_t pack_number;
     char ota_name[64];
-    uint8_t estage;
-    int fd;
 };
 struct ble_ota_info_stu ble_ota_info;
-
-
-static uint8_t ble_ota_file_init(uint8_t type)
-{
-    int fd;
-    memset(ble_ota_info.ota_name, 0, sizeof(ble_ota_info.ota_name));
-    switch(type){
-        case IOT_FW:
-        case HMI_FW:
-        case CON_FW:
-        case BMS_FW:
-        case LOCK_FW:
-            memcpy(ble_ota_info.ota_name, "UFS:fota.pack", strlen("UFS:fota.pack"));
-            fd = ql_fopen(ble_ota_info.ota_name, "wb+");
-            if(fd < 0) {
-                LOG_E("init file name:[%s] ret:%d", ble_ota_info.ota_name, fd);
-                return -1;
-            }
-            ql_fclose(fd);
-            ble_ota_info.fd = ql_fopen(ble_ota_info.ota_name, "ab+");
-            LOG_I("init file name:[%s]", ble_ota_info.ota_name);
-            LOG_I("init file size:[%d]", ql_fsize(fd));
-            ble_ota_info.estage = OTA_START;
-            sys_info.ota_flag = 1;
-        break;
-    }
-    return 0;
-}
 
 
 static void ble_ota_query_handle(uint8_t *dat, uint16_t lenth)
@@ -1089,35 +1062,28 @@ static void ble_ota_query_handle(uint8_t *dat, uint16_t lenth)
     uint16_t len;
 
     ble_ota_info.ota_type = dat[0];
-    memcpy(ble_ota_info.ver, &dat[1], 4);
+    memcpy(&ble_ota_info.ver, &dat[1], 4);
     ble_ota_info.total_len = dat[5] << 24 | dat[6] << 16 | dat[7] << 8 | dat[8];
-    LOG_I("ble_ota_info.total_len:%d", ble_ota_info.total_len);
     data[data_len++] = ble_ota_info.ota_type;
-
-    if(sys_info.ota_flag  || ble_ota_info.estage != OTA_IDEL) {
-        data[data_len++] = 0x05;
-    } else if(sys_info.bat_soc < 60 && sys_info.power_36v == 0) {
-        data[data_len++] = 0x06;
-    } else {
-        if(ble_ota_file_init(ble_ota_info.ota_type) == 0) {
-            data[data_len++] = 0x01;
-            ble_ota_info.data_len = 0;
-        } else {
-            data[data_len++] = 0x02;
-        }
-    } 
-
+    LOG_I("ble_ota_info.total_len:%d, ota_type:%d, ver:%0x", ble_ota_info.total_len, ble_ota_info.ota_type, ble_ota_info.ver);
+    // if(sys_info.ota_flag  || ble_ota_info.estage != OTA_IDEL) {
+    //     data[data_len++] = 0x05;
+    // } else if(sys_info.bat_soc < 60 && sys_info.power_36v == 0) {
+    //     data[data_len++] = 0x06;
+    // } else {
+    //     if(ble_ota_file_init(ble_ota_info.ota_type) == 0) {
+    //         data[data_len++] = 0x01;
+    //         ble_ota_info.data_len = 0;
+    //     } else {
+    //         data[data_len++] = 0x02;
+    //     }
+    // } 
+    flash_partition_erase(DEV_APP_ADR);
+    data[data_len++] = 0x01;
     memset(&data[data_len], 0, 4);
     data_len += 4;
     ble_protocol_data_pack(BLE_CMD_OTA_REQ_ASK, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
-}
-
-void ble_ota_write_file(uint8_t *dat, uint16_t lenth)
-{
-    int ret = -1;
-    ret = ql_fwrite(dat, lenth, 1, ble_ota_info.fd);
-	LOG_I("write ret=[%d]",ret);
 }
 
 static void ble_ota_send_data(uint8_t *dat, uint16_t lenth)
@@ -1127,21 +1093,24 @@ static void ble_ota_send_data(uint8_t *dat, uint16_t lenth)
     uint16_t len;
     uint16_t pack_len;
 
-    ble_ota_info.estage = OTA_DATA;
     if(dat[0] == ble_ota_info.ota_type) {
         ble_ota_info.pack_number = dat[1] << 24 | dat[2] << 16 | dat[3] << 8 | dat[4];
         pack_len = lenth - 5;
-        ble_ota_write_file(&dat[5], pack_len);
-        ble_ota_info.data_len += pack_len;
+        flash_partition_write(DEV_APP_ADR, &dat[5], pack_len, ble_ota_info.offset);
+        ble_ota_info.offset += pack_len;
         LOG_I("ble_ota_info.pack_number:%d", ble_ota_info.pack_number);
-        LOG_I("ota progress %d%%", (ble_ota_info.data_len*100)/ble_ota_info.total_len);
-        if(ble_ota_info.total_len == ble_ota_info.data_len) {
-            
-        }
+        LOG_I("ble protocol ota progress %d%%", (ble_ota_info.offset*100)/ble_ota_info.total_len);
         data[data_len++] = dat[0];
-        data[data_len++] = 0x01;
+        if(ble_ota_info.total_len == ble_ota_info.offset) {
+            data[data_len++] = 0x99;
+            if(app_iot_ota_jump() != 0){
+                LOG_E("iot ota is fail");
+            }
+        } else {
+            data[data_len++] = 0x01;
+        }    
     }
-    ble_protocol_data_pack(BLE_CMD_OTA_SEND_ASK, &data[0], data_len, &buf[0], &len);
+    ble_protocol_data_pack(BLE_CMD_OTA_DATA_ASK, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
 }
 
@@ -1200,6 +1169,20 @@ void ble_cmd_en_power_on_password(uint8_t dat)
     data[data_len++] = dat;
     ble_protocol_data_pack(BLE_CMD_S_POWERPASSWORD_SW, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
+}
+
+void ble_cmd_can_trans(uint8_t *data)
+{
+    stc_can_rxframe_t can_dat = {0};
+    can_dat.Cst.Control_f.DLC = data[0] >> 4;
+    can_dat.Cst.Control_f.IDE = (data[0] >> 2)&0x01;
+    can_dat.Cst.Control_f.RTR = 0;
+    can_dat.ExtID = data[1]<< 24 | data[2] << 16 | data[3] << 8 | data[4];
+    LOG_I("%02X, %02X, %02X, %02X", data[1], data[2], data[3], data[4]);
+    LOG_I("%08X", can_dat.ExtID);
+    memcpy(&can_dat.ExtID, &data[1], 4);
+    memcpy(&can_dat.Data[0], &data[5], 8);
+    can_data_send(can_dat);
 }
 void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 {
@@ -1329,6 +1312,9 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
        case BLE_CMD_D_Q_AUDIO_PLAY:
             ble_protocol_audio_play(data[0]);
        break;
+        case BLE_CMD_TRANS_CAN:
+            ble_cmd_can_trans(data);
+        break;
         default:
         break;
     }
@@ -1367,8 +1353,8 @@ void ble_up_cycle_data_heart_service()
     data[data_len++] = car_info.bms_info[0].soc;
     data[data_len++] = car_info.pedal_speed >> 8;
     data[data_len++] = car_info.pedal_speed & 0xff;   
-    data[data_len++] = ((car_info.calorie/1000)>>8)&0xff;
-    data[data_len++] = (car_info.calorie/1000)&0xff;
+    data[data_len++] = ((car_info.ebike_calorie/1000)>>8)&0xff;
+    data[data_len++] = (car_info.ebike_calorie/1000)&0xff;
     data[data_len++] = 0;
     data[data_len++] = 0;  //CAN错误码
     data[data_len++] = car_info.headlight_sta?0xff:0x00;
@@ -1406,20 +1392,101 @@ void ble_heart_event()
 }
 void ble_protocol_recv_thread(void *param)
 {
-    uint8_t buf[256];
-    uint16_t len, cmd_w, lenth;
+    uint8_t step = 0,res;
+    uint8_t buf[256], data[256];
+    uint16_t len, cmd_w, lenth, rcv_crc, check_crc, i, j;
+    int64_t ble_protocol_timeout = 0;
     memset(&ble_ota_info, 0, sizeof(ble_ota_info));
     while(1) {
   //      LOG_I("IS RUN");
         len = ble_trans_data_block_read(buf, 256, RTOS_WAIT_FOREVER);
         LOG_I("ble trans is recv, len:%d", len);
         if(len == 0)continue;
-        debug_data_printf("ble_protocol_rec", buf, len);
-        if(ble_protocol_check(buf, len) == OK) {
-            cmd_w = buf[2]<<8 | buf[3];
-            lenth = buf[4]<<8 | buf[5];
-            ble_protocol_cmd_parse(cmd_w, &buf[6], lenth);
+  //      debug_data_printf("ble_protocol_rec", buf, len);
+        for(i = 0; i< len; i++){
+            res = buf[i];
+            switch(step)
+            {
+            case 0:
+                if(res == HEAD_H){
+                    step = 1;
+                    j = 0;
+                    ble_protocol_timeout = def_rtos_get_system_tick();
+                } else {
+                    step = 0;
+                }
+            break;
+            case 1:
+                if(res == HEAD_L){
+                    step = 2;
+                } else {
+                    step = 0;
+                }
+            break;
+            case 2:
+                data[j++] = res;
+                cmd_w = res<<8;
+                step = 3;
+            break;
+            case 3:
+                data[j++] = res;
+                cmd_w |= res;
+                step = 4;
+            break;
+            case 4:
+                data[j++] = res;
+               lenth = res << 8;
+               step = 5;
+            break;
+            case 5:
+               data[j++] = res;
+               lenth |= res; 
+               step = 6;
+            break;
+            case 6:
+                data[j++] = res;
+                if(j == lenth + 4){
+                    step = 7;
+                }
+            break;
+            case 7:
+                rcv_crc = res;
+                step = 8;
+            break;
+            case 8:
+                rcv_crc |= res<< 8;
+                check_crc = drv_modbus_crc16(data, j);
+                if(rcv_crc == check_crc) {
+                    LOG_I("crc is successful");
+                    step = 9;
+                } else {
+                    step = 0;
+                    LOG_E("crc is fail, rcv_crc:%02x, check_crc:%02x", rcv_crc, check_crc);
+                }
+            break;
+            case 9:
+                if(TAIL_H == res) {
+                    step = 10;
+                } else {
+                    step = 0;
+                }
+            break;
+            case 10:
+                if(TAIL_L == res){
+                    ble_protocol_cmd_parse(cmd_w, &data[4], lenth);
+                } 
+                step = 0;
+                break;
+            }
+        } 
+        if(def_rtos_get_system_tick() - ble_protocol_timeout > 500) {
+            step = 0;
         }
+        // if(ble_protocol_check(buf, len) == OK) {
+        //     cmd_w = buf[2]<<8 | buf[3];
+        //     lenth = buf[4]<<8 | buf[5];
+        //     ble_protocol_cmd_parse(cmd_w, &buf[6], lenth);
+        // }
     }
     def_rtos_task_delete(NULL);
 }

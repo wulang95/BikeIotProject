@@ -6,9 +6,6 @@
 #include <math.h>
 #include "hal_drv_iic.h"
 
-//进入休眠关掉同步
-//退出休眠打开同步
-
 #if defined(QST_USE_SPI)
 #define QMI8658_USE_SPI
 #endif
@@ -24,8 +21,6 @@
 #define STATIC_CALIBRATION
 #define GYRO_DYNAMIC_CALIBRATION
 //#define QMI8658_EN_CGAIN	0x0006002A
-
-#define MAX_STATIC_CALI_COUNTER   200
 
 #define QMI8658_SLAVE_ADDR_L			0x6a
 #define QMI8658_SLAVE_ADDR_H			0x6b
@@ -79,7 +74,6 @@ unsigned char qmi8658_read_cgain(void);
 #define BANK0_INDIRECT_SYS_ADDR_31_24_ADDR	115
 #define BANK0_INDIRECT_SYS_DATA_ADDR		116
 #endif
-
 
 
 enum Qmi8658Register
@@ -386,7 +380,6 @@ typedef struct
 	float			st_out[6];
 } qmi8658_state;
 
-extern void qmi8658_enableSensors_ctrl7_sync(uint8_t value);
 extern int qmi8658_write_reg(unsigned char reg, unsigned char value);
 extern int qmi8658_read_reg(unsigned char reg, unsigned char* buf, unsigned short len);
 extern void qmi8658_soft_reset(void);
@@ -434,5 +427,5 @@ void qmi8658_get_hw_selftest_data(float out[6]);
 #endif
 
 extern int qmi8658_send_ctl9cmd(enum qmi8658_Ctrl9Command cmd);
-
+void QMI8658_Wakeup_Process(void);
 #endif

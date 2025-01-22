@@ -25,6 +25,8 @@ set(APP_FILES
     app/src/GPS_control.c
     app/src/app_audio.c
     app/src/low_power.c
+    app/src/net_engwe_protocol.c
+    app/src/app_error.c
  )
 
 set(COMMON_FILES 

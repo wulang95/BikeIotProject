@@ -36,6 +36,7 @@ typedef struct GPS_DATA_STRUCT
     char   Yaw[12];                         //航向角
     double Latitude;                    //纬度数据 小数格式
     double Longitude;                   //经度数据 小数格式
+    double high;                        //海平面高度
 	uint8_t  RefreshFlag;               //定位刷新标志       
 } GPS_DATA;
 
@@ -63,7 +64,14 @@ typedef struct GPS_INFO_STRUCT
 	uint8_t  CaptureNum;
 	char     CaptureKey[16];
 	
-    char     PosData[80];        		
+    char     PosData[80];      
+
+    uint8_t hdop;
+    uint16_t ground_speed;
+    uint16_t direction;
+    uint16_t high;
+    int Lat;//纬度数据
+    int Long;//经度数据
 } GPS_INFO;
 
 extern GPS_INFO  Gps;

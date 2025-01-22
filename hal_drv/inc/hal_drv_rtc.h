@@ -14,6 +14,6 @@ void hal_drv_set_alarm_call_fun(void(*rtc_alarm_call)());
 void hal_drv_rtc_set_alarm(int64_t sec);
 void hal_drv_rtc_time_print();
 void hal_drv_rtc_deinit();
-
+void hal_rtc_cfg_init();
 
 #endif

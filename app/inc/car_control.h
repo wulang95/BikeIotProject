@@ -6,7 +6,12 @@ extern "C" {
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "net_engwe_protocol.h"
 
+enum{
+    NET_CAR_CMD_SER,
+    BLUE_CAR_CMD_SER,
+};
 
 enum {
     CAR_CMD_LOCK,
@@ -25,6 +30,8 @@ enum {
     CAR_CMD_SET_ATSPHLIGHT_COLORTYPE,
     CAR_CMD_JUMP_PASSWORD,
     CAR_CMD_EN_POWER_ON_PASSWORD,
+    CAR_BMS_CHARGE_SOC_SET,
+    CAR_BMS_CHARGE_CURRENT_SET,
 };
 
 enum {
@@ -32,6 +39,16 @@ enum {
     CAR_FALLING_GROUND_ALARM,
     CAR_CLEAN_FALLING_GROUND_ALARM,
 };
+
+
+typedef struct {
+    uint8_t cmd;
+    uint8_t src;
+    union 
+    {
+       REAL_OPERATE_STU net_car_control;
+    };
+}CAR_CMD_Q;
 
 #pragma pack(1)
 
@@ -75,6 +92,7 @@ struct hmi_info_stu{
 
 struct bms_info_stu{
     uint8_t init;
+    uint8_t connect;
     uint8_t protocol_major_ver;
     uint8_t protocol_sub_ver;
     uint8_t temp_probe_number;
@@ -85,9 +103,9 @@ struct bms_info_stu{
     uint8_t min_temp;
     uint8_t soh;
     uint8_t soc;
-    uint8_t remain_capacity;
-    uint8_t full_capactity;
-    uint8_t design_capactity;
+    uint16_t remain_capacity;
+    uint16_t full_capactity;
+    uint16_t design_capactity;
     uint8_t pack_series_number;
     uint8_t pack_parallel_number;
     uint16_t cell_val[16];  //单位mv
@@ -138,7 +156,6 @@ struct car_info_stu {
     struct atmosphere_light_info_stu atmosphere_light_info;
     struct electronic_lock_stu electronic_lock;
     uint8_t con_init;
-    uint8_t bms_connect :1;
     uint8_t hmi_connnect :1;
     uint8_t control_connect :1;
     uint8_t lock_connect :1;
@@ -159,6 +176,7 @@ struct car_info_stu {
     uint16_t motor_speed; //电机转速
     uint16_t max_speed; //最高车速 0.1km/h
     uint32_t cycle_time_s;  //骑行时间
+    uint32_t cycle_total_time_h; //总骑行时长 ？
     uint8_t fault_code;
     uint8_t sync_time[6];  /*同步时间*/
     uint8_t bright_lev;     /*亮度等级*/
@@ -178,6 +196,8 @@ struct car_info_stu {
     uint8_t current;        //母线电流 单位0.1A
     uint8_t power_sta;      
     uint16_t pedal_speed;   //脚踏转速  单位1RPM
+    uint16_t m_agv_pedal_speed; //1分钟平均踏频
+    uint16_t total_agv_pedal_speed; //总平均踏频
     uint8_t pedal_torque;   //脚踏扭矩   单位1Nm
     uint16_t motor_power;   //电机输出功率 0.1W
     uint8_t control_torque; //电机输出扭矩 1Nm
@@ -187,8 +207,15 @@ struct car_info_stu {
     uint8_t protocol_sub_ver;
     uint8_t assist_seneor_type;
     uint8_t promote_func;
-    uint16_t bus_voltage;  //母线电压
-    uint32_t calorie;  //消耗卡路里
+    uint16_t bus_voltage;  //母线电压 0.1V
+    uint32_t trip_calorie;  //消耗卡路里
+    uint16_t ebike_calorie;
+    union 
+    {
+        uint8_t car_unlock_state;
+        uint8_t car_lock_state;
+    };
+    uint8_t filp_state;
     uint8_t move_alarm;
     char control_hw_ver[16];
     char control_soft_ver[16];
@@ -211,15 +238,9 @@ struct car_state_data_stu {
 
 enum {
     CAR_LOCK_STA = 0,
-    CAR_UNLOCK_ATA,
+    CAR_UNLOCK_STA,
 };
 
-enum {
-    BLE_AUTO_LOCK_SRC,
-    BLE_CMD_LOCK_SRC,
-    NET_CMD_LOCK_SRC,
-    HMI_CMD_LOCK_SRC,
-};
 
 struct car_set_save_stu{
     uint32_t magic;
@@ -231,8 +252,8 @@ struct car_set_save_stu{
     uint8_t gear;
     uint8_t jump_password;
     uint8_t en_power_on_psaaword;
-    uint8_t left_turn_light :1;
-    uint8_t right_turn_light :1;
+    uint8_t left_turn_light :2;
+    uint8_t right_turn_light :2;
     uint8_t tail_light :1;
     uint8_t head_light :1;
     uint8_t anti_theft_on :1;          //防盗开启
@@ -260,11 +281,11 @@ extern struct car_info_stu car_info;
 extern struct car_set_save_stu car_set_save;
 extern struct car_state_data_stu car_state_data;
 void car_heart_event();
-void car_control_cmd(uint8_t cmd);
+int car_control_cmd(uint8_t cmd);
 void car_init();
-void car_lock_control(uint8_t src, uint8_t lock_operate);
-
-
+int car_lock_control(uint8_t src, uint8_t lock_operate);
+void car_control_thread(void *param);
+void CAR_CMD_MARK(CAR_CMD_Q car_cmd_q);
 
 
 

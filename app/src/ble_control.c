@@ -19,7 +19,7 @@
 #define BLE_TRANSBUF_LEN    1024
 struct rt_ringbuffer *ble_transbuf;
 
-uint8_t ble_cmd_table[BLE_INDEX_MAX] = {0x04, 0x01, 0x0c, 0x02, 0x03, 0x0b, 0x05, 0x09, 0x0a, 0x07, 0x08, 0x06, 0x0d, 0x0f, 0x0e, 0X10, 0X11,0X12};
+uint8_t ble_cmd_table[BLE_INDEX_MAX] = {0x04, 0x01, 0x0c, 0x02, 0x03, 0x0b, 0x05, 0x09, 0x0a, 0x07, 0x08, 0x06, 0x0d, 0x0f, 0x0e, 0X10, 0X11,0X12, 0X13};
 
 struct ble_cmd_rely_order_s{
     uint8_t need_ask;           //是否需要应答
@@ -47,6 +47,7 @@ struct ble_cmd_rely_order_s ble_cmd_rely_order[] = {
     {true,              2000,                3        },         /*CMD_BLE_OTA_START*/
     {true,              2000,                3        },         /*CMD_BLE_OTA_DATA*/
     {true,              5000,                3        },         /*CMD_BLE_OTA_END*/
+    {true,              1000,                3        },         /*CMD_BLE_HID_SW*/
 };
 
 #define SENDDATALEN         256
@@ -278,6 +279,11 @@ void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint1
             memcpy(&buf[lenth], &ble_ota_ctrl.data[0], ble_ota_ctrl.data_len);
             lenth += ble_ota_ctrl.data_len;
         break;
+        case CMD_BLE_HID_SW:
+            buf[lenth++] = 0x00;
+            buf[lenth++] = 0x01;
+            buf[lenth++] = sys_set_var.hid_lock_sw;
+        break;
     default:
         break;
     }
@@ -309,6 +315,7 @@ void ble_send_data(uint8_t *data, uint16_t len)
 
 void ble_cmd_send_fail(uint8_t cmd)
 {
+    iot_error_set(IOT_ERROR_TYPE, BLE_ERROR);
     LOG_E("ble send cmd:%02x is fail", cmd);
 }
   
@@ -502,11 +509,21 @@ void ble_control_recv_thread(void *param)
     uint16_t len, i, j;
     uint16_t check_sum = 0, rcv_check = 0;
     int64_t start_t = 0;
+    def_rtosStaus err = RTOS_SUCEESS;
+    err = def_rtos_queue_create(&ble_send_cmd_que, sizeof(uint8_t), 12);
+    if(err != RTOS_SUCEESS) {
+        LOG_E("ble_send_cmd_que is create fail err:%d", err);
+    }
+    def_rtos_semaphore_create(&ble_trans_recv_sem, 0);
+    ble_transbuf = rt_ringbuffer_create(BLE_TRANSBUF_LEN);
     ble_control_init();
     while(1){
  //       LOG_I("IS RUN");
         len = hal_drv_uart_read(BLE_UART, rcv, 256, RTOS_WAIT_FOREVER);
         if(len == 0) continue;
+        if(iot_error_check(IOT_ERROR_TYPE, BLE_ERROR) == 1) {
+            iot_error_clean(IOT_ERROR_TYPE, BLE_ERROR);
+        }
         debug_data_printf("blerecv",rcv, len);
         for(i = 0; i < len; i++){
             c = rcv[i];
@@ -574,10 +591,10 @@ void ble_control_recv_thread(void *param)
 
 static void ble_power_init()
 {
-
     char buf[24], *p;
     uint16_t len;
     uint8_t i;
+    ble_info.init = 0;
     hal_drv_write_gpio_value(O_BLE_POWER, HIGH_L);
     for(i = 0; i < 3; i++) {
         def_rtos_task_sleep_ms(10);
@@ -599,26 +616,23 @@ static void ble_power_init()
         def_rtos_task_sleep_ms(80);
     }
     if(ble_info.init != 1) {
+        iot_error_set(IOT_ERROR_TYPE, BLE_ERROR);
         LOG_E("ble init fail");
         return;
     } 
+    sprintf(ble_info.mac_str, "%02X:%02X:%02X:%02X:%02X:%02X", ble_info.mac[0], ble_info.mac[1], ble_info.mac[2], ble_info.mac[3], ble_info.mac[4], ble_info.mac[5]);
 } 
 
 
 void ble_control_init()
 {
-    def_rtosStaus err = RTOS_SUCEESS;
-    err = def_rtos_queue_create(&ble_send_cmd_que, sizeof(uint8_t), 12);
-    if(err != RTOS_SUCEESS) {
-        LOG_E("ble_send_cmd_que is create fail err:%d", err);
+    if(iot_error_check(IOT_ERROR_TYPE, BLE_ERROR) == 1) {
+        iot_error_clean(IOT_ERROR_TYPE, BLE_ERROR);
     }
-    def_rtos_semaphore_create(&ble_trans_recv_sem, 0);
-    ble_transbuf = rt_ringbuffer_create(BLE_TRANSBUF_LEN);
     memset(&ble_info, 0, sizeof(ble_info));
     ble_power_init();
     ble_param_init();
     ble_cmd_mark(BLE_GET_VER_INDEX);
-    
     LOG_I("ble_control_init is ok");
 }
 

@@ -350,6 +350,7 @@ void MCU_CMD_MARK(uint8_t cmd)
 
 void mcu_send_fail(uint8_t cmd)
 {
+    iot_error_set(IOT_ERROR_TYPE, MCU_CONN_ERROR);
     LOG_E("mcu_send_fail, cmd:%02x", cmd);
 }
 
@@ -409,6 +410,9 @@ void mcu_uart_recv_thread(void *param)
     //    LOG_I("IS RUN");
         len = hal_drv_uart_read(MCU_UART, rcv, 256, RTOS_WAIT_FOREVER);
         if(len == 0) continue;
+        if(iot_error_check(IOT_ERROR_TYPE, MCU_CONN_ERROR) == 1) {
+            iot_error_clean(IOT_ERROR_TYPE, MCU_CONN_ERROR);
+        }
         debug_data_printf("mcurcv",rcv, len);
         for(i = 0; i < len; i++){
             c = rcv[i];

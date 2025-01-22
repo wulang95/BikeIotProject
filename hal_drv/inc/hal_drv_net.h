@@ -42,7 +42,7 @@ void hal_drv_set_dns_addr(char *dns);
 void hal_drv_data_call_register_init();
 void hal_drv_pdp_detect_block();
 NET_NW_INFO hal_drv_get_operator_info();
-
+int hal_net_ntp_sync();
 
 
 
