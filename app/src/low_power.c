@@ -12,8 +12,8 @@
 
 
 typedef struct {
-    int week_time;   //S
-    char *module_str;
+    int week_time;   //模块多久后进入低功耗 单位：S， -1时不进入休眠。
+    char *module_str;  //模块名称
 } SYS_MODULE;
 
 static SYS_MODULE sys_module_table[10];
@@ -21,7 +21,7 @@ def_rtos_task_t low_power_task = NULL;
 static def_rtos_timer_t low_power_timer;
 static def_rtos_sem_t enter_power_sem; 
 static def_rtos_sem_t exit_power_sem;
-static uint8_t low_power_flag;
+static uint8_t low_power_flag;  //进入低功耗标志， 为1标志进入低功耗
 int register_module(char *str)
 {
     uint8_t i;
@@ -54,6 +54,9 @@ int week_time(char *module_str, int time)
         }
     }
     if(i == 10) return FAIL;
+    if(low_power_flag == 1){  //进入了休眠
+        def_rtos_smaphore_release(exit_power_sem);  //释放退出休眠信号量
+    }
     if(def_rtos_timer_is_running(low_power_timer) != 1) {
         def_rtos_timer_start(low_power_timer, 1000, 1);
         LOG_I("low_power_timer is start");
@@ -66,7 +69,7 @@ int week_time(char *module_str, int time)
 static void enter_low_power()
 {
     LOG_I("IS ENTER LOW POWER");
-    if(ql_autosleep_enable(QL_ALLOW_SLEEP) != 0 )
+    if(ql_autosleep_enable(QL_ALLOW_SLEEP) != 0)
     {
         LOG_E("failed to set auto sleep");
     }
@@ -76,6 +79,9 @@ static void enter_low_power()
     ble_cmd_mark(BLE_ENTER_SLEEP_INDEX);
     hal_drv_write_gpio_value(O_BLE_WEEK_SIG, LOW_L);
     system_timer_stop();
+    app_set_led_ind(LED_ALL_OFF);
+    voice_play_off();
+    imu_algo_timer_stop();
 }
 
 static void exit_lower_power()
@@ -112,12 +118,8 @@ static void low_power_timer_fun()
     uint8_t temp = 0;
     for(i = 0; i < 10; i++) {
         if(sys_module_table[i].week_time == -1) {
-            def_rtos_timer_stop(low_power_timer);
-            if(low_power_flag == 1){
-                def_rtos_smaphore_release(exit_power_sem);
-            }
-            temp = 1;
-            break;
+            def_rtos_timer_stop(low_power_timer);  //定时器停止
+            return;
         } else if(sys_module_table[i].week_time > 0) {
             sys_module_table[i].week_time--;
             temp = 1;

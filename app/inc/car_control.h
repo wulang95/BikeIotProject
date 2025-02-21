@@ -11,6 +11,7 @@ extern "C" {
 enum{
     NET_CAR_CMD_SER,
     BLUE_CAR_CMD_SER,
+    HID_CAR_CMD_SER,
 };
 
 enum {
@@ -274,6 +275,7 @@ struct car_set_save_stu{
     uint8_t lockVoiceSw     :1;      //关锁提示音    1：关闭 0：开启
     uint8_t vioce_volum     :4;       //音量
     uint8_t look_car_sw;
+    uint8_t navigation_quit_time;
     uint32_t crc32;
 };
 

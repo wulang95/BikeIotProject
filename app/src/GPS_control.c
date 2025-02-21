@@ -572,8 +572,8 @@ uint8_t GPS_Data_Proces(char *data, uint16_t len)
 
 static void GPS_Composite_PosData()
 {
+    #ifndef OM_NET_PROTOCOL
     uint8_t Len;
-    #ifdef OM_NET_PROTOCOL
     if(GpsDataBuf.GpsFlag == 0){
         strcpy(Gps.PosData, ",V,,,,,,,,,,N");
         return;

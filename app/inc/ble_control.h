@@ -65,7 +65,6 @@ enum {
     BLE_OTA_START_INDEX,            /*0X10*/
     BLE_OTA_DATA_INDEX,             /*0X11*/
     BLE_OTA_END_INDEX,              /*0X12*/
-    BLE_HID_SW_INDEX,             /*0X13*/
     BLE_INDEX_MAX
 };
 
@@ -88,7 +87,6 @@ enum {
     CMD_BLE_OTA_START = 0X10,           /*0X10*/
     CMD_BLE_OTA_DATA = 0X11,            /*0X11*/
     CMD_BLE_OTA_END = 0X12,             /*0X12*/
-    CMD_BLE_HID_SW = 0X13,              /*0X13*/
 };
 
 extern struct ble_info_s ble_info;

@@ -30,6 +30,7 @@ def_rtos_task_t gps_control_task = NULL;
 def_rtos_task_t app_audio_task = NULL;
 def_rtos_task_t car_control_task = NULL;
 def_rtos_task_t net_engwe_send_task = NULL;
+def_rtos_task_t net_sys_log_out_task = NULL;
 void app_start_thread(void *param)
 {
     LOG_I("app start thread is run");
@@ -113,10 +114,7 @@ void app_start_thread(void *param)
     if(err != RTOS_SUCEESS){
         LOG_E("low_power_thread is create fail!");
     }
-    err = def_rtos_task_create(&app_system_task, 1024*4, TASK_PRIORITY_NORMAL, app_system_thread);
-    if(err != RTOS_SUCEESS){
-        LOG_E("system_timer_thread is create fail!");
-    }
+
     err = def_rtos_task_create(&car_control_task, 1024*4, TASK_PRIORITY_NORMAL, car_control_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("car_control_thread is create fail!");
@@ -124,6 +122,14 @@ void app_start_thread(void *param)
     err = def_rtos_task_create(&net_engwe_send_task, 1024*4, TASK_PRIORITY_NORMAL, net_engwe_send_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("net_engwe_send_thread is create fail!");
+    }
+    err = def_rtos_task_create(&app_system_task, 1024*4, TASK_PRIORITY_NORMAL, app_system_thread);
+    if(err != RTOS_SUCEESS){
+        LOG_E("system_timer_thread is create fail!");
+    }
+    err = def_rtos_task_create(&net_sys_log_out_task, 1024*4, TASK_PRIORITY_NORMAL, app_system_log_out_thread);
+    if(err != RTOS_SUCEESS){
+        LOG_E("app_system_log_out_thread is create fail!");
     }
     def_rtos_task_delete(NULL);
 }

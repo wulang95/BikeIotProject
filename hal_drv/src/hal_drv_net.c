@@ -7,7 +7,8 @@
 #include "ql_osi_def.h"
 #include "ql_ntp_client.h"
 #include "ql_api_rtc.h"
-
+#include "hal_virt_at.h"
+#include <string.h>
 #define DBG_TAG         "hal_drv_net"
 
 #ifdef HAL_DRV_NET_DEBUG
@@ -107,6 +108,7 @@ uint8_t hal_dev_get_c_fun()
 
 void sys_reset()
 {
+    def_rtos_task_sleep_s(5);
     ql_power_reset(RESET_NORMAL);
 }
 
@@ -178,6 +180,7 @@ NET_NW_INFO hal_drv_get_operator_info()
     ql_nw_signal_strength_info_s pt_info;
     ql_nw_mode_type_e nw_mode;
     uint8_t csq;
+    char at_buf[64] = {0};
     ql_nw_get_operator_name(0, &oper_i);
     ql_nw_get_reg_status(0, &reg_info);
     ql_nw_get_signal_strength(0, &pt_info);
@@ -191,6 +194,29 @@ NET_NW_INFO hal_drv_get_operator_info()
     nw_info.act = (reg_info.data_reg.act == QL_NW_ACCESS_TECH_GSM) ? 0:(reg_info.data_reg.act == QL_NW_ACCESS_TECH_E_UTRAN)?1:0xff;
     nw_info.csq = csq;
     nw_info.bit_error_rate = pt_info.bitErrorRate;
+    hal_virt_at_write("AT+QNWINFO\r\n");
+    hal_virt_at_read(at_buf, 64, 500);
+    if(strstr(at_buf, "LTE BAND 3") != NULL){
+        nw_info.fre_band = 0x02;
+    } else if(strstr(at_buf, "LTE BAND 1") != NULL) {
+        nw_info.fre_band = 0x00;
+    } else if(strstr(at_buf, "LTE BAND 2") != NULL) {
+        nw_info.fre_band = 0x01;
+    } else if(strstr(at_buf, "LTE BAND 5") != NULL) {
+        nw_info.fre_band = 0x04;
+    } else if(strstr(at_buf, "LTE BAND 7") != NULL) {
+        nw_info.fre_band = 0x06;
+    } else if(strstr(at_buf, "LTE BAND 8") != NULL) {
+        nw_info.fre_band = 0x07;
+    } else if(strstr(at_buf, "LTE BAND 20") != NULL) {
+        nw_info.fre_band = 0x0C;
+    } else if(strstr(at_buf, "LTE BAND 28") != NULL) {
+        nw_info.fre_band = 0x0F;
+    } else {
+        nw_info.fre_band = 0xFF;
+    }
+    LOG_I("at:%s", at_buf);
+    LOG_I("freq:%d, earfcn:%d", reg_info.scell_info.freq, reg_info.scell_info.info.lte.earfcn);
     // LOG_I("MCC:%s, MNC:%s", oper_i.mcc, oper_i.mnc);
     // LOG_I("lac:%d,cid:%d", reg_info.data_reg.lac, reg_info.data_reg.cid);
     // LOG_I("CSQ:%d, bitErrorRate:%d", pt_info.rssi, pt_info.bitErrorRate);

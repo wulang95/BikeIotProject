@@ -56,7 +56,7 @@ enum {
 typedef struct {
     uint8_t instruction_param;
     uint8_t sub_param;
-    uint32_t seq;
+    uint16_t seq;
 } REAL_OPERATE_STU;
 
 
@@ -65,7 +65,7 @@ void net_engwe_pack_seq_up(uint8_t cmd_type, uint8_t *cmd_data, uint16_t cmd_len
 void net_engwe_send_thread(void *param);
 void NET_ENGWE_CMD_MARK(uint8_t cmd);
 void net_engwe_init();
-
+void net_engwe_data_parse(uint8_t *data, uint16_t len);
 #endif
 
 

@@ -165,6 +165,11 @@ enum {
     CMD_SET_ATMOSPHERE_LIGHT_G_VAL,
     CMD_SET_ATMOSPHERE_LIGHT_B_VAL,
     CMD_EN_POWER_ON_PASSWORD,
+    CMD_BMS_SET_CHARGE_MODE,
+    CMD_BMS_SET_CHARGE_SOC,
+    CMD_BMS_DISCHARGE_SW,
+    CMD_DOUBLE_BMS_WORK_MODE,
+    CMD_CHARGE_POWER,
     CMD_MAX,
 };
 
@@ -230,8 +235,8 @@ void iot_can_trans_func(uint32_t can_id, uint8_t *data, uint8_t direct);
 int can_ota_task(DEV_ID dev_id);
 void iot_can_state2_fun();
 void iot_can_navigation_data();
-
-
+void iot_quit_navigation();
+void iot_en_power_on_passwd();
 
 
 

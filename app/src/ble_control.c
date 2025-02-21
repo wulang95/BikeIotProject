@@ -19,7 +19,7 @@
 #define BLE_TRANSBUF_LEN    1024
 struct rt_ringbuffer *ble_transbuf;
 
-uint8_t ble_cmd_table[BLE_INDEX_MAX] = {0x04, 0x01, 0x0c, 0x02, 0x03, 0x0b, 0x05, 0x09, 0x0a, 0x07, 0x08, 0x06, 0x0d, 0x0f, 0x0e, 0X10, 0X11,0X12, 0X13};
+uint8_t ble_cmd_table[BLE_INDEX_MAX] = {0x04, 0x01, 0x0c, 0x02, 0x03, 0x0b, 0x05, 0x09, 0x0a, 0x07, 0x08, 0x06, 0x0d, 0x0f, 0x0e, 0X10, 0X11,0X12};
 
 struct ble_cmd_rely_order_s{
     uint8_t need_ask;           //是否需要应答
@@ -47,7 +47,6 @@ struct ble_cmd_rely_order_s ble_cmd_rely_order[] = {
     {true,              2000,                3        },         /*CMD_BLE_OTA_START*/
     {true,              2000,                3        },         /*CMD_BLE_OTA_DATA*/
     {true,              5000,                3        },         /*CMD_BLE_OTA_END*/
-    {true,              1000,                3        },         /*CMD_BLE_HID_SW*/
 };
 
 #define SENDDATALEN         256
@@ -231,7 +230,7 @@ void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint1
             buf[lenth++] = ble_info.ble_adv_data.len;
             memcpy(&buf[lenth], &ble_info.ble_adv_data.data[0], ble_info.ble_adv_data.len);
             lenth += ble_info.ble_adv_data.len;
-        break;
+        break; 
         case CMD_BLE_SET_SCANRSP_DATA:
             buf[lenth++] = 0x00;
             buf[lenth++] = ble_info.ble_scanrsp_data.len;
@@ -279,11 +278,6 @@ void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint1
             memcpy(&buf[lenth], &ble_ota_ctrl.data[0], ble_ota_ctrl.data_len);
             lenth += ble_ota_ctrl.data_len;
         break;
-        case CMD_BLE_HID_SW:
-            buf[lenth++] = 0x00;
-            buf[lenth++] = 0x01;
-            buf[lenth++] = sys_set_var.hid_lock_sw;
-        break;
     default:
         break;
     }
@@ -303,7 +297,7 @@ void ble_send_data(uint8_t *data, uint16_t len)
 {
     uint16_t send_len, offset = 0;
     while(len > 0){
-        send_len = MIN(60, len);
+        send_len = MIN(32, len);
         hal_drv_uart_send(BLE_UART, &data[offset], send_len);
         debug_data_printf("ble_send", &data[offset], send_len);
         len -= send_len;
@@ -459,9 +453,34 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
         case CMD_BLE_DELETE_BIND_INFO:
         case CMD_BLE_ENTER_SLEEP:
             break;
-        case CMD_BLE_HID_UNLOCK:
+        case CMD_BLE_HID_UNLOCK:   //持续检测到蓝牙信号，无关远离和靠近
+            if(sys_set_var.hid_lock_sw) {
+                // if(sys_set_var.hid_lock_sw_type == 0) {
+                //     car_lock_control(HID_CAR_CMD_SER, CAR_UNLOCK_STA);
+                //     ble_cmd_mark(CMD_BLE_HID_UNLOCK);
+                // } else {
+                if(car_info.hmi_info.power_on && car_info.lock_sta == CAR_LOCK_STA){
+                    car_control_cmd(CAR_CMD_JUMP_PASSWORD);
+                    rtc_event_unregister(CAR_SET_EN_POWER_PASSWD);
+                }
+                // }
+            }
+            ble_cmd_mark(BLE_HID_UNLOCK_INDEX);
             break;
-        case CMD_BLE_HID_LOCK:
+        case CMD_BLE_HID_LOCK:  //持续检测到蓝牙信号，无关远离和靠近
+            if(sys_set_var.hid_lock_sw) {
+                if(car_info.hmi_info.power_on && car_info.lock_sta == CAR_LOCK_STA){
+                    car_control_cmd(CAR_CMD_JUMP_PASSWORD);
+                    rtc_event_unregister(CAR_SET_EN_POWER_PASSWD);
+                }
+            }
+            ble_cmd_mark(BLE_HID_LOCK_INDEX);
+            // if(sys_set_var.hid_lock_sw) {
+            //     if(sys_set_var.hid_lock_sw_type == 0) {
+            //         car_lock_control(HID_CAR_CMD_SER, CAR_LOCK_STA);
+            //         ble_cmd_mark(CMD_BLE_HID_LOCK);
+            //     }
+            // }
             break;
         case CMD_BLE_TRANS:
             rt_ringbuffer_put(ble_transbuf, data, len);

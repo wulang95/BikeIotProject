@@ -59,9 +59,15 @@ void car_close_lock()
 int car_control_cmd(uint8_t cmd)
 {
     uint8_t data = 0;
-    if(sys_info.power_36v == 0) return FAIL;
+    uint16_t charge_power;
+    if(sys_info.power_36v == 0) 
+    {   
+        return FAIL;
+    }
     LOG_I("cmd:%d", cmd);
     if(cmd == CAR_CMD_LOCK || cmd == CAR_CMD_UNLOCK) {
+        ;
+    } else if(car_info.hmi_info.power_on && (cmd == CAR_CMD_EN_POWER_ON_PASSWORD || cmd == CAR_CMD_JUMP_PASSWORD)) {
         ;
     } else if(car_info.lock_sta == CAR_LOCK_STA) {
         LOG_E("CAR_LOCK_STA CMD IS FAIL");
@@ -129,6 +135,29 @@ int car_control_cmd(uint8_t cmd)
         break;
     case CAR_CMD_EN_POWER_ON_PASSWORD:
         iot_can_cmd_control(CMD_EN_POWER_ON_PASSWORD, &car_set_save.en_power_on_psaaword, 0);  
+        break;
+    case CAR_BMS_CHARGE_SOC_SET:
+        iot_can_cmd_control(CMD_BMS_SET_CHARGE_SOC, &sys_param_set.bms_charge_soc, 0);
+        break;
+    case CAR_BMS_CHARGE_CURRENT_SET:
+        switch(sys_param_set.bms_charge_current){
+            case 2:
+                charge_power = 84;
+            break;
+            case 4:
+                charge_power = 168;
+            break;
+            case 6:
+                charge_power = 252;
+            break;
+            case 8:
+                charge_power = 336;
+            break;
+            default:
+                charge_power = 84;
+            break;
+        }
+        iot_can_cmd_control(CMD_CHARGE_POWER, (uint8_t *)&charge_power, 0);
         break;
     default:
         break;
@@ -219,7 +248,7 @@ void car_control_thread(void *param)
             net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
         }
         for(;;) {
-            if(def_rtos_get_system_tick() - cmd_timeout > 2000) {
+            if(def_rtos_get_system_tick() - cmd_timeout > 10000) {
                 len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
                 net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
                 break;

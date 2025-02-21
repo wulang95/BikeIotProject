@@ -48,6 +48,13 @@ void rtc_event_handler(RTC_EVENT rtc_e)
             NET_CMD_MARK(NET_CMD_Q_LOCATION_D0);
             LOG_I("GPS_TRACK_EVENT");
             break;
+        case CAR_NAVIGATION_QUIT:
+            iot_quit_navigation();
+            LOG_I("CAR_NAVIGATION_QUIT");
+            break;
+        case CAR_SET_EN_POWER_PASSWD:
+            iot_en_power_on_passwd();
+            break;
         default:
             break;
     }
@@ -80,6 +87,15 @@ void app_rtc_init()
     def_rtos_semaphore_create(&rtc_alarm_sem, 0);
     hal_drv_set_alarm_call_fun(rtc_alarm_call_fun);
     LOG_I("app_rtc_init is ok");
+}
+
+uint32_t app_rtc_event_query_remain_time(RTC_EVENT event)
+{
+    if(rtc_week_table[event].vaild){
+        return rtc_week_table[event].week_time;
+    } else {
+        return 0;
+    }
 }
 
 void app_rtc_event_thread(void *param)

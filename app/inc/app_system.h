@@ -80,11 +80,12 @@ enum {
 
 struct sys_param_set_stu {
     uint32_t magic;
+    uint8_t alive_flag;     //激活标志
     uint8_t net_heart_sw;  //bit0:关锁定时上报SW，bit1:开锁定时上报SW, bit2:内电池工作上报SW,bit3:关锁上报2SW， bit4:开锁上报2SW, bit5:ble连接SW bit6:ble无连接SW
-    uint16_t unlock_car_heart_interval;
-    uint16_t net_heart_interval;
-    uint16_t lock_car_heart_interval;
-    uint32_t internal_battry_work_interval;
+    uint16_t unlock_car_heart_interval;   //开锁心跳间隔
+    uint16_t net_heart_interval;        
+    uint16_t lock_car_heart_interval;   //关锁心跳间隔
+    uint32_t internal_battry_work_interval; //内电池工作心跳间隔
     uint16_t unlock_car_heart2_interval;
     uint16_t lock_car_heart2_interval;
     uint16_t ble_connect_operate_push_interval;
@@ -110,9 +111,17 @@ struct sys_config_stu {
     char DSN[32];
     char apn_usr[32];
     char apn_passwd[32];
+    char mqtt_client_user[32];
+    char mqtt_client_pass[32];
+    char mqtt_client_id[32];
+    char mqtt_pub_topic[64];
+    char mqtt_sub_topic[64];
+    char mqtt_qos;
+    uint16_t mqtt_keep_alive;
+    char mqtt_will_msg[64];
+    char mqtt_will_topic[64];
     char sn[15];
     char manufacturer[16];
-    uint8_t alive_sta;
     uint32_t crc32;
 };
 
@@ -182,6 +191,7 @@ struct sys_info_stu {
     uint8_t paltform_connect :1;
     uint8_t gps_state :1;
     uint8_t power_36v :1;
+    uint8_t move_alarm :1;
     uint8_t ble_connect :1;
     uint8_t exits_bat:1;
     uint8_t iot_power_state:1;
@@ -197,9 +207,12 @@ struct sys_info_stu {
     uint8_t iot_mode;
     uint8_t sheepfang_sta;
     uint8_t fence_sta;
+    uint8_t ble_log_sw;
+    uint8_t ble_can_trans_sw;
     unsigned long long car_error;
     unsigned iot_error;
 };
+
 struct sys_set_var_stu{
     uint8_t sys_poweroff_flag;
     uint8_t sys_updata_falg; //bit0表示sys_param, bit1表示sys_info, bit2表示sheepdata, bit3表示forbiddendata
@@ -207,7 +220,8 @@ struct sys_set_var_stu{
     uint8_t car_power_en;   //0，无效 1， EN下电  2， EN上电
     uint8_t ble_bind_infoClean; //0， 无效  1，删除
     uint8_t iot_active;   //0,无效 1，取消激活 2，激活
-    uint8_t hid_lock_sw;    //0 关 1：开    
+    uint8_t hid_lock_sw;    //0 关 1：开  
+    uint8_t hid_lock_sw_type;  //无感解锁开关类型， 0x00, 进入范围内解锁，离开关锁。0x01:iot检测手机接近时解锁  
     uint8_t shock_sw;   //0，关 1：开
 };
 
@@ -219,16 +233,24 @@ struct sys_set_var_stu{
 #define DEFAULT_DNS "114.114.114.114"
 #define DEFAULT_SN      "123456789" 
 #define DEFAULT_DEV_TYPE    "K10" 
-#define DEFAULT_APN     "asia.bics"
-#define DEFAULT_IP     "iot.engweapp.cn"
-#define DEFAULT_PORT   9682
+#define DEFAULT_APN      "linksnet"
+/*"asia.bics"*/
+#define DEFAULT_IP     "mqtt://broker.emqx.io"  
+/*"iot.engweapp.cn"*/
+#define DEFAULT_PORT     1883  
+/*9682*/
+#define DEFAULT_MQTT_SUB_PRE  "iot/instruction/"
+#define DEFAULT_MATT_PUB_PRE  "iot/pub/instruction/"
+
 
 #define BLE_NAME    "ENGWE"
 #define BLE_SUUID   0X1820
 
 #define OTA_FILE    "UFS:ble_simple_peripheral.bin"
 
-
+extern def_rtos_sem_t NotAlivePdpBlockSem_t;
+extern def_rtos_sem_t NotAliveSocketSem_t;
+extern def_rtos_sem_t NotAliveSensorSem_t;
 extern SHAPE_SET sheepfang_data;
 extern SHAPE_SET forbidden_zone_data;
 extern struct sys_set_var_stu sys_set_var;
@@ -241,11 +263,13 @@ void system_timer_start();
 void system_timer_stop();
 void sys_param_save(FLASH_PARTITION flash_part);
 int64_t systm_tick_diff(int64_t time);
-void debug_data_printf(char *str_tag, uint8_t *in_data, uint16_t data_len);
+void debug_data_printf(char *str_tag, const uint8_t *in_data, uint16_t data_len);
 void app_system_thread(void *param);
 int flash_partition_erase(FLASH_PARTITION flash_part);
 int flash_partition_write(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift);
 int flash_partition_read(FLASH_PARTITION flash_part, void *data, size_t lenth, int32_t shift);
 int flash_partition_size(FLASH_PARTITION flash_part);
 void sys_power_off_time_set(uint8_t time);
+void sys_log_out(const char *fmt, ...);
+void app_system_log_out_thread(void *param);
 #endif

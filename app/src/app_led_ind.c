@@ -39,6 +39,16 @@ LED_CONTROL_STU sys_ota_ind[] = {
     {O_WHITE_IND, 0, LED_STOP},
 };
 
+LED_CONTROL_STU sys_wait_alive[] = {
+    {O_WHITE_IND, 1, 100},
+    {O_WHITE_IND, 0, 4900},
+    {O_WHITE_IND, 0, LED_LOOP},
+};
+
+LED_CONTROL_STU led_all_off[] = {
+    {O_WHITE_IND, 0, LED_STOP},
+};
+
 LED_CONTROL_STU sys_test[] = {
     {O_WHITE_IND, 1, 5000},
     {O_WHITE_IND, 0, 1000},
@@ -70,16 +80,11 @@ LED_CONTROL_STU sys_test[] = {
 LED_CONTROL_STU *led_control_que[] = {
         sys_fault_ind,
         sys_ota_ind,
+        led_all_off,
+        sys_wait_alive,
         sys_test,
 };
 
-
-
-enum {
-    LED_W = 0,
-    LED_R,
-    LED_MAX,
-};
 
 static LED_CONTROL_STU *led_cur_ind;
 static uint8_t led_step;

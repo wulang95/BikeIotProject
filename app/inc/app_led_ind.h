@@ -13,6 +13,8 @@ extern "C" {
 typedef enum {
     LED_SYS_FAULT = 0,
     LED_SYS_OTA,
+    LED_ALL_OFF,
+    LED_WAIT_ALIVE,
     LED_TEST,
 }LED_IND;
 

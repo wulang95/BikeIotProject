@@ -25,7 +25,7 @@ struct audio_con_stu
 struct audio_con_stu audio_con_table[] = {
     {1,     0,      LOCK_VOICE_FILE},
     {1,     0,      UNLOCK_VOICE_FILE},
-    {0xff,    2000,   ALARM_VOICE_FILE},
+    {0xff,    1000,   ALARM_VOICE_FILE},
     {0xff,    2000,   LOOK_CAR_VOICE_FILE},
     {3,     1000,   ENTER_PENALTY_AREA_VOICE_FILE},
     {3,     1000,   ENTER_FEASIBLE_AREA_VOICE_FILE},

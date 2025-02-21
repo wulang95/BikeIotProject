@@ -69,6 +69,9 @@ enum {
     BLE_CMD_S_APN = 0X010B,
     BLE_CMD_Q_HIDKEY_STA = 0X010C,
     BLE_CMD_S_HIDKEY_SW = 0X010D,
+    BLE_CMD_Q_CHARGE_POWER = 0X0111,
+    BLE_CMD_S_CHARGE_POWER = 0X0112,
+    BLE_CMD_S_QUIT_NAVIGATION_TIME = 0X0114,
     BLE_CMD_S_RESTORE_FACTORY_CONFIG = 0X8049,
     BLE_CMD_S_CLEAN_ODO_DATA = 0XBEC7,
     BLE_CMD_S_POWER_PASSWORD = 0XBEC8,
@@ -121,7 +124,9 @@ enum {
     BLE_CMD_LOG_SW = 0X0B02,
     BLE_CMD_LOG_SW_ASK = 0X0B03,
 
-    BLE_CMD_TRANS_CAN = 0X00FD
+    BLE_CMD_CAN_TRANS_SET = 0X0037,
+    BLE_CMD_TRANS_CAN = 0X00FD,
+    BLE_CMD_TRANS_CAN_UP = 0X007D,
 
 };
 
@@ -192,6 +197,19 @@ uint8_t ble_protocol_check(uint8_t *buf, uint16_t len)
     }
     return OK;
 }
+
+static void ble_apn_query_send()
+{   
+    uint8_t data[256] = {0}, buf[256];
+    uint16_t data_len = 0;
+    uint16_t len;
+    memcpy(&data[data_len], sys_config.apn, strlen(sys_config.apn));
+    data_len += strlen(sys_config.apn);
+    LOG_I("%s", sys_config.apn);
+    ble_protocol_data_pack(BLE_CMD_Q_APN, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
 
 static void basic_services_send()
 {
@@ -789,6 +807,7 @@ static void ble_navigation_service(uint8_t *data)
     LOG_I("total_nav_range:%d", car_state_data.total_nav_range);
     iot_can_state2_fun();
     iot_can_navigation_data();
+    rtc_event_register(CAR_NAVIGATION_QUIT, car_set_save.navigation_quit_time, 0);
 }
 
 static void ble_atsphlight_sta_query()
@@ -875,6 +894,35 @@ static void ble_current_limit_set(uint16_t dat, uint8_t query)
     ble_send_data(buf, len);
 }
 
+static void basic_second_bat_info()
+{
+    uint8_t data[64] = {0}, buf[96];
+    uint16_t data_len = 0;
+    uint16_t len;
+
+    memcpy(&data[data_len], &car_info.bms_info[1].pack_vol, 2);
+    data_len += 2;
+    memcpy(&data[data_len], &car_info.bms_info[1].pack_current, 2);
+    data_len += 2;
+    data_len += 3; //温度？
+    if(car_info.bms_info[1].chargefull_sta) {
+        data[data_len++] = 0xff;
+    } else if(car_info.bms_info[1].charge_sta) {
+        data[data_len++] = 0x01;
+    } else {
+        data[data_len++] = 0x00;
+    }
+    data[data_len++] = car_info.bms_info[1].soh;
+    memcpy(&data[data_len], &car_info.bms_info[1].charge_interval_time, 2);
+    data_len += 2;
+    memcpy(&data[data_len], &car_info.bms_info[1].cycle_number, 2);
+    data_len += 2;
+    data[data_len++] = 8;
+    memcpy(&data[data_len], &car_info.bms_info[1].soft_ver[0], 8);
+    ble_protocol_data_pack(BLE_CMD_Q_SECOND_BAT_INFO, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
 void ble_protocol_large_query_service(uint16_t cmd)
 {
     LOG_I("cmd:0x%04x", cmd);
@@ -902,7 +950,7 @@ void ble_protocol_large_query_service(uint16_t cmd)
             car_net_service_state_send();
         break;
         case BLE_CMD_Q_SECOND_BAT_INFO:
-
+            basic_second_bat_info();
         break;
         case BLE_CMD_S_HEADLIGHT_STA:
             ble_cmd_car_head_light_sta(0, 1);
@@ -942,6 +990,9 @@ void ble_protocol_large_query_service(uint16_t cmd)
         break;
         case BLE_CMD_Q_CAR_HWVER:
             query_car_hwver();
+        break;
+        case BLE_CMD_Q_APN:
+            ble_apn_query_send();
         break;
         default:
         break;
@@ -1033,16 +1084,6 @@ static void ble_set_atsphlight_sw(uint8_t dat)
     ble_send_data(buf, len);
 }
 
-static void ble_apn_query_send()
-{   
-    uint8_t data[256] = {0}, buf[256];
-    uint16_t data_len = 0;
-    uint16_t len;
-    memcpy(&data[data_len], sys_config.apn, strlen(sys_config.apn));
-    data_len += strlen(sys_config.apn);
-    ble_protocol_data_pack(BLE_CMD_Q_APN, &data[0], data_len, &buf[0], &len);
-    ble_send_data(buf, len);
-}
 
 struct ble_ota_info_stu {
     uint8_t ota_type;
@@ -1180,10 +1221,172 @@ void ble_cmd_can_trans(uint8_t *data)
     can_dat.ExtID = data[1]<< 24 | data[2] << 16 | data[3] << 8 | data[4];
     LOG_I("%02X, %02X, %02X, %02X", data[1], data[2], data[3], data[4]);
     LOG_I("%08X", can_dat.ExtID);
-    memcpy(&can_dat.ExtID, &data[1], 4);
     memcpy(&can_dat.Data[0], &data[5], 8);
     can_data_send(can_dat);
 }
+
+void ble_cmd_can_trans_up(stc_can_rxframe_t can_dat)
+{
+    uint8_t data[16] = {0}, buf[64];
+    uint16_t data_len = 0;
+    uint16_t len;
+
+    data[data_len] |= can_dat.Cst.Control_f.DLC<<4;
+    data[data_len] &= ~(1<<3);
+    data[data_len] |= can_dat.Cst.Control_f.IDE << 2;
+    data[data_len] &= ~(0x03);
+
+    data_len++;
+    data[data_len++] = (can_dat.ExtID >> 24)&0xff;
+    data[data_len++] = (can_dat.ExtID >> 16)&0xff;
+    data[data_len++] = (can_dat.ExtID >> 8)&0xff;
+    data[data_len++] = can_dat.ExtID&0xff;
+
+    memcpy(&data[data_len], &can_dat.Data[0], 8);
+    data_len += 8;
+    ble_protocol_data_pack(BLE_CMD_TRANS_CAN_UP, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
+static void ble_query_hid_sw_sta()
+{
+    uint8_t data[16] = {0}, buf[64];
+    uint16_t data_len = 0;
+    uint16_t len;
+    data[data_len++] = (sys_set_var.hid_lock_sw == 1) ? 0x01:0x02;
+    ble_protocol_data_pack(BLE_CMD_Q_HIDKEY_STA, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
+static void ble_set_hid_sw(uint8_t *dat)
+{
+    uint8_t data[16] = {0}, buf[64];
+    uint16_t data_len = 0;
+    uint16_t len;
+
+    if(dat[0] == 0x01){
+        sys_set_var.hid_lock_sw = 1;
+    } else {
+        sys_set_var.hid_lock_sw = 0;
+    }
+
+    if(dat[1] == 0x01){
+        sys_set_var.hid_lock_sw_type = 0x00;
+    } else {
+        sys_set_var.hid_lock_sw_type = 0x01;
+    }
+
+    memcpy(&data[data_len], &dat[0], 2);
+    ble_protocol_data_pack(BLE_CMD_S_HIDKEY_SW, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
+static void ble_charge_power_query()
+{
+    uint8_t data[16] = {0}, buf[64];
+    uint16_t data_len = 0;
+    uint16_t len;
+
+    switch(sys_param_set.bms_charge_current){
+        case 2:
+            data[data_len++] = 0x01;
+        break;
+        case 4:
+            data[data_len++] = 0x02;
+        break;
+        case 6:
+            data[data_len++] = 0x03;
+        break;
+        case 8:
+            data[data_len++] = 0x04;
+        break;
+        default:
+            data[data_len++] = 0x01;
+    }
+    ble_protocol_data_pack(BLE_CMD_Q_CHARGE_POWER, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
+static void ble_set_charge_power(uint8_t *dat)
+{
+    uint8_t data[16] = {0}, buf[64];
+    uint16_t data_len = 0;
+    uint16_t len;
+
+    switch(dat[0]){
+        case 1:
+            sys_param_set.bms_charge_current = 2;
+        break;
+        case 2:
+            sys_param_set.bms_charge_current = 4;
+        break;
+        case 3:
+            sys_param_set.bms_charge_current = 6;
+        break;
+        case 4:
+            sys_param_set.bms_charge_current = 8;
+        break;
+    }
+    data[data_len++] = dat[0];
+    car_control_cmd(CAR_BMS_CHARGE_CURRENT_SET);
+    ble_protocol_data_pack(BLE_CMD_S_CHARGE_POWER, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
+static void ble_set_navigation_quit_time(uint8_t *dat)
+{
+    uint8_t data[16] = {0}, buf[64];
+    uint16_t data_len = 0;
+    uint16_t len;
+
+    car_set_save.navigation_quit_time = dat[0];
+    data[data_len++] = dat[0];
+    rtc_event_register(CAR_NAVIGATION_QUIT, car_set_save.navigation_quit_time, 0);
+    ble_protocol_data_pack(BLE_CMD_S_QUIT_NAVIGATION_TIME, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
+
+void ble_log_out(uint8_t *data, uint16_t data_len)
+{
+    uint8_t buf[256];
+    uint16_t len;
+    ble_protocol_data_pack(BLE_CMD_U_LOG, data, data_len, buf, &len);
+    ble_send_data(buf, len);
+}
+
+static void ble_cmd_log_sw(uint8_t *dat)
+{
+    uint8_t data[16] = {0}, buf[64];
+    uint16_t len;
+
+    if(dat[0] == 0x01){
+        sys_info.ble_log_sw = 1;
+    } else {
+        sys_info.ble_log_sw = 0;
+    }
+    data[0] = dat[0];
+    ble_protocol_data_pack(BLE_CMD_LOG_SW_ASK, &data[0], 1, &buf[0], &len);
+    def_rtos_task_sleep_ms(10);
+    ble_send_data(buf, len);
+}
+
+static void ble_cmd_trans_set(uint8_t *dat)
+{
+    uint8_t data[16] = {0}, buf[64];
+    uint16_t len;
+
+    if(dat[0] == 0x00) {
+        sys_info.ble_can_trans_sw = 0;
+    } else {
+        sys_info.ble_can_trans_sw = 1;
+    }
+    data[0] = dat[0];
+    ble_protocol_data_pack(BLE_CMD_CAN_TRANS_SET, &data[0], 1, &buf[0], &len);
+    ble_send_data(buf, len);
+} 
+
+
 void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 {
     uint16_t i = 0;
@@ -1213,7 +1416,7 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
             basic_whole_car_service_send();
         break;
         case BLE_CMD_Q_SECOND_BAT_INFO:
-
+            basic_second_bat_info();
         break;
         case BLE_CMD_Q_IOT_SERVICE:
             car_iot_service_send();    
@@ -1236,20 +1439,24 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
         case BLE_CMD_S_SPEED_LIMIT:
             ble_cmd_car_speed_limit(data[0], 0);
         break;
+
         case BLE_CMD_S_CURRENT_LIMIT:
             ble_current_limit_set(data[0]<<8|data[1], 0);
         break;
         case BLE_CMD_S_WHEEL_DIAMETER:        
         break;
+
         case BLE_CMD_S_TURN_SIGNAL:
             ble_cmd_car_turn_light(data[0], 0);
         break;
         case BLE_CMD_S_TMIE_SYNC:
             ble_cmd_time_sync(data, 0);
         break;
+
         case BLE_CMD_S_UNITS:
             ble_cmd_car_unit(data[0], 0);
         break;
+
         case BLE_CMD_S_BRIGHTNESS_LEVEL:
             ble_cmd_car_brightness_level(data[0], 0);
         break;
@@ -1269,6 +1476,21 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
         break;
         case BLE_CMD_S_APN:
             ble_cmd_set_apn_info(data, len);
+        break;
+        case BLE_CMD_Q_HIDKEY_STA:
+            ble_query_hid_sw_sta();
+        break;
+        case BLE_CMD_S_HIDKEY_SW:
+            ble_set_hid_sw(data);
+        break;
+        case BLE_CMD_Q_CHARGE_POWER:
+            ble_charge_power_query();
+        break;
+        case BLE_CMD_S_CHARGE_POWER:
+            ble_set_charge_power(data);
+        break;
+        case BLE_CMD_S_QUIT_NAVIGATION_TIME:
+            ble_set_navigation_quit_time(data);
         break;
         case BLE_CMD_S_POWER_PASSWORD:
             ble_cmd_set_power_on_password(data, len);
@@ -1309,11 +1531,17 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
         case BLE_CMD_OTA_SEND_DATA:
             ble_ota_send_data(data, len);
         break;
-       case BLE_CMD_D_Q_AUDIO_PLAY:
+        case BLE_CMD_D_Q_AUDIO_PLAY:
             ble_protocol_audio_play(data[0]);
-       break;
+        break;
+        case BLE_CMD_CAN_TRANS_SET:
+            ble_cmd_trans_set(data);
+        break;
         case BLE_CMD_TRANS_CAN:
             ble_cmd_can_trans(data);
+        break;
+        case BLE_CMD_LOG_SW:
+            ble_cmd_log_sw(data);
         break;
         default:
         break;
@@ -1402,9 +1630,10 @@ void ble_protocol_recv_thread(void *param)
         len = ble_trans_data_block_read(buf, 256, RTOS_WAIT_FOREVER);
         LOG_I("ble trans is recv, len:%d", len);
         if(len == 0)continue;
-  //      debug_data_printf("ble_protocol_rec", buf, len);
+        debug_data_printf("ble_protocol_rec", buf, len);
         for(i = 0; i< len; i++){
             res = buf[i];
+            LOG_I("STEP:%d", step);
             switch(step)
             {
             case 0:
@@ -1441,7 +1670,8 @@ void ble_protocol_recv_thread(void *param)
             case 5:
                data[j++] = res;
                lenth |= res; 
-               step = 6;
+               if(lenth == 0) step = 7; 
+               else step = 6;
             break;
             case 6:
                 data[j++] = res;

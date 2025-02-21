@@ -63,6 +63,11 @@ static struct can_control_cmd_stu can_control_cmd_table[] = {
     {0X28,  0X60,   0X0B,   1}, //CMD_SET_ATMOSPHERE_LIGHT_G_VAL
     {0X28,  0X60,   0X0C,   1}, //CMD_SET_ATMOSPHERE_LIGHT_B_VAL
     {0X28,  0X60,   0X01,   1}, //CMD_EN_POWER_ON_PASSWORD
+    {0XF4,  0X60,   0X01,   1}, //CMD_BMS_SET_CHARGE_MODE
+    {0XF4,  0X60,   0X02,   1}, //CMD_BMS_SET_CHARGE_SOC
+    {0XF4,  0X14,   0X01,   1}, //CMD_BMS_DISCHARGE_SW
+    {0XF4,  0X14,   0X02,   1}, //CMD_DOUBLE_BMS_WORK_MODE
+    {0X59,  0X60,   0X01,   2}, //CMD_CHARGE_POWER
 };
 
 
@@ -99,6 +104,10 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                     }
                 } else if(((data[0]&0x80)>>7) == 1 && car_info.hmi_info.power_on == 0) {
                     car_info.hmi_info.power_on = 1;
+                    if(app_rtc_event_query_remain_time(CAR_SET_EN_POWER_PASSWD)){
+                        car_control_cmd(CAR_CMD_JUMP_PASSWORD);
+                        rtc_event_unregister(CAR_SET_EN_POWER_PASSWD);
+                    }
                     LOG_I("POWER_ON");
                 }
 
@@ -947,7 +956,12 @@ void can_protocol_rx_thread(void *param)
         if(res != RTOS_SUCEESS) {
             continue;
         }
-        can_data_recv_parse(rx_can_frame);
+        if(sys_info.ble_can_trans_sw) {
+            ble_cmd_can_trans_up(rx_can_frame);
+        }
+        else {
+            can_data_recv_parse(rx_can_frame);
+        }
     }
     def_rtos_task_delete(NULL);
 }
@@ -1010,6 +1024,8 @@ void iot_can_png_control(uint8_t cmd, uint8_t direct)
         }
     }
 }
+
+
 
 void iot_can_state2_fun()
 {
@@ -1076,6 +1092,22 @@ void iot_can_navigation_data()
     }
 }
 
+
+void iot_quit_navigation()
+{
+    car_state_data.map_dir = 0;
+    car_state_data.cur_dir_range = 0;
+    iot_can_state2_fun();
+    car_state_data.total_nav_remaintime = 0;
+    car_state_data.total_nav_range = 0;
+    iot_can_navigation_data();
+}
+
+void iot_en_power_on_passwd()
+{
+    car_set_save.en_power_on_psaaword = 1;
+    car_control_cmd(CAR_CMD_EN_POWER_ON_PASSWORD);
+}
 static void iot_can_match_fun()
 {
     CAN_PDU_STU can_pdu;
