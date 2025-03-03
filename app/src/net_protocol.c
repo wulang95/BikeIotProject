@@ -621,15 +621,15 @@ static void net_cmd_startup_http_upgrade_U5_func(uint8_t send_flag, char (*ppr)[
                 case 2:
                     http_upgrade_info.farme_type = BLUE_FIRMWARE_TYPE;
                 break;
-                case 3:
-                    http_upgrade_info.farme_type = VOICE_PACK_TYPE;
-                break;
-                case 4:
-                    http_upgrade_info.farme_type = FENCE_FILE_TYPE;
-                break;  
-                case 5:
-                    http_upgrade_info.farme_type = GPS_FIRMWARE_TYPE;
-                break;
+                // case 3:
+                //     http_upgrade_info.farme_type = VOICE_PACK_TYPE;
+                // break;
+                // case 4:
+                //     http_upgrade_info.farme_type = FENCE_FILE_TYPE;
+                // break;  
+                // case 5:
+                //     http_upgrade_info.farme_type = GPS_FIRMWARE_TYPE;
+                // break;
             }  
         }
         http_upgrade_info.crc_sum = atoi(ppr[6]);
@@ -655,18 +655,18 @@ static void net_cmd_http_upgrade_state_U6_func(uint8_t send_flag, char (*ppr)[PA
                 len = sprintf(&data_str[lenth], "%d,%d,",2,0);
                 lenth += len;
             break;
-            case VOICE_PACK_TYPE:
-                len = sprintf(&data_str[lenth], "%d,%d,",3,0);
-                lenth += len;
-            break;
-            case FENCE_FILE_TYPE:
-                len = sprintf(&data_str[lenth], "%d,%d,",4,0);
-                lenth += len;
-            break;
-            case GPS_FIRMWARE_TYPE:
-                len = sprintf(&data_str[lenth], "%d,%d,",5,0);
-                lenth += len;
-            break;
+            // case VOICE_PACK_TYPE:
+            //     len = sprintf(&data_str[lenth], "%d,%d,",3,0);
+            //     lenth += len;
+            // break;
+            // case FENCE_FILE_TYPE:
+            //     len = sprintf(&data_str[lenth], "%d,%d,",4,0);
+            //     lenth += len;
+            // break;
+            // case GPS_FIRMWARE_TYPE:
+            //     len = sprintf(&data_str[lenth], "%d,%d,",5,0);
+            //     lenth += len;
+            // break;
             case ECU_FIRMWARE_TYPE:
                 len = sprintf(&data_str[lenth], "%d,%d,",1,1);
                 lenth += len;
@@ -688,7 +688,7 @@ static void net_cmd_http_upgrade_state_U6_func(uint8_t send_flag, char (*ppr)[PA
                 lenth += len;
             break;
         }
-        len = sprintf(&data_str[lenth], "%d,", http_upgrade_info.ota_sta);
+        len = sprintf(&data_str[lenth], "%d,", 2);
         lenth += len;
         len = sprintf(&data_str[lenth], "%d,",http_upgrade_info.download_fail_cent);
         lenth += len;

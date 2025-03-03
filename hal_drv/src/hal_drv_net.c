@@ -48,16 +48,16 @@ uint8_t hal_drv_get_net_register_sta()
     return res;
 }
 
-void hal_drv_set_data_call_asyn_mode(uint8_t mode)
+void hal_drv_set_data_call_asyn_mode(int pdp_index, uint8_t mode)
 {
-    ql_set_data_call_asyn_mode(0, 1, mode);
+    ql_set_data_call_asyn_mode(0, pdp_index, mode);
 }
 
-uint8_t hal_drv_get_data_call_res(char *ip4_adr)
+uint8_t hal_drv_get_data_call_res(int pdp_index, char *ip4_adr)
 {
     uint8_t res = 0;
     ql_data_call_info_s info ={0};
-    ql_get_data_call_info(0, 1, &info);
+    ql_get_data_call_info(0, pdp_index, &info);
     LOG_I("info.profile_idx: %d, info.ip_version: %d", info.profile_idx, info.ip_version);
 	LOG_I("info->v4.state: %d, info.v6.state: %d", info.v4.state, info.v6.state);
     if(info.v4.state)
@@ -65,7 +65,9 @@ uint8_t hal_drv_get_data_call_res(char *ip4_adr)
 		LOG_I("info.v4.addr.ip: %s", ip4addr_ntoa(&(info.v4.addr.ip)));
 		LOG_I("info.v4.addr.pri_dns: %s", ip4addr_ntoa(&(info.v4.addr.pri_dns)));
 		LOG_I("info.v4.addr.sec_dns: %s", ip4addr_ntoa(&(info.v4.addr.sec_dns)));
-        sprintf(ip4_adr, "%s", ip4addr_ntoa(&(info.v4.addr.ip)));
+        if(ip4_adr) {
+            sprintf(ip4_adr, "%s", ip4addr_ntoa(&(info.v4.addr.ip)));
+        }
     }
     if(info.v4.state == 1){
         res = 1;
@@ -73,12 +75,20 @@ uint8_t hal_drv_get_data_call_res(char *ip4_adr)
     return res;
 }
 
-void hal_drv_start_data_call(char *apn)
+void hal_drv_start_data_call(int pdp_index, char *apn)
 {
     uint8_t res;
-    res = ql_start_data_call(0, 1, QL_PDP_TYPE_IP, apn, NULL, NULL, 0);
+    res = ql_start_data_call(0, pdp_index, QL_PDP_TYPE_IP, apn, NULL, NULL, 0);
     if(res != 0) {
-        LOG_E("error");
+        LOG_E("ql_start_data_call is error");
+    }
+}
+
+
+void hal_drv_stop_data_call(int pdp_index)
+{
+    if(ql_stop_data_call(0, pdp_index) != 0){
+        LOG_E("ql_stop_data_call is error");
     }
 }
 
@@ -216,7 +226,6 @@ NET_NW_INFO hal_drv_get_operator_info()
         nw_info.fre_band = 0xFF;
     }
     LOG_I("at:%s", at_buf);
-    LOG_I("freq:%d, earfcn:%d", reg_info.scell_info.freq, reg_info.scell_info.info.lte.earfcn);
     // LOG_I("MCC:%s, MNC:%s", oper_i.mcc, oper_i.mnc);
     // LOG_I("lac:%d,cid:%d", reg_info.data_reg.lac, reg_info.data_reg.cid);
     // LOG_I("CSQ:%d, bitErrorRate:%d", pt_info.rssi, pt_info.bitErrorRate);
@@ -255,11 +264,11 @@ static void ntp_result_cb(ntp_client_id cli_id, int result, struct tm *sync_time
 	}
 }
 
-int hal_net_ntp_sync()
+int hal_net_ntp_sync(int pdp_index)
 {
     ql_ntp_sync_option  sync_option;
     int error_num = 0;
-    sync_option.pdp_cid = 1;
+    sync_option.pdp_cid = pdp_index;
     sync_option.sim_id = 0;
     sync_option.retry_cnt = 3;
     sync_option.retry_interval_tm = 60;

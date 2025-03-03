@@ -15,6 +15,7 @@
 //#define MCU_WEEK
 
 #define BAT_ADC_VAL        QL_ADC1_CHANNEL 
+#define TEMP_ADC_VAL       QL_ADC0_CHANNEL
 
 #define I_SENSOR_IN           GPIO_1     //传感器输入中断   OK
 #define O_RED_IND             GPIO_2     //红灯 OK

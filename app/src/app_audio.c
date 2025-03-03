@@ -25,10 +25,9 @@ struct audio_con_stu
 struct audio_con_stu audio_con_table[] = {
     {1,     0,      LOCK_VOICE_FILE},
     {1,     0,      UNLOCK_VOICE_FILE},
-    {0xff,    1000,   ALARM_VOICE_FILE},
-    {0xff,    2000,   LOOK_CAR_VOICE_FILE},
-    {3,     1000,   ENTER_PENALTY_AREA_VOICE_FILE},
-    {3,     1000,   ENTER_FEASIBLE_AREA_VOICE_FILE},
+    {3,    1000,   ALARM_VOICE_FILE},
+    {5,    1000,   LOOK_CAR_VOICE_FILE},
+    {0Xff,     1000,   ENTER_PENALTY_AREA_VOICE_FILE},
 };
 
 uint8_t play_flag;
@@ -57,7 +56,46 @@ void voice_play_off()
     play_flag = 1;
 }
 
-
+void audio_play_test()
+{
+    def_rtosStaus res;
+    res = ql_aud_play_file_start(LOCK_VOICE_FILE, QL_AUDIO_PLAY_TYPE_LOCAL, NULL);
+    if(res) {
+        LOG_E("ql_aud_play_file_start fail,res:%d", res);
+    }
+    res = ql_aud_wait_play_finish(QL_WAIT_FOREVER);
+    if(res) {
+        LOG_E("ql_aud_wait_play_finish,res:%d", res);
+    }
+    def_rtos_task_sleep_ms(1000);
+    res = ql_aud_play_file_start(UNLOCK_VOICE_FILE, QL_AUDIO_PLAY_TYPE_LOCAL, NULL);
+    if(res) {
+        LOG_E("ql_aud_play_file_start fail,res:%d", res);
+    }
+    res = ql_aud_wait_play_finish(QL_WAIT_FOREVER);
+    if(res) {
+        LOG_E("ql_aud_wait_play_finish,res:%d", res);
+    }
+    def_rtos_task_sleep_ms(1000);
+    res = ql_aud_play_file_start(ALARM_VOICE_FILE, QL_AUDIO_PLAY_TYPE_LOCAL, NULL);
+    if(res) {
+        LOG_E("ql_aud_play_file_start fail,res:%d", res);
+    }
+    res = ql_aud_wait_play_finish(QL_WAIT_FOREVER);
+    if(res) {
+        LOG_E("ql_aud_wait_play_finish,res:%d", res);
+    }
+    def_rtos_task_sleep_ms(1000);
+    res = ql_aud_play_file_start(LOOK_CAR_VOICE_FILE, QL_AUDIO_PLAY_TYPE_LOCAL, NULL);
+    if(res) {
+        LOG_E("ql_aud_play_file_start fail,res:%d", res);
+    }
+    res = ql_aud_wait_play_finish(QL_WAIT_FOREVER);
+    if(res) {
+        LOG_E("ql_aud_wait_play_finish,res:%d", res);
+    }
+    def_rtos_task_sleep_ms(1000);
+}
 
 
 void app_audio_init()
@@ -100,7 +138,11 @@ void app_audio_thread(void *param)
     uint8_t type;
     app_audio_init();
     while(1) {
+        // for(;;) {
+        //     audio_play_test();
+        // }
   //      LOG_I("IS RUN");
+  
         res = def_rtos_queue_wait(audio_que_t, &type, sizeof(uint8_t), RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) continue;
         audio_play = audio_con_table[type];
@@ -132,6 +174,7 @@ void app_audio_thread(void *param)
             LOG_I("audio play:%s", audio_play.file_name);
         }
         LOG_I("play_flag:%d, audio_play.play_cnt:%d, res:%d, aud is quit", play_flag, audio_play.play_cnt, res);
+        
     }
     def_rtos_task_delete(NULL);
 }

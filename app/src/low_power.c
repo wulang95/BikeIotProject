@@ -73,9 +73,9 @@ static void enter_low_power()
     {
         LOG_E("failed to set auto sleep");
     }
-    if(Gps.GpsPower != GPS_POWER_OFF) {
-        MCU_CMD_MARK(CMD_GPS_POWEROFF_INDEX);
-    }
+    sys_info.iot_mode = IOT_LOW_POWER_MODE;
+    LOG_I("IOT_LOW_POWER_MODE");
+    net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
     ble_cmd_mark(BLE_ENTER_SLEEP_INDEX);
     hal_drv_write_gpio_value(O_BLE_WEEK_SIG, LOW_L);
     system_timer_stop();
@@ -91,10 +91,14 @@ static void exit_lower_power()
     {
         LOG_E("failed to set auto sleep");
     }
+    if(sys_param_set.alive_flag == 1) {
+        sys_info.iot_mode = IOT_ACTIVE_MODE;
+    } else {
+        sys_info.iot_mode = IOT_WAIT_ACTIVE_MODE;
+    }
     hal_drv_write_gpio_value(O_BLE_WEEK_SIG, HIGH_L);
-    MCU_CMD_MARK(CMD_GPS_POWERON_INDEX);
     system_timer_start();
-    imu_algo_timer_start();
+    
 }
 
 void low_power_thread(void *param)

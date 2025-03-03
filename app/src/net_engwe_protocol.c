@@ -17,7 +17,7 @@
 #define   UP_HEARDER_H      0XA7
 #define   UP_HEARDER_L      0XA8
 
-
+static uint8_t g_msg_invalid;
 uint32_t CmdIdTable[CMD_ID_MAX] = { 0x00000001, 0x00000002, 0x00000004, 0x00000008,
                                     0x00000010, 0x00000020, 0x00000040, 0x00000080,
                                     0x00000100, 0x00000200, 0x00000400, 0x00000800,
@@ -112,22 +112,35 @@ static uint16_t net_engwe_cmdId_car_state(uint8_t *p)
     uint16_t data_lenth;
     u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[CAR_STATE_CMD]);
     lenth += 4;
-    data_lenth = 10;
+    data_lenth = 15;
     u16_big_to_litel_end_sw(&p[lenth], data_lenth);
     lenth += 2;
     p[lenth++] = (car_info.lock_sta == CAR_UNLOCK_STA) ? 0X01 : 0X02;
     if(car_info.lock_sta == CAR_UNLOCK_STA) {
         p[lenth] = car_info.car_unlock_state;
     } else {
-        p[lenth] =car_info.car_lock_state;
+        p[lenth] = car_info.car_lock_state;
     }
     lenth++;
     p[lenth++] = car_info.filp_state;
-    p[lenth++] = 0;//充电状态
+    p[lenth++] = car_info.charger_state;//充电状态
     p[lenth++] = sys_info.iot_mode;
-    p[lenth++] = car_info.bms_info[0].charge_det ? 0x01:0x02;
+    p[lenth++] = sys_info.power_36v ? 0x01:0x02;
     p[lenth++] = sys_info.sheepfang_sta;
     p[lenth++] = sys_info.fence_sta;
+    if(car_info.lock_sta == CAR_LOCK_STA) {
+        p[lenth++] = 0X00; //挡位
+        p[lenth++] = 0X00;  //里程单位
+        p[lenth++] = 0X00;  //车辆限速
+        p[lenth++] = 0X00;  //转向灯
+        p[lenth++] = 0X00;  //大灯
+    } else {
+        p[lenth++] = car_info.gear + 1;
+        p[lenth++] = car_info.hmi_info.display_unit == 0x00?0x02:0x01;
+        p[lenth++] = car_info.speed_limit/10;
+        p[lenth++] = 0x00;  //目前没转向灯
+        p[lenth++] = car_info.headlight_sta ? 0x02:0x01;
+    }
     return lenth;
 }
 
@@ -149,6 +162,7 @@ static uint16_t net_engwe_cmdId_net_info(uint8_t *p)
     lenth += 2;
     u32_big_to_litel_end_sw(&p[lenth], net_info.cid);
     lenth += 4;
+    p[lenth++] = net_info.net_state;
     p[lenth++] = net_info.act;
     p[lenth++] = net_info.fre_band;
     p[lenth++] = net_info.csq;
@@ -216,14 +230,13 @@ static uint16_t net_engwe_cmdId_ride_info(uint8_t *p)
     lenth += 2;
     u16_big_to_litel_end_sw(&p[lenth], (uint16_t)car_info.total_odo);
     lenth += 2;
-    u16_big_to_litel_end_sw(&p[lenth], car_info.ebike_calorie);
+    u16_big_to_litel_end_sw(&p[lenth], car_info.ebike_calorie * 10);
     lenth += 2;
-    car_info.pedal_speed *= 10;
-    u16_big_to_litel_end_sw(&p[lenth], car_info.pedal_speed);
+    u16_big_to_litel_end_sw(&p[lenth], (car_info.pedal_speed * 10));
     lenth += 2;
-    u16_big_to_litel_end_sw(&p[lenth], car_info.m_agv_pedal_speed);
+    u16_big_to_litel_end_sw(&p[lenth], car_info.m_agv_pedal_speed * 10);
     lenth += 2;
-    u16_big_to_litel_end_sw(&p[lenth], car_info.total_agv_pedal_speed);
+    u16_big_to_litel_end_sw(&p[lenth], car_info.total_agv_pedal_speed * 10);
     lenth += 2;
     car_info.motor_power /= 10;
     u16_big_to_litel_end_sw(&p[lenth], car_info.motor_power);
@@ -269,6 +282,7 @@ static void net_engwe_pack_up(uint8_t cmd_type, uint8_t *cmd_data, uint16_t cmd_
     uint8_t *puf;
     uint16_t puf_len = 0;
     uint32_t timesp;
+    static uint16_t seq = 0;
     puf = malloc(512);
     if(puf == NULL){
         return;
@@ -279,17 +293,23 @@ static void net_engwe_pack_up(uint8_t cmd_type, uint8_t *cmd_data, uint16_t cmd_
     puf[puf_len++] = cmd_type;
     memcpy(&puf[puf_len], gsm_info.imei, 15);
     puf_len += 15;
-    puf[puf_len++] = (cmd_len + 25)>>8;
-    puf[puf_len++] = (cmd_len + 25)&0xff;
-    memcpy(&puf[puf_len], cmd_data, cmd_len);
-    puf_len += cmd_len;
+    puf[puf_len++] = (cmd_len + 27)>>8;
+    puf[puf_len++] = (cmd_len + 27)&0xff;
+    if(cmd_data) {
+        memcpy(&puf[puf_len], cmd_data, cmd_len);
+        puf_len += cmd_len;
+    }
     timesp = (uint32_t)hal_drv_rtc_get_timestamp();
     puf[puf_len++] = (timesp>>24)&0XFF;
     puf[puf_len++] = (timesp>>16)&0XFF;
     puf[puf_len++] = (timesp>>8)&0XFF;
     puf[puf_len++] = (timesp&0XFF);
+    puf[puf_len++] = (seq >> 8)&0xff;
+    puf[puf_len++] = seq&0xff;
     iot_mqtt_public(puf, puf_len);
     free(puf);
+    seq++;
+    if(seq >= 3000) seq = 0;
 }
 
 static void net_engwe_cmdId_real_operate(uint8_t *data, uint16_t len, uint16_t seq)
@@ -349,8 +369,29 @@ static void net_engwe_cmdId_real_operate(uint8_t *data, uint16_t len, uint16_t s
             net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, buf, buf_len, car_cmd_q.net_car_control.seq); 
         break;
         case 0x07:
+            if(data[1] == 0x01){
+                voice_play_mark(LOOK_CAR_VOICE);
+                buf_len = net_engwe_cmdId_operate_respos(buf, car_cmd_q.net_car_control, 0x01, 0);
+                net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, buf, buf_len, car_cmd_q.net_car_control.seq); 
+            } else if(data[1] == 0x02) {   //灯闪烁10s
+                car_cmd_q.src = NET_CAR_CMD_SER;
+                car_cmd_q.cmd = CAR_LOOK_CAR1;
+                CAR_CMD_MARK(car_cmd_q); 
+            } else if(data[1] == 0x03){
+                car_cmd_q.src = NET_CAR_CMD_SER;
+                car_cmd_q.cmd = CAR_LOOK_CAR2;
+                CAR_CMD_MARK(car_cmd_q); 
+            }
         break;
         case 0x08:
+            if(data[1] == 0x01){   //运输模式
+                MCU_CMD_MARK(CMD_SHIP_MODE_INDEX);  //发送进入MCU模式
+                car_lock_control(NET_CAR_CMD_SER, CAR_LOCK_STA);  //进入关锁模式
+                buf_len = net_engwe_cmdId_operate_respos(buf, car_cmd_q.net_car_control, 0x01, 0);
+                net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, buf, buf_len, car_cmd_q.net_car_control.seq); 
+            } else if(data[1] == 0x02){   //激活模式
+                
+            }
         break;
         case 0x09:
             voice_play_off();
@@ -360,6 +401,38 @@ static void net_engwe_cmdId_real_operate(uint8_t *data, uint16_t len, uint16_t s
         case 0x0A:
         break;
         case 0x0B:
+        break;
+        case 0X0C:
+            if(data[1] != 0){
+                car_set_save.gear = data[1] - 1;
+                car_cmd_q.cmd = CAR_CMD_SET_GEAR;
+                car_cmd_q.src = NET_CAR_CMD_SER;
+                CAR_CMD_MARK(car_cmd_q); 
+            }
+        break;
+        case 0X0D:
+            if(data[1] == 0x01){
+                car_set_save.mileage_unit = 1;
+            } else if(data[1] == 0x02){
+                car_set_save.mileage_unit = 0;
+            }
+            car_cmd_q.cmd = CAR_CMD_SET_MILEAGE_UNIT;
+            car_cmd_q.src = NET_CAR_CMD_SER;
+            CAR_CMD_MARK(car_cmd_q); 
+        break;
+        case 0X0E:
+            car_set_save.speed_limit = data[1] * 10;
+            car_cmd_q.cmd = CAR_CMD_SET_SPEED_LIMIT;
+            car_cmd_q.src = NET_CAR_CMD_SER;
+            CAR_CMD_MARK(car_cmd_q); 
+        break;
+        case 0X0F:
+            ble_cmd_mark(BLE_DELETE_BIND_INDEX);
+            buf_len = net_engwe_cmdId_operate_respos(buf, car_cmd_q.net_car_control, 0x01, 0);
+            net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, buf, buf_len, car_cmd_q.net_car_control.seq); 
+        break;
+        case 0X10:  /*转向灯*/
+
         break;
     }
 }
@@ -371,57 +444,39 @@ static uint16_t net_engwe_cmdId_carConfig_query(uint8_t *p)
     u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[CAR_CONFIG_CMD]);
     lenth += 4;
     p[lenth++] = 0;
-    p[lenth++] = 17;
-    p[lenth++] = car_set_save.gear;
-    p[lenth++] = car_set_save.head_light;
+    p[lenth++] = 0x0c;
     p[lenth++] = sys_param_set.auto_power_off_time;
-    p[lenth++] = car_set_save.mileage_unit == 0 ? 0x02:0x01;
-    p[lenth++] = car_set_save.speed_limit;
     p[lenth++] = car_info.wheel;
-    p[lenth++] = 0x00; //转向灯
-    p[lenth++] = sys_set_var.hid_lock_sw == 0?0x02:0x01;
-    p[lenth++] = sys_set_var.shock_sw == 0?0x02:0x01;
-    p[lenth++] = car_set_save.en_power_on_psaaword;
-    memcpy(&p[lenth], car_set_save.power_on_psaaword, 4);
+    p[lenth++] = sys_param_set.hid_lock_sw ? 0x01:0x02;
+    p[lenth++] = sys_param_set.shock_sw ? 0x01:0x02;
+    if(car_info.lock_sta == CAR_LOCK_STA) {
+        p[lenth++] = 0x00;
+    } else {
+        p[lenth++] = car_info.hmi_info.passwd_en?0x01:0x02;
+    }
+    memset(&p[lenth], 0xff, 4);
     lenth += 4;
-    p[lenth++] = sys_set_var.ble_bind_infoClean;
-
-
-
+    p[lenth++] = sys_param_set.total_fence_sw ? 0x01:0x02;
     return lenth;
 }
 
 static void net_engwe_cmdId_CarSet(uint8_t *data, uint16_t len, uint16_t seq)
 {
-    uint16_t lenth;
+    uint16_t lenth = 0;
     uint8_t buf[32];
-    if(len != 15){
+    if(len != 0x0A) {
         net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
     }
     net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
-    if(data[0] != 0) {
-        car_set_save.gear = data[0];
-        car_control_cmd(CAR_CMD_SET_GEAR);
-    }
-    if(data[1] != 0) {
-        car_set_save.head_light = data[1] == 0x01 ? 0:1;
-        car_control_cmd(CAR_CMD_SET_HEADLIGHT);
-    }
-    if(data[2] != 0) {
-        sys_param_set.auto_power_off_time =  data[2];
-        sys_power_off_time_set(sys_param_set.auto_power_off_time);
-    }
-    if(data[3] != 0) {
-        car_set_save.mileage_unit = data[3] == 0x01?1:0;
-        car_control_cmd(CAR_CMD_SET_MILEAGE_UNIT);
-    }
-    if(data[4] != 0){
-        car_set_save.speed_limit = data[4];
-        car_control_cmd(CAR_CMD_SET_SPEED_LIMIT);
-    }
-    if(data[5] != 0){
 
+    if(data[0] != 0) {
+        sys_param_set.auto_power_off_time =  data[2];
+        sys_power_off_time_set(sys_param_set.auto_power_off_time);  //自动关锁，细节还有待讨论
     }
+    if(data[1] != 0){  //车辆轮径
+        car_info.wheel = data[1];
+    }
+ /*   
     if(data[6] != 0){
         switch(data[6]) {
             case 0x01:
@@ -445,37 +500,74 @@ static void net_engwe_cmdId_CarSet(uint8_t *data, uint16_t len, uint16_t seq)
             car_control_cmd(CAR_CMD_SET_TURN_LIGHT);
             break;
         }
+    } */
+
+    if(data[2] != 0) {
+        if(data[2] == 0x01)
+            sys_param_set.hid_lock_sw = 1;
+        else if(data[2] == 0x02) 
+            sys_param_set.hid_lock_sw = 0;
+        SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
     }
-    if(data[7] != 0) {
-        if(data[7] == 0x01)
-            sys_set_var.hid_lock_sw = 1;
-        else if(data[7] == 0x02) 
-            sys_set_var.hid_lock_sw = 0;
-    }
-    if(data[8] != 0) {
-        if(data[8] == 0x01) {
-            sys_set_var.shock_sw = 1;
+    if(data[3] != 0) {
+        if(data[3] == 0x01) {
+            sys_param_set.shock_sw = 1;
         }
-        else if(data[8] == 0x02){
-            sys_set_var.shock_sw = 0;
+        else if(data[3] == 0x02){
+            sys_param_set.shock_sw = 0;
         }
+        SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
     }
-    if(data[9] != 0) {
-        if(data[9] == 0x01) {   
+    if(data[4] != 0) {
+        if(data[4] == 0x01) {   
             car_set_save.en_power_on_psaaword = 1;
             car_control_cmd(CAR_CMD_EN_POWER_ON_PASSWORD);
-        } else if(data[9] == 0x02) {
+        } else if(data[4] == 0x02) {
             car_set_save.en_power_on_psaaword = 0;
             car_control_cmd(CAR_CMD_EN_POWER_ON_PASSWORD);
         }
     }
-    if(data[10] != 0xff){
-        memcpy(&car_set_save.power_on_psaaword[0], &data[0], 4);
+    if(data[5] != 0xff){
+        memcpy(&car_set_save.power_on_psaaword[0], &data[5], 4);
+        car_control_cmd(CAR_CMD_SET_POWER_ON_PASSWORD);
     }
-    if(data[14] == 0x01){
-        ble_cmd_mark(CMD_BLE_DELETE_BIND_INFO);
+
+    if(data[9] != 0){
+        if(data[9] == 0x01)
+            sys_param_set.total_fence_sw = 1;
+        else if(data[9] == 0x02) {
+            sys_param_set.total_fence_sw = 0;
+        }
+        SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
     }
-    lenth = net_engwe_cmdId_carConfig_query(buf);
+    /*配置上报*/
+    u32_big_to_litel_end_sw(&buf[lenth], CmdIdTable[CAR_CONFIG_CMD]);
+    lenth += 4;
+    buf[lenth++] = 0x00;
+    buf[lenth++] = 0x0C;
+    if(car_info.lock_sta == CAR_LOCK_STA) {
+        buf[lenth++] = data[0];     //自动关机时间
+        buf[lenth++] = data[1];     //轮径
+        buf[lenth++] = data[2];     //无感解锁开关
+        buf[lenth++] = data[3];     //振动报警开关
+        buf[lenth++] = 0x00;        //密码开关
+        if(data[5] != 0xff) {
+            memset(&buf[lenth], 0x00, 4);
+        } else {
+            memset(&buf[lenth], 0xff, 4);
+        }
+        lenth += 4;
+        buf[lenth++] = data[9];    //总围栏开关
+    } else {
+        buf[lenth++] = data[0]; //自动关机时间
+        buf[lenth++] = data[1]; //轮径
+        buf[lenth++] = data[2];//无感解锁开关
+        buf[lenth++] = data[3]; //振动报警开关
+        buf[lenth++] = data[4]; //密码开关
+        memset(&buf[lenth], 0xff, 4);
+        lenth += 4;
+        buf[lenth++] = data[9];
+    }
     net_engwe_pack_seq_up(CONFIG_FEEDBACK_UP, buf, lenth, seq);
 }
 
@@ -499,8 +591,8 @@ static void net_engwe_cmdId_bms_charge_set(uint8_t *data, uint16_t len, uint16_t
         net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
     }
     net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
-    sys_param_set.bms_charge_soc = data[1];
-    sys_param_set.bms_charge_current = data[2];
+    sys_param_set.bms_charge_soc = data[0];
+    sys_param_set.bms_charge_current = data[1];
     sys_set_var.sys_updata_falg |= 1;
     car_control_cmd(CAR_BMS_CHARGE_SOC_SET);
     car_control_cmd(CAR_BMS_CHARGE_CURRENT_SET);
@@ -626,16 +718,16 @@ static uint16_t net_engwe_cmdId_iot_post_set_query(uint8_t *p)
     p[lenth++] = 23;
     p[lenth++] = 4;
     p[lenth++] = STATUS_PUSH_UP;
-    memcpy(&p[lenth], &sys_param_set.net_engwe_state_push_cmdId, 4);
+    u32_big_to_litel_end_sw(&p[lenth], sys_param_set.net_engwe_state_push_cmdId);
     lenth += 4;
     p[lenth++] = REGULARLY_REPORT_UP;
-    memcpy(&p[lenth], &sys_param_set.net_engwe_report_time1_cmdId, 4);
+    u32_big_to_litel_end_sw(&p[lenth], sys_param_set.net_engwe_report_time1_cmdId);
     lenth += 4;
     p[lenth++] = REGULARLY_REPORT2_UP;
-    memcpy(&p[lenth], &sys_param_set.net_engwe_report_time2_cmdId, 4);
+    u32_big_to_litel_end_sw(&p[lenth], sys_param_set.net_engwe_report_time2_cmdId);
     lenth += 4;
     p[lenth++] = OPERATION_PUSH_UP;
-    memcpy(&p[lenth], &sys_param_set.net_engwe_offline_opearte_push_cmdId, 4);
+    u32_big_to_litel_end_sw(&p[lenth], sys_param_set.net_engwe_offline_opearte_push_cmdId);
     lenth += 4;
     return lenth;
 }
@@ -651,19 +743,23 @@ static void net_engwe_cmdId_iot_post_set(uint8_t *data, uint16_t len, uint16_t s
     net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
     for(i = 0; i < set_num; i++){
         post_type = data[1+ i*5];
-        memcpy(&push_type, &data[2+i*5], 4);
+        push_type =  u32_big_to_litel_end(&data[2+i*5]);
         switch(post_type) {
             case STATUS_PUSH_UP:
-            sys_param_set.net_engwe_state_push_cmdId = post_type;
+            sys_param_set.net_engwe_state_push_cmdId &= push_type;
+            sys_param_set.net_engwe_state_push_cmdId |= STATE_PUSH_DEFAULT;
+            sys_param_set.net_engwe_state_push_cmdId |= push_type;
             break;
             case REGULARLY_REPORT_UP:
-            sys_param_set.net_engwe_report_time1_cmdId = post_type;
+            sys_param_set.net_engwe_report_time1_cmdId = push_type;
             break;
             case REGULARLY_REPORT2_UP:
-            sys_param_set.net_engwe_report_time2_cmdId = post_type;
+            sys_param_set.net_engwe_report_time2_cmdId = push_type;
             break;
             case OPERATION_PUSH_UP:
-            sys_param_set.net_engwe_offline_opearte_push_cmdId = post_type;
+            sys_param_set.net_engwe_offline_opearte_push_cmdId &= push_type;
+            sys_param_set.net_engwe_offline_opearte_push_cmdId |= OFFLINE_OPERATE_PUSH_DEFAULT;
+            sys_param_set.net_engwe_offline_opearte_push_cmdId |= push_type;
             break;
         }
     }
@@ -823,6 +919,7 @@ static void net_engwe_cmdId_iot_post_inv_set(uint8_t *data, uint16_t len, uint16
     if(time_interval != 0){
         sys_param_set.ble_disconnect_operate_push_interval = time_interval;
     }
+    regular_heart_update();
     sys_set_var.sys_updata_falg |= 1<<0;
     lenth = net_engwe_cmdId_iot_post_set_inv_query(buf);
     net_engwe_pack_seq_up(CONFIG_FEEDBACK_UP, buf, lenth, seq);
@@ -847,7 +944,7 @@ static uint16_t net_engwe_cmdId_sheepfang_info(uint8_t *p)
         radius = (uint16_t)(sheepfang_data.circle.radius*1000);
         u16_big_to_litel_end_sw(&p[lenth], radius);
         lenth += 2;
-    } else {
+    } else if(sheepfang_data.shape_type == POLYGON){
         p[lenth++] = 0x02;
         p[lenth++] = sheepfang_data.polygon.point_num;
         for(i = 0; i < sheepfang_data.polygon.point_num; i++){
@@ -858,6 +955,8 @@ static uint16_t net_engwe_cmdId_sheepfang_info(uint8_t *p)
             u32_big_to_litel_end_sw(&p[lenth], lon);
             lenth += 4;
         }
+    } else {
+        p[lenth++] = 0x03;
     }
     data_len = lenth - 4;
     u16_big_to_litel_end_sw(&p[4], data_len);
@@ -891,7 +990,7 @@ static void net_engwe_cmdId_sheepfang_set(uint8_t *data, uint16_t len, uint16_t 
         sheepfang_data.circle.radius = radius;
         sheepfang_data.circle.radius /= 1000;
         data_len += 2;
-        sys_set_var.sys_updata_falg |= 1<< SHEEP_DATA_SAVE;
+        SETBIT(sys_set_var.sys_updata_falg, SHEEP_DATA_SAVE);
     } else if(data[data_len] == 0x02) {
         data_len++;
         sheepfang_data.shape_type = POLYGON;
@@ -911,7 +1010,11 @@ static void net_engwe_cmdId_sheepfang_set(uint8_t *data, uint16_t len, uint16_t 
             sheepfang_data.polygon.p[i].lon /= 1000000;
             data_len += 4;
         }
-        sys_set_var.sys_updata_falg |= 1<< SHEEP_DATA_SAVE;
+        SETBIT(sys_set_var.sys_updata_falg, SHEEP_DATA_SAVE);
+    } else {
+        net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
+        sheepfang_data.shape_type = FENCE_NONE;
+        SETBIT(sys_set_var.sys_updata_falg, SHEEP_DATA_SAVE);
     }
     lenth = net_engwe_cmdId_sheepfang_info(buf);
     net_engwe_pack_seq_up(CONFIG_FEEDBACK_UP, buf, lenth, seq);
@@ -937,7 +1040,7 @@ static uint16_t net_engwe_cmdId_forbidden_info(uint8_t *p)
         radius = (uint16_t)(forbidden_zone_data.circle.radius*1000);
         u16_big_to_litel_end_sw(&p[lenth], radius);
         lenth += 2;
-    } else {
+    } else if(forbidden_zone_data.shape_type == POLYGON){
         p[lenth++] = 0x02;
         p[lenth++] = forbidden_zone_data.polygon.point_num;
         for(i = 0; i < forbidden_zone_data.polygon.point_num; i++){
@@ -948,17 +1051,86 @@ static uint16_t net_engwe_cmdId_forbidden_info(uint8_t *p)
             u32_big_to_litel_end_sw(&p[lenth], lon);
             lenth += 4;
         }
+    } else {
+        p[lenth++] = 0x03;
     }
     data_len = lenth - 4;
     u16_big_to_litel_end_sw(&p[4], data_len);
     return lenth;
 }
-/*
+
 static uint16_t net_engwe_cmdId_fault_info(uint8_t *p)
 {
+    uint16_t lenth = 0;
+    u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[FAULT_CODE_CMD]);
+    lenth += 4;
+    p[lenth++] = 0x00;
+    p[lenth++] = 0x0e;
+
+    p[lenth++] = (sys_info.car_error >> (8*7))&0xff;
+    p[lenth++] = (sys_info.car_error >> (8*6))&0xff;
+    p[lenth++] = (sys_info.car_error >> (8*5))&0xff;
+    p[lenth++] = (sys_info.car_error >> (8*4))&0xff;
+    p[lenth++] = (sys_info.car_error >> (8*3))&0xff;
+    p[lenth++] = (sys_info.car_error >> (8*2))&0xff;
+    p[lenth++] = (sys_info.car_error >> 8)&0xff;
+    p[lenth++] = sys_info.car_error & 0xff;
+    u32_big_to_litel_end_sw(&p[lenth], sys_info.iot_error);
+    lenth += 4;
+    return lenth;
+}
+
+static uint16_t net_engwe_ver_info(uint8_t *p)
+{
+    uint16_t lenth = 0;
+    u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[FIRMWARE_VER_CMD]);
+    lenth += 4;
+    p[lenth++] = 0x00;
+    p[lenth++] = 98;
+    memcpy(&p[lenth], sys_config.hw_ver, 8);
+    lenth += 8;
+    memcpy(&p[lenth], sys_config.soft_ver, 8);
+    lenth += 8;
+    memcpy(&p[lenth], sys_config.hw_ver, 8);  //蓝牙硬件版本和IOT一致
+    lenth += 8;
+    memcpy(&p[lenth], ble_info.ver, 8);  //蓝牙硬件版本和IOT一致
+    lenth += 8;
+    memcpy(&p[lenth], car_info.bms_info[0].hw_ver, 8);
+    lenth += 8;
+    memcpy(&p[lenth], car_info.bms_info[0].soft_ver, 8);
+    lenth += 8;
+    memcpy(&p[lenth], car_info.control_hw_ver, 8);
+    lenth += 8;
+    memcpy(&p[lenth], car_info.control_soft_ver, 8);
+    lenth += 8;
+    memcpy(&p[lenth], car_info.hmi_info.hw_ver, 8);
+    lenth += 8;
+    memcpy(&p[lenth], car_info.hmi_info.soft_ver, 8);
+    lenth += 8;
+    memcpy(&p[lenth], car_info.electronic_lock.hw_ver, 8);
+    lenth += 8;
+    memcpy(&p[lenth], car_info.electronic_lock.soft_ver, 8);
+    lenth += 8;
+    return lenth;
+}
+
+static uint16_t net_engwe_hw_info(uint8_t *p)
+{
+    uint16_t lenth = 0;
+    u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[IOT_HW_INFO_CMD]);
+    lenth += 4;
+    p[lenth++] = 0x00;
+    p[lenth++] = 55;
+    memcpy(&p[lenth], gsm_info.iccid, 20);
+    lenth += 20;
+    memcpy(&p[lenth], sys_config.sn, 15);
+    lenth += 15;
+    memcpy(&p[lenth], ble_info.mac_str, 17);
+    lenth += 17;
+    p[lenth++] = 2; //IOT型号待定
+    return lenth;
 
 }
-*/
 
 static void net_engwe_cmdId_forbidden_set(uint8_t *data, uint16_t len, uint16_t seq)
 {
@@ -988,7 +1160,7 @@ static void net_engwe_cmdId_forbidden_set(uint8_t *data, uint16_t len, uint16_t 
         forbidden_zone_data.circle.radius = radius;
         forbidden_zone_data.circle.radius /= 1000;
         data_len += 2;
-        sys_set_var.sys_updata_falg |= 1<< FORBIDDEN_DATA_SAVE;
+        SETBIT(sys_set_var.sys_updata_falg, FORBIDDEN_DATA_SAVE);
     } else if(data[data_len] == 0x02) {
         data_len++;
         forbidden_zone_data.shape_type = POLYGON;
@@ -1008,12 +1180,21 @@ static void net_engwe_cmdId_forbidden_set(uint8_t *data, uint16_t len, uint16_t 
             forbidden_zone_data.polygon.p[i].lon /= 1000000;
             data_len += 4;
         }
-        sys_set_var.sys_updata_falg |= 1<< FORBIDDEN_DATA_SAVE;
+        SETBIT(sys_set_var.sys_updata_falg, FORBIDDEN_DATA_SAVE);
+    } else {
+        net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
+        forbidden_zone_data.shape_type = FENCE_NONE;
+        SETBIT(sys_set_var.sys_updata_falg, FORBIDDEN_DATA_SAVE);
     }
     lenth = net_engwe_cmdId_forbidden_info(buf);
     net_engwe_pack_seq_up(CONFIG_FEEDBACK_UP, buf, lenth, seq);
 }
 
+
+void net_engwe_signed()
+{
+    net_engwe_pack_up(SIGN_IN_UP, NULL, 0);
+}
 
 static void net_engwe_cmdId_param_query(uint32_t cmdId, uint16_t seq)
 {
@@ -1057,13 +1238,13 @@ static void net_engwe_cmdId_param_query(uint32_t cmdId, uint16_t seq)
                     lenth += net_engwe_cmdId_atmosphere_light_info(&p[lenth]);
                 break;
                 case FIRMWARE_VER_CMD:
-
+                    lenth += net_engwe_ver_info(&p[lenth]);
                 break;
                 case FAULT_CODE_CMD:
-                    
+                    lenth += net_engwe_cmdId_fault_info(&p[lenth]);
                 break;
                 case IOT_HW_INFO_CMD:
-
+                    lenth += net_engwe_hw_info(&p[lenth]);
                 break;
                 case IOT_CONFIG_CMD:
                     lenth += net_engwe_cmdId_iot_config_query(&p[lenth]);          
@@ -1077,15 +1258,14 @@ static void net_engwe_cmdId_param_query(uint32_t cmdId, uint16_t seq)
                 case IOT_REPORT_INV_SET_CMD:
                     lenth += net_engwe_cmdId_iot_post_set_inv_query(&p[lenth]);
                 break;
-
-                case SHEEPFANG_SET_CMD:
-                    lenth += net_engwe_cmdId_sheepfang_info(&p[lenth]);
-                break;
                 case FORBIDDEN_ZONE_SET_CMD:
                     lenth += net_engwe_cmdId_forbidden_info(&p[lenth]);
                 break;
+                case SHEEPFANG_SET_CMD:
+                    lenth += net_engwe_cmdId_sheepfang_info(&p[lenth]);
+                break;
                 case MQTT_SET_CMD:
-
+                    
                 break;
                 case RIDE_INV_INFO_CMD:
 
@@ -1138,10 +1318,10 @@ void net_engwe_cmd_push(uint8_t cmd_type, uint32_t info_id)
                     lenth += net_engwe_cmdId_atmosphere_light_info(&p[lenth]);
                 break;
                 case FIRMWARE_VER_CMD:
-
+                    lenth += net_engwe_ver_info(&p[lenth]);
                 break;
                 case FAULT_CODE_CMD:
-
+                    lenth += net_engwe_cmdId_fault_info(&p[lenth]);
                 break;
                 case IOT_HW_INFO_CMD:
                     lenth += net_engwwe_iot_hw_info(&p[lenth]);
@@ -1178,13 +1358,175 @@ void net_engwe_cmd_push(uint8_t cmd_type, uint32_t info_id)
     free(p);
 }
 
+void net_engwe_fota_state_push(uint8_t ota_state)
+{
+    uint8_t *buf;
+    uint16_t lenth = 0;
+    buf = malloc(64);
+    if(buf == NULL) {
+        return;
+    }
+    u32_big_to_litel_end_sw(&buf[lenth], CmdIdTable[OTA_STATE_INFO_CMD]);
+    lenth += 4;
+    buf[lenth++] = 0x00;
+    buf[lenth++] = 0x0D;
+    switch(sys_param_set.farme_type) {
+        case IOT_FIRMWARE_TYPE:
+            buf[lenth++] = 0x01;
+            buf[lenth++] = 0x00;
+        break;
+        case BLUE_FIRMWARE_TYPE:
+            buf[lenth++] = 0x02;
+            buf[lenth++] = 0x00;
+        break;
+        case MCU_FIRMWARE_TYPE:
+            buf[lenth++] = 0x05;
+            buf[lenth++] = 0x00;
+        break;
+        case VOICE_PACK_TYPE1:
+            buf[lenth++] = 0x04;
+            buf[lenth++] = 0x01;
+        break;
+        case VOICE_PACK_TYPE2:
+            buf[lenth++] = 0x04;
+            buf[lenth++] = 0x02;
+        break;
+        case VOICE_PACK_TYPE3:
+            buf[lenth++] = 0x04;
+            buf[lenth++] = 0x03;
+        break;
+        case VOICE_PACK_TYPE4:
+            buf[lenth++] = 0x04;
+            buf[lenth++] = 0x04;
+        break;
+        case VOICE_PACK_TYPE5:
+            buf[lenth++] = 0x04;
+            buf[lenth++] = 0x05;
+        break;
+        case ECU_FIRMWARE_TYPE:
+            buf[lenth++] = 0x02;
+            buf[lenth++] = 0x01;
+        break;
+        case BMS1_FIRMWARE_TYPE:
+            buf[lenth++] = 0x02;
+            buf[lenth++] = 0x02;
+        break;
+        case  BMS2_FIRMWARE_TYPE:
+            buf[lenth++] = 0x02;
+            buf[lenth++] = 0x03;
+        break;
+        case HMI_FIRMWARE_TYPE:
+            buf[lenth++] = 0x02;
+            buf[lenth++] = 0x04;
+        break;
+        case LOCK_FIRMWARE_TYPE:
+            buf[lenth++] = 0x02;
+            buf[lenth++] = 0x05;
+        break;
+    }
+    memcpy(&buf[lenth], sys_param_set.fw_id, 8);
+    buf[lenth++] = ota_state;
+    net_engwe_pack_up(STATUS_PUSH_UP, buf, lenth);
+    free(buf);
+}
+
+
+static void net_engwe_fota_deal(uint8_t *data, uint16_t len, uint16_t seq)
+{
+    uint8_t *buf;
+    uint16_t lenth = 0;
+    uint8_t res;
+    if(data[0] == 0x02) {
+        net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
+        res = FOTA_SERVE_STOP;
+        http_upgrade_stop();
+    } else if(data[0] == 0x01) {
+        if(data[1] == 0x02){
+            switch(data[2]) {
+                case 0x01:
+                sys_param_set.farme_type = ECU_FIRMWARE_TYPE;
+                break;
+                case 0x02:
+                sys_param_set.farme_type = BMS1_FIRMWARE_TYPE;
+                break;
+                case 0x03:
+                sys_param_set.farme_type = BMS2_FIRMWARE_TYPE;
+                break;
+                case 0x04:
+                sys_param_set.farme_type = HMI_FIRMWARE_TYPE;
+                break;
+                case 0x05:
+                sys_param_set.farme_type = LOCK_FIRMWARE_TYPE;
+                break;
+            }
+        } else if(data[1] == 0x04){
+            switch(data[2]) {
+                case 0x01:
+                sys_param_set.farme_type = VOICE_PACK_TYPE1;
+                break;
+                case 0x02:
+                sys_param_set.farme_type = VOICE_PACK_TYPE2;
+                break;
+                case 0x03:
+                sys_param_set.farme_type = VOICE_PACK_TYPE3;
+                break;
+                case 0x04:
+                sys_param_set.farme_type = VOICE_PACK_TYPE4;
+                break;
+                case 0x05:
+                sys_param_set.farme_type = VOICE_PACK_TYPE5;
+                break;
+            }
+        } else if(data[1] == 0x01) {
+            sys_param_set.farme_type = IOT_FIRMWARE_TYPE;
+        } else if(data[1] == 0x03) {
+            sys_param_set.farme_type = BLUE_FIRMWARE_TYPE;
+        } else if(data[1] == 0x05) {
+            sys_param_set.farme_type = MCU_FIRMWARE_TYPE;
+        }
+        http_upgrade_info.crc_sum = u32_big_to_litel_end(&data[3]);
+        if(data[7] > 0) {
+            memset(http_upgrade_info.url, 0, 255);
+            memcpy(http_upgrade_info.url, &data[8], data[7]);
+        }
+        net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
+        res = FOTA_IOT_RECV;
+        http_upgrade_start();
+    } else {
+        net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
+        return;
+    }
+    memcpy(sys_param_set.fw_id, &data[len - 10], 8);
+    SETBIT(sys_set_var.sys_updata_falg, SYS_SET_ADR);
+    buf = malloc(64);
+    if(buf == NULL){
+        return;
+    }
+    u32_big_to_litel_end_sw(&buf[lenth], CmdIdTable[OTA_STATE_INFO_CMD]);
+    lenth +=4;
+    buf[lenth++] = 0x00;
+    buf[lenth++] = 9;
+    buf[lenth++] = data[1];
+    buf[lenth++] = data[2];
+    memcpy(&buf[lenth], &data[len - 10], 8);
+    lenth += 8;
+    buf[lenth++] = res;
+    net_engwe_pack_seq_up(STATUS_PUSH_UP, buf, lenth, seq);
+    free(buf);
+}
+
 static void net_engwe_cmdId_handle(uint8_t cmd_type, uint32_t cmdId, uint16_t seq, uint8_t *data, uint16_t len)
 {
-    LOG_I("cmd_type:%x, cmdId:%0x, seq:%x", cmd_type, cmdId, seq);
+    LOG_I("cmd_type:%x, cmdId:%0x, len:%d, seq:%x", cmd_type, cmdId, len, seq);
     debug_data_printf("cmd_data", data, len);
+    g_msg_invalid = 1;
     switch(cmd_type) {
         case FOTA_DOWN:
-            
+            if(cmdId != CmdIdTable[OTA_PARAM_CMD]) {
+                net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);  
+            } else {
+                net_engwe_fota_deal(data, len, seq);
+            }
         break;
         case REAL_OPERATION_DOWN:
             LOG_I("CMD:%d, cmdId:%0x", REAL_TIME_OPERATE_CMD, CmdIdTable[REAL_TIME_OPERATE_CMD]);
@@ -1218,7 +1560,11 @@ static void net_engwe_cmdId_handle(uint8_t cmd_type, uint32_t cmdId, uint16_t se
              } 
         break;
         case QUERY_INFORMATION_DOWN:  
-            net_engwe_cmdId_param_query(cmdId, seq);
+            if(cmdId != CmdIdTable[QUERY_PARAM_CMD] && len != 6) {
+                net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
+            } else {
+                net_engwe_cmdId_param_query(data[0] << 24 | data[1] << 16 | data[2]<<8| data[3], seq);
+            }
         break;
     }
 }
@@ -1235,9 +1581,9 @@ START:
     p = &data[start];
     cmd_id = p[0] << 24 | p[1] << 16 | p[2] << 8| p[3];
     cmd_len = p[4] << 8 | p[5];
-    if((cmd_len + 4) > len) {
+    if((cmd_len + 4) > len || cmd_len <= 2) {
         return;
-    }
+    } 
     net_engwe_cmdId_handle(cmd_type, cmd_id, seq, &p[6], cmd_len - 2);
     start += (cmd_len + 4);
     len -= (cmd_len + 4);
@@ -1246,11 +1592,29 @@ START:
 
 void net_engwe_data_parse(uint8_t *data, uint16_t len)
 {
-    uint16_t data_start = 0, cmd_len;
-    uint8_t *p;
+ //   uint16_t data_start = 0, cmd_len;
+//    uint8_t *p;
     uint8_t cmd;
-    uint16_t seq_num;
+    uint16_t seq_num, cmd_len;
     debug_data_printf("mqtt_payload_recv", (uint8_t *)data, len);
+    g_msg_invalid = 0;
+    if(data[0] != DOWN_HEADRER_H || data[1] != DOWN_HEADRER_L) {
+        net_engwe_pack_up(NACK_UP, NULL, 0);
+        return;
+    }
+    cmd = data[2];
+    cmd_len = data[3] << 8 | data[4];
+    if(len != cmd_len){
+        net_engwe_pack_up(NACK_UP, NULL, 0);
+        return;
+    }
+    if(cmd_len < 11) return;
+    seq_num = data[cmd_len -2] << 8 | data[cmd_len -1];
+    net_engwe_cmd_handle(&data[5], cmd_len - 7, cmd, seq_num);
+    if(g_msg_invalid != 1) {
+        net_engwe_pack_up(NACK_UP, NULL, 0);
+    }
+    /*
 START:   
     if(len < 8) return;
     p = &data[data_start];
@@ -1272,11 +1636,14 @@ START:
     data_start += cmd_len;
     len -= cmd_len;
     goto START;
+    if(g_msg_invalid != 1) {
+        net_engwe_pack_up(NACK_UP, NULL, 0);
+    }*/
 }
 def_rtos_queue_t net_engwe_cmd_que;
 void NET_ENGWE_CMD_MARK(uint8_t cmd)
 {
-    if(cmd != STATUS_PUSH_UP && cmd != REGULARLY_REPORT_UP && cmd != REGULARLY_REPORT2_UP && cmd != OPERATION_PUSH_UP) {
+    if(cmd != STATUS_PUSH_UP && cmd != REGULARLY_REPORT_UP && cmd != REGULARLY_REPORT2_UP && cmd != OPERATION_PUSH_UP && cmd != HEART_UP) {
         return;
     }
     def_rtos_queue_release(net_engwe_cmd_que, sizeof(uint8_t), &cmd, RTOS_WAIT_FOREVER);
@@ -1303,6 +1670,9 @@ void net_engwe_send_thread(void *param)
             break;
             case OPERATION_PUSH_UP:
                 net_engwe_cmd_push(REGULARLY_REPORT_UP, sys_param_set.net_engwe_offline_opearte_push_cmdId);
+            break;
+            case HEART_UP:
+                net_engwe_pack_up(HEART_UP, NULL, 0);
             break;
         }
     }

@@ -9,27 +9,26 @@ extern "C" {
 #include    "rtos_port_def.h"
 /*升级状态*/
 enum {
-    IOT_RECV_OTA_REQ = 100,
-    IOT_OTA_REFUSE,
-    SERVICE_CLOSE_OTA_PROCESS,
-    IOT_BAT_LOW,
-    IOT_START_DOWNLOAD = 200,
-    IOT_DOWNLOAD_SUCCESS,
-    IOT_DOWNLOAD_FAIL,
-    DEV_START_UPDATE = 300,
-    DEV_UPDATE_SUCCESS,
-    DEV_UPDATE_FAIL,
-    FAIL_BAT_LOW_RES,
-    FAIL_VER_INCOMPATIBLE_RES,
+    HTTP_OTA_WAIT = 0,
+    HTTP_OTA_CHECK,  //检查能否升级
+    HTTP_PDP_ACTIVE,
+    HTTP_OTA_INIT,  //初始化
+    HTTP_OTA_DOWN,
+    HTTP_OTA_SUM_CHECK,
+    HTTP_OTA_UPDATA,
+
 };
 
 /*升级固件类型*/
 enum {
     IOT_FIRMWARE_TYPE = 0,
     BLUE_FIRMWARE_TYPE,
-    VOICE_PACK_TYPE,
-    FENCE_FILE_TYPE,
-    GPS_FIRMWARE_TYPE,
+    MCU_FIRMWARE_TYPE,
+    VOICE_PACK_TYPE1,
+    VOICE_PACK_TYPE2,
+    VOICE_PACK_TYPE3,
+    VOICE_PACK_TYPE4,
+    VOICE_PACK_TYPE5,
     ECU_FIRMWARE_TYPE,
     BMS1_FIRMWARE_TYPE,
     BMS2_FIRMWARE_TYPE,
@@ -41,11 +40,12 @@ enum {
 struct http_upgrade_info_stu {
     uint8_t req_type;
     uint8_t timeout;  //分钟
-    char url[256];
-    uint8_t farme_type;
-    uint32_t crc_sum;
-    uint16_t ota_sta;
-    def_rtos_sem_t http_ota_sem;
+    char url[255];
+    uint32_t crc_sum;   //效验码 OTA下发
+    uint8_t ota_stage;   //ota升级状态
+    int profile_idx;
+    uint8_t stop_flag;
+    def_rtos_sem_t http_ota_sem;  //阻塞开始升级
     uint8_t download_fail_cent;
     uint32_t download_start_byte;
 };
@@ -54,6 +54,8 @@ extern struct http_upgrade_info_stu http_upgrade_info;
 void app_http_ota_thread(void *param);
 void app_http_ota_init();
 int app_iot_ota_jump();
+void http_upgrade_start();
+void http_upgrade_stop();
 #ifdef __cplusplus
 }
 #endif

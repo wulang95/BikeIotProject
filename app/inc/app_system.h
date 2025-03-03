@@ -78,6 +78,9 @@ enum {
     BLE_DISCON_PUSH_HERAT_SW,
 };
 
+#define OFFLINE_OPERATE_PUSH_DEFAULT (0x00000040|0x00000080|0x00000020)
+#define STATE_PUSH_DEFAULT (0x00000020|0x00000200|0x00000004)
+
 struct sys_param_set_stu {
     uint32_t magic;
     uint8_t alive_flag;     //激活标志
@@ -91,6 +94,9 @@ struct sys_param_set_stu {
     uint16_t ble_connect_operate_push_interval;
     uint16_t ble_disconnect_operate_push_interval;
     uint8_t auto_power_off_time;
+    uint8_t hid_lock_sw;
+    uint8_t shock_sw;
+    uint8_t total_fence_sw;   //总围栏开关
     uint32_t ota_cnt;
     uint8_t bms_charge_soc;
     uint8_t bms_charge_current;
@@ -99,6 +105,8 @@ struct sys_param_set_stu {
     uint32_t net_engwe_report_time2_cmdId;
     uint32_t net_engwe_offline_opearte_push_cmdId;
     uint16_t shock_sensitivity;
+    uint8_t farme_type;
+    uint8_t fw_id[8];
     uint32_t crc32;
 };
 
@@ -106,6 +114,8 @@ struct sys_config_stu {
     uint32_t magic;
     char ip[128];
     uint32_t port; 
+    char soft_ver[8];
+    char hw_ver[8];
     char dev_type[6];  
     char apn[32];
     char DSN[32];
@@ -128,6 +138,7 @@ struct sys_config_stu {
 typedef enum {
     CIRCLE = 1,
     POLYGON,
+    FENCE_NONE,
 } SHAPE_E;
 
 typedef struct {
@@ -164,10 +175,10 @@ struct sensor_calibration_data_stu {
 };
 
 enum {
-    IOT_TRANS_MODE = 0,
-    IOT_WAIT_ACTIVE_MODE,
-    IOT_ACTIVE_MODE,
-    IOT_LOW_POWER_MODE,
+    IOT_TRANS_MODE = 0x01, //运输模式
+    IOT_WAIT_ACTIVE_MODE,   //待激活模式
+    IOT_LOW_POWER_MODE, //低功耗模式
+    IOT_ACTIVE_MODE,    //激活模式
 };
 
 enum {
@@ -178,9 +189,24 @@ enum {
 };
 
 
+enum {
+    SHEEPFANG_INVALID = 0X00,  //羊圈无效
+    SHEEPFANG_ENTER,           //进入羊圈
+    SHEEPFANG_LEAVE,            //离开羊圈
+    SHEEPFANG_IN,           //在羊圈里
+    SHEEPFANG_OUT,          //在羊圈外
+};
+
+enum {
+    FORBIDDEN_INVALID = 0x00, //禁区无效
+    FORBIDDEN_ENTER,    //进入禁区
+    FORBIDDEN_LEAVE,    //离开禁区
+    FORBIDDEN_IN,       //在禁区里
+    FORBIDDEN_OUT,      //在禁区外
+};
+
 #pragma pack(1)
 struct sys_info_stu {
-    uint8_t car_init;
     uint16_t battry_val;
     uint16_t bat_val;
     uint8_t bat_soc;
@@ -208,21 +234,23 @@ struct sys_info_stu {
     uint8_t sheepfang_sta;
     uint8_t fence_sta;
     uint8_t ble_log_sw;
+    uint8_t shock_sw_state;
     uint8_t ble_can_trans_sw;
+    char fota_packname[255];
     unsigned long long car_error;
     unsigned iot_error;
 };
 
 struct sys_set_var_stu{
+    uint8_t sheepfang_flag;
+    uint8_t forbidden_flag;
     uint8_t sys_poweroff_flag;
-    uint8_t sys_updata_falg; //bit0表示sys_param, bit1表示sys_info, bit2表示sheepdata, bit3表示forbiddendata
+    uint8_t sys_updata_falg; //bit0表示sys_param, bit1表示sys_config, bit2表示sheepdata, bit3表示forbiddendata
     uint8_t sys_reboot_flag; 
     uint8_t car_power_en;   //0，无效 1， EN下电  2， EN上电
     uint8_t ble_bind_infoClean; //0， 无效  1，删除
     uint8_t iot_active;   //0,无效 1，取消激活 2，激活
-    uint8_t hid_lock_sw;    //0 关 1：开  
     uint8_t hid_lock_sw_type;  //无感解锁开关类型， 0x00, 进入范围内解锁，离开关锁。0x01:iot检测手机接近时解锁  
-    uint8_t shock_sw;   //0，关 1：开
 };
 
 #pragma pack()
@@ -233,24 +261,24 @@ struct sys_set_var_stu{
 #define DEFAULT_DNS "114.114.114.114"
 #define DEFAULT_SN      "123456789" 
 #define DEFAULT_DEV_TYPE    "K10" 
-#define DEFAULT_APN      "linksnet"
+#define DEFAULT_APN     "asia.bics"
+/*"linksnet"*/
 /*"asia.bics"*/
-#define DEFAULT_IP     "mqtt://broker.emqx.io"  
+#define DEFAULT_IP  "mqtt://dev-mqtt.engweapp.cn"
+/*"mqtt://broker.emqx.io:1883" */
 /*"iot.engweapp.cn"*/
-#define DEFAULT_PORT     1883  
+#define DEFAULT_PORT  9506  
 /*9682*/
-#define DEFAULT_MQTT_SUB_PRE  "iot/instruction/"
-#define DEFAULT_MATT_PUB_PRE  "iot/pub/instruction/"
-
+#define DEFAULT_MQTT_SUB_PRE  "iot/engwe/subscribe/"
+#define DEFAULT_MQTT_PUB_PRE  "iot/engwe/publish/"
+#define DEFAULT_MQTT_USER   "admin"
+#define DEFAULT_MQTT_PWD    "engweMq1q@W3e"
 
 #define BLE_NAME    "ENGWE"
 #define BLE_SUUID   0X1820
 
 #define OTA_FILE    "UFS:ble_simple_peripheral.bin"
 
-extern def_rtos_sem_t NotAlivePdpBlockSem_t;
-extern def_rtos_sem_t NotAliveSocketSem_t;
-extern def_rtos_sem_t NotAliveSensorSem_t;
 extern SHAPE_SET sheepfang_data;
 extern SHAPE_SET forbidden_zone_data;
 extern struct sys_set_var_stu sys_set_var;
@@ -272,4 +300,5 @@ int flash_partition_size(FLASH_PARTITION flash_part);
 void sys_power_off_time_set(uint8_t time);
 void sys_log_out(const char *fmt, ...);
 void app_system_log_out_thread(void *param);
+void regular_heart_update();
 #endif

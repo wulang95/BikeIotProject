@@ -1253,7 +1253,7 @@ static void ble_query_hid_sw_sta()
     uint8_t data[16] = {0}, buf[64];
     uint16_t data_len = 0;
     uint16_t len;
-    data[data_len++] = (sys_set_var.hid_lock_sw == 1) ? 0x01:0x02;
+    data[data_len++] = (sys_param_set.hid_lock_sw == 1) ? 0x01:0x02;
     ble_protocol_data_pack(BLE_CMD_Q_HIDKEY_STA, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
 }
@@ -1265,9 +1265,9 @@ static void ble_set_hid_sw(uint8_t *dat)
     uint16_t len;
 
     if(dat[0] == 0x01){
-        sys_set_var.hid_lock_sw = 1;
+        sys_param_set.hid_lock_sw = 1;
     } else {
-        sys_set_var.hid_lock_sw = 0;
+        sys_param_set.hid_lock_sw = 0;
     }
 
     if(dat[1] == 0x01){

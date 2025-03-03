@@ -33,14 +33,38 @@ enum {
     CAR_CMD_EN_POWER_ON_PASSWORD,
     CAR_BMS_CHARGE_SOC_SET,
     CAR_BMS_CHARGE_CURRENT_SET,
+    CAR_LOOK_CAR1,
+    CAR_LOOK_CAR2,
 };
 
 enum {
-    CAR_MOVEVENT_ALARM,
-    CAR_FALLING_GROUND_ALARM,
-    CAR_CLEAN_FALLING_GROUND_ALARM,
+    CAR_LOCK_SHOCK = 0X01,
+    CAR_LOCK_STILL = 0X02,
+    CAR_LOCK_TO_SHOCK
 };
 
+enum {
+    CAR_FALL_STATE = 0X01,
+    CAR_NORMAL_STATE = 0X02,
+    CAR_FALL_TO_RECOVERY = 0X03,
+    CAR_RECOVERY_TO_FALL = 0X04,
+};
+
+
+enum {
+    CAR_UNLOCK_MOVE = 0X01, //车运动状态
+    CAR_UNLOCK_STILL,  //车静止状态
+    CAR_UNLOCK_TO_STILL,   //车运动到静止
+    CAR_UNLOCK_TO_MOVE,    //车静止到运动
+};
+
+enum {
+    CHARGER_NONE_STA =0X00,
+    CHARGER_PLUG_IN,
+    CHARGER_PUG_OUT,
+    CHARGER_FULL,
+    CHARGER_QUICK_IN,
+};
 
 typedef struct {
     uint8_t cmd;
@@ -75,6 +99,7 @@ struct atmosphere_light_info_stu{
 struct hmi_info_stu{
     uint8_t init;
     uint8_t power_on  :1;
+    uint8_t passwd_en :1;
     uint8_t encry_mode_data :7;
     uint8_t key;
     uint8_t startup_mode;
@@ -161,23 +186,29 @@ struct car_info_stu {
     uint8_t control_connect :1;
     uint8_t lock_connect :1;
     uint8_t lock_sta;
+    uint8_t last_lock_sta;
     uint8_t lock_src;
     uint8_t main_power;
+    uint8_t last_headlight_sta:1;
     uint8_t headlight_sta :1;  /*前灯状态*/
     uint8_t taillight_sta :1;
     uint8_t left_turn_light_sta :2;
     uint8_t right_turn_light_sta :2;
     uint8_t gear;   /*挡位*/
+    uint8_t last_gear;
+    uint8_t last_unit;
     uint16_t speed_limit;   /*限速 0.1KM/H*/
+    uint16_t last_speed_limit;
     uint8_t current_limit;  /*限流 0.1A*/
     uint8_t wheel;      /*轮径*/
+    uint16_t last_speed;
     uint16_t speed;   //单位 0.1KM
     uint8_t transfer_data; //转把数据 0.1V
     uint16_t avg_speed;  //平均车速 0.1km/h
     uint16_t motor_speed; //电机转速
     uint16_t max_speed; //最高车速 0.1km/h
     uint32_t cycle_time_s;  //骑行时间
-    uint32_t cycle_total_time_h; //总骑行时长 ？
+    uint32_t cycle_total_time_h; //总骑行时长 0.1h
     uint8_t fault_code;
     uint8_t sync_time[6];  /*同步时间*/
     uint8_t bright_lev;     /*亮度等级*/
@@ -218,6 +249,11 @@ struct car_info_stu {
     };
     uint8_t filp_state;
     uint8_t move_alarm;
+    uint8_t quick_charger_det :1; //为1时检测到快充接入
+    uint8_t quick_charger_flag :1; //快充插入检测标志
+    uint8_t charger_det_flag :1;
+    uint8_t charger_full_flag :1;
+    uint8_t charger_state;
     char control_hw_ver[16];
     char control_soft_ver[16];
     char control_sn[32];

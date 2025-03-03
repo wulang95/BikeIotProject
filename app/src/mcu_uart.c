@@ -147,6 +147,7 @@ void mcu_ota_end()
 }
 int mcu_ota_task()
 {
+    int64_t mcu_ota_start_time_t;
     if(mcu_ota_ctrl.ota_sta != MCU_OTA_IDEL_STEP) return FAIL;
     mcu_ota_ctrl.data = malloc(128);
     if(mcu_ota_ctrl.data == NULL) return FAIL;
@@ -161,6 +162,7 @@ int mcu_ota_task()
     mcu_ota_ctrl.ota_res = 0xff;
     mcu_ota_ctrl.data_len = 0;
     mcu_ota_ctrl.pack_num = 0;
+    mcu_ota_start_time_t = def_rtos_get_system_tick();
     while(1){
         switch(mcu_ota_ctrl.ota_sta) {
         case MCU_OTA_START_STEP:
@@ -180,8 +182,10 @@ int mcu_ota_task()
             return FAIL;
         break;
         }
+        if(def_rtos_get_system_tick() - mcu_ota_start_time_t > 10 *60 *1000) {
+            return FAIL;
+        }
     }
-    return OK;
 } 
 
 uint8_t can_data_recv(stc_can_rxframe_t *can_rxframe, uint32_t time_out)
@@ -413,6 +417,7 @@ void mcu_uart_recv_thread(void *param)
         if(iot_error_check(IOT_ERROR_TYPE, MCU_CONN_ERROR) == 1) {
             iot_error_clean(IOT_ERROR_TYPE, MCU_CONN_ERROR);
         }
+        week_time("sys", 180); 
         debug_data_printf("mcurcv",rcv, len);
         for(i = 0; i < len; i++){
             c = rcv[i];

@@ -37,7 +37,7 @@ struct ble_con_param_s {
 struct ble_info_s {
     uint8_t init;
     uint8_t adv_sta;
-    char  ver[6];
+    char  ver[8];
     uint8_t mac[6];
     char mac_str[20];
     struct ble_adv_param_s ble_adv_param;

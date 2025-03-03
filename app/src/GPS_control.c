@@ -595,18 +595,121 @@ static void GPS_Composite_PosData()
     Len += sprintf(Gps.PosData + Len, "%s,%s,%s,", GpsDataBuf.LatLongData, GpsDataBuf.SateNumStr, GpsDataBuf.HDOP);
     Len += sprintf(Gps.PosData + Len, "%s,%s,%s", GpsDataBuf.Time2, GpsDataBuf.SeaLevelH, GpsDataBuf.Mode);
     #else
+    Point cur_p;
     Gps.ground_speed = (uint16_t)(strtod(GpsDataBuf.Ground_speed, NULL)*10);
     Gps.hdop = (uint8_t)(strtod(GpsDataBuf.HDOP, NULL)*10);
     Gps.direction = (uint16_t)(strtod(GpsDataBuf.Yaw, NULL)*10);
     Gps.high = (uint16_t)GpsDataBuf.high;
     Gps.Lat = GpsDataBuf.Latitude*1000000;
     Gps.Long = GpsDataBuf.Longitude*1000000;
+    cur_p.lat = Gps.Lat;
+    cur_p.lon = Gps.Long;
+    /*羊圈检测*/
+    if(sheepfang_data.shape_type == CIRCLE && sys_param_set.total_fence_sw) {
+        if(isInner_circle(sheepfang_data.circle.center, sheepfang_data.circle.radius, cur_p) == 0){  //在羊圈外 
+            if(sys_set_var.sheepfang_flag == 0) {
+                sys_set_var.sheepfang_flag = 1;  
+                voice_play_mark(ELECTRONIC_FENCE_VOICE);
+                sys_info.sheepfang_sta = SHEEPFANG_LEAVE;
+                LOG_I("SHEEPFANG_LEAVE");
+                net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
+            } else {
+                sys_info.sheepfang_sta = SHEEPFANG_OUT;
+            }
+        } else {
+            if(sys_set_var.sheepfang_flag == 1) {
+                sys_set_var.sheepfang_flag = 0;
+                voice_play_off();
+                sys_info.sheepfang_sta = SHEEPFANG_ENTER;
+                LOG_I("SHEEPFANG_ENTER");
+                net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
+            } else {
+                sys_info.sheepfang_sta = SHEEPFANG_IN;
+            }
+        }
+    } else if(sheepfang_data.shape_type == POLYGON && sys_param_set.total_fence_sw) {
+        if(isInner_polygon(cur_p, sheepfang_data.polygon.p, sheepfang_data.polygon.point_num) == 0){
+            if(sys_set_var.sheepfang_flag == 0) {
+                sys_set_var.sheepfang_flag = 1;  
+                voice_play_mark(ELECTRONIC_FENCE_VOICE);
+                sys_info.sheepfang_sta = SHEEPFANG_LEAVE;
+                LOG_I("SHEEPFANG_LEAVE");
+                net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
+            } else {
+                sys_info.sheepfang_sta = SHEEPFANG_OUT;
+            }
+        } else {
+            if(sys_set_var.sheepfang_flag == 1) {
+                sys_set_var.sheepfang_flag = 0;
+                voice_play_off();
+                sys_info.sheepfang_sta = SHEEPFANG_ENTER;
+                LOG_I("SHEEPFANG_ENTER");
+                net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
+            } else {
+                sys_info.sheepfang_sta = SHEEPFANG_IN;
+            }
+        }
+    } else {
+        sys_info.sheepfang_sta = SHEEPFANG_INVALID;
+    }
+
+    /*禁区检测*/
+    if(forbidden_zone_data.shape_type == CIRCLE && sys_param_set.total_fence_sw) {
+        if(isInner_circle(forbidden_zone_data.circle.center, forbidden_zone_data.circle.radius, cur_p) == 1){  //在禁区里
+            if(sys_set_var.forbidden_flag == 0) {
+                sys_set_var.forbidden_flag = 1;  
+                voice_play_mark(ELECTRONIC_FENCE_VOICE);
+                sys_info.fence_sta= FORBIDDEN_ENTER;
+                LOG_I("FORBIDDEN_ENTER");
+                net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
+            } else {
+                sys_info.fence_sta = FORBIDDEN_IN;
+            }
+        } else {
+            if(sys_set_var.forbidden_flag == 1) {
+                sys_set_var.forbidden_flag = 0;
+                voice_play_off();
+                sys_info.fence_sta = FORBIDDEN_LEAVE;
+                LOG_I("FORBIDDEN_LEAVE");
+                net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
+            } else {
+                sys_info.fence_sta = FORBIDDEN_OUT;
+            }
+        }
+    } else if(forbidden_zone_data.shape_type == POLYGON && sys_param_set.total_fence_sw) {
+        if(isInner_polygon(cur_p, forbidden_zone_data.polygon.p, forbidden_zone_data.polygon.point_num) == 1){
+            if(sys_set_var.forbidden_flag == 0) {
+                sys_set_var.forbidden_flag = 1;  
+                voice_play_mark(ELECTRONIC_FENCE_VOICE);
+                sys_info.fence_sta = FORBIDDEN_ENTER;
+                LOG_I("FORBIDDEN_ENTER");
+                net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
+            } else {
+                sys_info.fence_sta = FORBIDDEN_IN;
+            }
+        } else {
+            if(sys_set_var.forbidden_flag == 1) {
+                sys_set_var.forbidden_flag = 0;
+                voice_play_off();
+                sys_info.fence_sta = FORBIDDEN_LEAVE;
+                LOG_I("FORBIDDEN_LEAVE");
+                net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
+            } else {
+                sys_info.fence_sta = FORBIDDEN_OUT;
+            }
+        }
+    } else {
+        sys_info.fence_sta = FORBIDDEN_INVALID;
+    }
+
+
     #endif
 }
 
 void GPS_stop()
 {
     MCU_CMD_MARK(CMD_GPS_POWEROFF_INDEX);
+    Gps.GpsMode = GPS_MODE_TM;
 }
 
 
@@ -617,14 +720,14 @@ void GPS_Start(uint8_t Mode)
         Gps.GpsMode = Mode;
         Gps.GetGPSNum = 0; 
         memset(&GpsDataBuf, 0, sizeof(GpsDataBuf)); 
-        strcpy(Gps.PosData, ",V,,,,,,,,,,N");  
+    //    strcpy(Gps.PosData, ",V,,,,,,,,,,N");  
         if(Mode == GPS_MODE_TM) {
             Gps.Gps_Tm_timeout = def_rtos_get_system_tick();
         }
     } else if(Mode == GPS_MODE_TM) {
         if(Gps.GpsMode == GPS_MODE_CONT)
         {
-            NET_CMD_MARK(NET_CMD_Q_LOCATION_D0);
+       //     NET_CMD_MARK(NET_CMD_Q_LOCATION_D0);
         }
     } else if(Mode == GPS_MODE_CONT) {
         if(Gps.GpsMode != GPS_MODE_CONT) {
@@ -651,7 +754,6 @@ void gps_control_thread(void *param)
         if(Gps.GpsMode == GPS_MODE_TM) {
             if(Gps.GetGPSNum >= GPS_POS_CNT || systm_tick_diff(Gps.Gps_Tm_timeout) > 180*1000) {
                 GPS_Composite_PosData();
-                NET_CMD_MARK(NET_CMD_Q_LOCATION_D0);
                 GPS_stop();
                 if(Gps.GetGPSNum >= GPS_POS_CNT) {
                     LOG_I("**********GPS OK***********");

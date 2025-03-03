@@ -70,7 +70,7 @@ int ota_http_init(struct fota_http_client_stu *fota_http_cli_p)
     memset(fota_http_cli_p, 0x00, sizeof(struct fota_http_client_stu));
 
     fota_http_cli_p->http_cli = 0;
-    fota_http_cli_p->profile_idx = 1;
+    fota_http_cli_p->profile_idx = http_upgrade_info.profile_idx;
     fota_http_cli_p->sim_id = 0;
     fota_http_cli_p->e_stage = OTA_HTTP_DOWN_INIT;
     fota_http_cli_p->i_save_size = 0;
@@ -79,7 +79,7 @@ int ota_http_init(struct fota_http_client_stu *fota_http_cli_p)
     fota_http_cli_p->http_progress.is_show = true;
     fota_http_cli_p->last_precent = 0;
     fota_http_cli_p->chunk_encode = 0;
-    switch(http_upgrade_info.req_type)
+    switch(sys_param_set.farme_type)
     {
         case IOT_FIRMWARE_TYPE:
         case BLUE_FIRMWARE_TYPE:
@@ -87,7 +87,24 @@ int ota_http_init(struct fota_http_client_stu *fota_http_cli_p)
         case BMS1_FIRMWARE_TYPE:
         case BMS2_FIRMWARE_TYPE:
         case HMI_FIRMWARE_TYPE:
+        case LOCK_FIRMWARE_TYPE:
+        case MCU_FIRMWARE_TYPE:
             memcpy(fota_http_cli_p->fota_packname, "UFS:fota.pack", strlen("UFS:fota.pack"));
+        break;
+        case VOICE_PACK_TYPE1:
+            memcpy(fota_http_cli_p->fota_packname, UNLOCK_VOICE_FILE, strlen(UNLOCK_VOICE_FILE));
+        break;
+        case VOICE_PACK_TYPE2:
+            memcpy(fota_http_cli_p->fota_packname, LOCK_VOICE_FILE, strlen(LOCK_VOICE_FILE));
+        break;
+        case VOICE_PACK_TYPE3:
+            memcpy(fota_http_cli_p->fota_packname, ALARM_VOICE_FILE, strlen(ALARM_VOICE_FILE));
+        break;
+        case VOICE_PACK_TYPE4:
+            memcpy(fota_http_cli_p->fota_packname, LOOK_CAR_VOICE_FILE, strlen(LOOK_CAR_VOICE_FILE)); 
+        break;
+        case VOICE_PACK_TYPE5:
+            memcpy(fota_http_cli_p->fota_packname, DEFINE_VOICE_FILE, strlen(DEFINE_VOICE_FILE)); 
         break;
     }
     
@@ -397,11 +414,6 @@ static int ota_http_evn_request(struct fota_http_client_stu *fota_http_cli_p)
         LOG_E("range_request http data done ,file_size[%d]",fota_http_cli_p->http_progress.file_size);
         return -1;
     }
-    if(sys_info.pdp_reg != 1) {
-        LOG_E("http net is failed");
-        ota_http_close_fd(fota_http_cli_p);
-        return -1;
-    }
 
     if(ql_httpc_new(&(fota_http_cli_p->http_cli), ota_http_event_cb, fota_http_cli_p) != HTTP_SUCCESS){
         LOG_E("http create failed");
@@ -459,7 +471,7 @@ exit: ql_httpc_release(&(fota_http_cli_p->http_cli));
 
 static int ota_http_download_pacfile(struct fota_http_client_stu *fota_http_cli_p)
 {
-    ql_errcode_fota_e ret;
+//    ql_errcode_fota_e ret;
     fota_http_info_cfg(fota_http_cli_p);
     if(ota_http_evn_request(fota_http_cli_p) != 0)
     {
@@ -468,6 +480,7 @@ static int ota_http_download_pacfile(struct fota_http_client_stu *fota_http_cli_
         return -1;
     }
     fota_http_info_cfg(fota_http_cli_p);
+/*
     if(fota_http_cli_p->e_stage == OTA_HTTP_DOWN_DOWNED)
     {
         switch (http_upgrade_info.farme_type){
@@ -487,18 +500,19 @@ static int ota_http_download_pacfile(struct fota_http_client_stu *fota_http_cli_
 		    }
             break;
         }
-    }
+    }*/
     return 0;
 }
 
 int app_iot_ota_jump()
 {
     ql_errcode_fota_e ret;
-    ret = ql_fota_image_verify(OTA_FILE);
+    ret = ql_fota_image_verify(sys_info.fota_packname);
     if(ret != RTOS_SUCEESS) {
-        ql_remove(OTA_FILE);
+        ql_remove(sys_info.fota_packname);
         return -3;
     } else {
+        net_engwe_fota_state_push(FOTA_SATRT_UPDATE);
         LOG_I("download is sucess ,system will reset power!");
         def_rtos_task_sleep_s(5);
 	    sys_reset();
@@ -510,12 +524,133 @@ void app_http_ota_init()
     def_rtos_semaphore_create(&ota_http_sem, 0);
     def_rtos_semaphore_create(&http_upgrade_info.http_ota_sem, 0);
     memset(http_upgrade_info.url, 0, sizeof(http_upgrade_info.url)); 
+    http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
+    http_upgrade_info.profile_idx = 2;
+}
+
+void http_upgrade_start()
+{
+    def_rtos_smaphore_release(http_upgrade_info.http_ota_sem);
+
+}
+
+void http_upgrade_stop()
+{
+    http_upgrade_info.stop_flag = 1;
+    def_rtos_smaphore_release(ota_http_sem);
+}
+
+uint32_t fw_check_sum()
+{
+    uint32_t check_sum = 0;
+    uint8_t data;
+    uint32_t ota_size, offset = 0;
+    ota_size = flash_partition_size(DEV_APP_ADR);
+    while(ota_size > 0){
+        check_sum += flash_partition_read(DEV_APP_ADR, &data, 1, offset);
+        offset++;
+        ota_size--;
+    }
+    return check_sum;
+}
+
+void http_ota_fw_update()
+{
+    switch(sys_param_set.farme_type){
+        case IOT_FIRMWARE_TYPE:
+            app_iot_ota_jump();
+        break;
+        case BLUE_FIRMWARE_TYPE:
+            net_engwe_fota_state_push(FOTA_SATRT_UPDATE);
+            if(ble_ota_task() == OK){
+                net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+            } else {
+                net_engwe_fota_state_push(FOTA_UPDATE_FAIL);
+            }
+        break;
+        case MCU_FIRMWARE_TYPE:
+            net_engwe_fota_state_push(FOTA_SATRT_UPDATE);
+            if(mcu_ota_task() == OK) {
+                net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+            } else {
+                net_engwe_fota_state_push(FOTA_UPDATE_FAIL);
+            }
+        break;
+        case VOICE_PACK_TYPE1:
+        case VOICE_PACK_TYPE2:
+        case VOICE_PACK_TYPE3:
+        case VOICE_PACK_TYPE4:
+        case VOICE_PACK_TYPE5:
+            net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+        break;
+        case ECU_FIRMWARE_TYPE:
+            net_engwe_fota_state_push(FOTA_SATRT_UPDATE);
+            if(can_ota_task(CONTROL_ADR) == OK) {
+                net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+            }
+        break;
+        case BMS1_FIRMWARE_TYPE:
+            net_engwe_fota_state_push(FOTA_SATRT_UPDATE);
+            if(can_ota_task(BMS_ADR) == OK) {
+                net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+            }
+        break;
+        case BMS2_FIRMWARE_TYPE:
+            net_engwe_fota_state_push(FOTA_SATRT_UPDATE);
+            if(can_ota_task(SECOND_BMS_ADR) == OK) {
+                net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+            }
+        break;
+        case HMI_FIRMWARE_TYPE:
+            net_engwe_fota_state_push(FOTA_SATRT_UPDATE);
+            if(can_ota_task(HMI_ADR) == OK) {
+                net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+            }
+        break;
+        case LOCK_FIRMWARE_TYPE:
+            net_engwe_fota_state_push(FOTA_SATRT_UPDATE);
+            if(can_ota_task(LOCK_ADR) == OK) {
+                net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+            }
+        break;
+    }
+}
+int http_pdp_active()
+{
+    static uint8_t step = 0;
+    static uint64_t pdp_time_t;
+    switch(step) {
+        case 0:
+            if(hal_drv_get_net_register_sta() != 1){
+                LOG_E("net register is fail");
+                return -1;
+            } else if(hal_drv_get_data_call_res(http_upgrade_info.profile_idx, NULL) != 1) {
+                hal_drv_set_data_call_asyn_mode(http_upgrade_info.profile_idx, 1);
+                hal_drv_start_data_call(http_upgrade_info.profile_idx, sys_config.apn); 
+                step = 1;
+                pdp_time_t = def_rtos_get_system_tick();
+            } else {
+                return 0;
+            }
+        break;
+        case 1:
+            if(hal_drv_get_data_call_res(http_upgrade_info.profile_idx, NULL)) {
+                step = 0;
+                return 0;
+            } else if((def_rtos_get_system_tick() - pdp_time_t)/1000 > 5*60){
+                step = 0;
+                return -1;
+            }
+            break;
+    }
+    return 1;
 }
 void app_http_ota_thread(void *param)
 {
-    int64_t http_start_time_t;
+ //   int64_t http_start_time_t;
     def_rtosStaus res;
-    uint8_t down_times;
+    int pdp_res;
+//    uint8_t down_times;
     uint8_t temp = 0;
     struct fota_http_client_stu  fota_http_cli_p;
     char version_buf[256] = {0};
@@ -523,6 +658,70 @@ void app_http_ota_thread(void *param)
     LOG_I("current version:  %s", version_buf);
     def_rtos_task_sleep_ms(10000);
     while(1) {  
+        switch(http_upgrade_info.ota_stage)
+        {
+            case HTTP_OTA_WAIT:
+                sys_info.ota_flag = 0;
+                res = def_rtos_semaphore_wait(http_upgrade_info.http_ota_sem, RTOS_WAIT_FOREVER);
+                if(res != RTOS_SUCEESS) {
+                    continue;
+                } 
+                http_upgrade_info.ota_stage = HTTP_OTA_CHECK;
+                sys_info.ota_flag = 1;
+                http_upgrade_info.stop_flag = 0;
+                break;
+            case HTTP_OTA_CHECK:
+                if(sys_info.power_36v == 0) {
+                    net_engwe_fota_state_push(FOTA_NOT_BAT);
+                    http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
+                } else {
+                    http_upgrade_info.ota_stage = HTTP_PDP_ACTIVE;
+                }
+            break;
+            case HTTP_PDP_ACTIVE:
+                pdp_res = http_pdp_active();
+                if(pdp_res == 0) {
+                    http_upgrade_info.ota_stage = HTTP_OTA_INIT;
+                } else if(pdp_res == -1) {
+                    http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
+                }
+                def_rtos_task_sleep_ms(100);
+            break;
+            case HTTP_OTA_INIT:
+                ota_http_init(&fota_http_cli_p);
+                http_upgrade_info.ota_stage = HTTP_OTA_DOWN;
+            break;
+            case HTTP_OTA_DOWN:
+                net_engwe_fota_state_push(FOTA_START_DOWN);   
+                if(ota_http_download_pacfile(&fota_http_cli_p) == 0) {
+                    http_upgrade_info.ota_stage = HTTP_OTA_SUM_CHECK;
+                    hal_drv_stop_data_call(http_upgrade_info.profile_idx);
+                } else {
+                    hal_drv_stop_data_call(http_upgrade_info.profile_idx);   //取消拨号
+                    if(http_upgrade_info.stop_flag == 1) {
+                        
+                    } else {
+                        net_engwe_fota_state_push(FOTA_DOWN_FAIL);
+                    }
+                    http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
+                }
+            break;
+            case HTTP_OTA_SUM_CHECK:
+                memset(sys_info.fota_packname, 0, sizeof(sys_info.fota_packname));
+                memcpy(sys_info.fota_packname, fota_http_cli_p.fota_packname, strlen(fota_http_cli_p.fota_packname));
+                if(http_upgrade_info.crc_sum == fw_check_sum()){
+                    net_engwe_fota_state_push(FOTA_DOWN_SUCCESS);
+                    http_upgrade_info.ota_stage = HTTP_OTA_UPDATA;
+                } else {
+                    net_engwe_fota_state_push(FOTA_DOWN_FAIL);
+                    http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
+                }
+            break;
+            case HTTP_OTA_UPDATA:
+                http_ota_fw_update();
+                http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
+            break;
+        }
             // for(;;){
             //     LOG_I("enter can_ota_task");
             //     if(can_ota_task(HMI_ADR) == OK){
@@ -541,7 +740,7 @@ void app_http_ota_thread(void *param)
         }    
 
     //    LOG_I("IS RUN");
-        res = def_rtos_semaphore_wait(http_upgrade_info.http_ota_sem, RTOS_WAIT_FOREVER);
+   /*     res = def_rtos_semaphore_wait(http_upgrade_info.http_ota_sem, RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) {
             continue;
         } 
@@ -581,7 +780,7 @@ void app_http_ota_thread(void *param)
             }
             def_rtos_task_sleep_s(40);
         }
-        sys_info.ota_flag = 0;
+        sys_info.ota_flag = 0;  */
     }
     def_rtos_task_delete(NULL);
 }

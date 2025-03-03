@@ -13,11 +13,9 @@ set(APP_FILES
     app/src/app_rtc_task.c
     app/src/app_virt_uart.c
     app/src/app_led_ind.c
-    app/src/net_protocol.c
     app/src/net_control.c
     app/src/mcu_uart.c
     app/src/can_protocol.c
-    app/src/net_control.c
     app/src/lock.c
     app/src/http_upgrade_ota.c
     app/src/qmi8658.c

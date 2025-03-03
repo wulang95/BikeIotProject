@@ -13,9 +13,8 @@ extern "C" {
 #define   UNLOCK_VOICE_FILE                 "open_lock.wav"
 #define   ALARM_VOICE_FILE                  "alarm.wav"
 #define   LOOK_CAR_VOICE_FILE               "look_car.mp3"
-#define   ENTER_PENALTY_AREA_VOICE_FILE     "enter_penalty_area.wav"
-#define   ENTER_FEASIBLE_AREA_VOICE_FILE    "enter_feasible_area.wav"  
-
+#define   ENTER_PENALTY_AREA_VOICE_FILE     "alarm.wav"
+#define   DEFINE_VOICE_FILE                 "unfine_file.wav"
 
 
 
@@ -24,8 +23,7 @@ typedef enum {
     UNLOCK_VOICE,
     ALARM_VOICE,
     LOOK_CAR_VOICE,
-    ENTER_PENALTY_AREA_VOICE,
-    ENTER_FEASIBLE_AREA_VOICE
+    ELECTRONIC_FENCE_VOICE,
 } VOICE_TYPE;
 
 

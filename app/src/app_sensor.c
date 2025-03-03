@@ -40,6 +40,7 @@ void imu_algo_timer()     // 10ms调用1次
 
 void qmi8658_sensor_init()
 {
+    int64_t sensor_cali_time_t;
     qst_algo_inti();
     def_rtos_task_sleep_ms(50);
     if(qmi8658_init() != 1) {
@@ -49,6 +50,19 @@ void qmi8658_sensor_init()
 	}
 	iot_error_clean(IOT_ERROR_TYPE, SENSOR_ERROR);
     init_state_recognition(&qmi8658_read_reg);
+    sensor_cali_time_t = def_rtos_get_system_tick();
+    while(1){
+        qmi8658_read_xyz(accl, gyro);
+        def_rtos_task_sleep_ms(50);
+        if(sys_info.static_cali_flag == 1){
+            LOG_I("calic is succeeful");
+            break;
+        }
+        if(def_rtos_get_system_tick() - sensor_cali_time_t > 10000){
+            LOG_E("calic is fail");
+            break;
+        }
+    }
 	LOG_I("qmi8658_sensor_init");
 }
 
@@ -104,10 +118,15 @@ float dynamic_threshold_adjust(float baseline, float current) {
 
 // 报警控制函数
 void trigger_alert() {
-    
+    car_info.filp_state = CAR_RECOVERY_TO_FALL;
+    LOG_I("CAR_RECOVERY_TO_FALL");
+    net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
 }
 
 void cancel_alert() {
+    car_info.filp_state = CAR_FALL_TO_RECOVERY;
+    LOG_I("CAR_FALL_TO_RECOVERY");
+    net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
     LOG_I("CAR IS REV");
 }
 
@@ -139,13 +158,18 @@ void process_state(DetectionContext *ctx) {
             if(svm > dyn_fall_thresh && current_angle > FALL_ANGLE_THRESH) {
                 ctx->state = STATE_FALL_DETECTED;
                 ctx->timestamp = current_time;
+            } else {
+                car_info.filp_state = CAR_NORMAL_STATE;
             }
             break;
         }
         
         case STATE_FALL_DETECTED: {
             if((current_time - ctx->timestamp) > 500) { // 持续500ms确认
-				trigger_alert();
+                if(ctx->alert_active == false) {
+                    trigger_alert();
+                }
+                car_info.filp_state = CAR_FALL_STATE;
 				LOG_I("CAR IS FALL");
                 ctx->alert_active = true;
                 ctx->state = STATE_POST_FALL;
@@ -163,7 +187,6 @@ void process_state(DetectionContext *ctx) {
             
             if((current_time - ctx->timestamp) > POST_FALL_TIME) {
                 ctx->state = STATE_NORMAL;
-                ctx->alert_active = false;
             }
             break;
         }
@@ -175,6 +198,7 @@ void process_state(DetectionContext *ctx) {
                     cancel_alert();
                     ctx->alert_active = false;
                     ctx->state = STATE_NORMAL;
+                    car_info.filp_state = CAR_NORMAL_STATE;
                 }
             } else {
                 ctx->timestamp = current_time; // 重置计时器
@@ -184,9 +208,6 @@ void process_state(DetectionContext *ctx) {
         }
     }
 }
-
-
-
 
 
 void imu_algo_thread(void *param)
@@ -200,10 +221,10 @@ void imu_algo_thread(void *param)
 	};
 	uint16_t cent = 0;
 	def_rtosStaus res;
-	def_rtos_semaphore_wait(NotAliveSensorSem_t, RTOS_WAIT_FOREVER);
 	qmi8658_sensor_init();
-	def_rtos_timer_start(algo_timer, 50, 1);
-	sys_info.algo_timer_run = 1;
+    def_rtos_timer_start(algo_timer, 50, 1);
+    sys_info.algo_timer_run = 1;
+    imu_algo_timer_stop();
 	while(1)
 	{
 		res = def_rtos_semaphore_wait(imu_algo_sem, RTOS_WAIT_FOREVER);
@@ -223,7 +244,9 @@ void imu_algo_thread(void *param)
 			low_pass_filter(accl, ctx.filtered_acc);
 			low_pass_filter(gyro, ctx.filtered_gyro);
 			process_state(&ctx);
-		}
+		} else {
+            car_info.filp_state = CAR_NORMAL_STATE;
+        }
 
 
 		LOG_I("accl[0]:%0.2f, accl[1]:%0.2f, accl[2]:%0.2f", accl[0], accl[1], accl[2]);
@@ -246,8 +269,12 @@ void imu_algo_thread(void *param)
 
 void imu_algo_timer_start()
 {
+    if(sys_info.algo_timer_run == 1) return;
 	sys_info.algo_timer_run = 1;
-	def_rtos_timer_start(algo_timer, 50, 1);
+    LOG_I("imu_algo_timer_start");
+	if(RTOS_SUCEESS != def_rtos_timer_start(algo_timer, 50, 1)){
+        LOG_E("algo_timer is start fail");
+    }
 	QMI8658_Wakeup_Process();
 //	qmi8658_enable_amd(0, 	qmi8658_Int1, 0); 
 //	qmi8658_restart();
@@ -256,8 +283,11 @@ void imu_algo_timer_start()
 
 void imu_algo_timer_stop()
 {
+    if(sys_info.algo_timer_run == 0) return;
 	sys_info.algo_timer_run = 0;
-	def_rtos_timer_stop(algo_timer);
+	if(RTOS_SUCEESS != def_rtos_timer_stop(algo_timer)){
+        LOG_E("algo_timer is stop fail");
+    }
 	qmi8658_enable_amd(1, 	qmi8658_Int1, 1);  //关闭同步
 	LOG_I("imu_algo_timer_stop");
 }

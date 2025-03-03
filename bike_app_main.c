@@ -87,11 +87,6 @@ void app_start_thread(void *param)
         LOG_E("can_protocol_tx_thread is create fail!");
     }
     
-    err = def_rtos_task_create(&net_protocol_send_task, 2048, TASK_PRIORITY_NORMAL, net_protocol_send_thread);
-    if(err != RTOS_SUCEESS){
-        LOG_E("net_protocol_send_thread is create fail!");
-    }
-
     err = def_rtos_task_create(&mcu_uart_send_task, 1024*12, TASK_PRIORITY_NORMAL, mcu_uart_send_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("mcu_uart_send_thread is create fail!");

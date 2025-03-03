@@ -59,6 +59,7 @@ typedef struct {
 
     pdp_active_state_type pdp_state;
     uint8_t pdp_is_active;
+    int profile_idx;
 } PDP_ACTIVE_INFO_STU;
 
 PDP_ACTIVE_INFO_STU pdp_active_info;
@@ -70,6 +71,7 @@ void net_control_init()
     memset(&pdp_active_info, 0, sizeof(pdp_active_info));
     memset(&socket_con_info, 0, sizeof(socket_con_info));
     pdp_active_info.pdp_is_active = 0;
+    pdp_active_info.profile_idx = 1;
     pdp_active_info.pdp_state = PDP_NOT_ACTIVATED;
     socket_con_info.socket_fd = -1;
     socket_con_info.socket_state = SOCKET_STATUS_IDLE;
@@ -117,8 +119,9 @@ static void pdp_active_state_machine(void)
             if(gsm_info.csq > 10 && gsm_info.csq != 99 && cpin == 1 && c_fun == ALL_FUN && net_reg == 1) {
                 pdp_active_info.pdp_state  = PDP_START_ACTIVATION;
                 check_pdp_timeout = def_rtos_get_system_tick();
-                hal_drv_set_data_call_asyn_mode(1);
-                hal_drv_start_data_call(sys_config.apn); 
+                hal_drv_set_data_call_asyn_mode(pdp_active_info.profile_idx,1);
+
+                hal_drv_start_data_call(pdp_active_info.profile_idx, sys_config.apn); 
             }
             if((def_rtos_get_system_tick() - check_csq_timeout)/1000 > 30*60) {
                 LOG_E("sys_reset...");
@@ -128,7 +131,7 @@ static void pdp_active_state_machine(void)
         case PDP_START_ACTIVATION:
             LOG_I("PDP_START_ACTIVATION");
             memset(ip4_adr_str, 0, sizeof(ip4_adr_str));
-            if(hal_drv_get_data_call_res(ip4_adr_str)) {
+            if(hal_drv_get_data_call_res(pdp_active_info.profile_idx,ip4_adr_str)) {
                 pdp_active_info.pdp_state  = PDP_NTP_SYNC;
             }
             if((def_rtos_get_system_tick() - check_pdp_timeout)/1000 > 5*60) {
@@ -137,7 +140,7 @@ static void pdp_active_state_machine(void)
         break;
         case PDP_NTP_SYNC:
             LOG_I("PDP_NTP_SYNC");
-            if(hal_net_ntp_sync() == 0){
+            if(hal_net_ntp_sync(pdp_active_info.profile_idx) == 0){
                 pdp_active_info.pdp_state = PDP_ACTIVATION_SUCCESS;
             } else if((def_rtos_get_system_tick() - check_sync_timeout)/1000 > 30){
                 LOG_E("PDP_NTP_SYNC IS FAIL");
@@ -152,6 +155,7 @@ static void pdp_active_state_machine(void)
             
         break;
         case PDP_ACTIVATION_FAILURE:
+            hal_drv_stop_data_call(pdp_active_info.profile_idx);
             hal_dev_set_c_fun(MIN_FUN, 0);
             LOG_I("PDP_ACTIVATION_FAILURE");
             pdp_active_info.pdp_state  = PDP_NOT_ACTIVATED;
@@ -167,7 +171,6 @@ static void pdp_active_state_machine(void)
 void pdp_active_thread(void *param)
 {
     hal_drv_data_call_register_init();
-    def_rtos_semaphore_wait(NotAlivePdpBlockSem_t, RTOS_WAIT_FOREVER);
     while(1) {
     //    LOG_I("IS RUN");
         pdp_active_state_machine();
@@ -433,13 +436,15 @@ void iot_mqtt_public(const uint8_t *data, uint16_t len)
 {
     LOG_I("pub_topic:%s", mqtt_con_info.pub_topic);
     debug_data_printf("pub_data", data, len);
-    ql_mqtt_publish(&mqtt_con_info.mqtt_cli, mqtt_con_info.pub_topic, (void *)data, len, 0, 0, iot_mqtt_pub_result_cb, NULL);
+    rtc_event_register(NET_HEART_EVENT, sys_param_set.net_heart_interval, 1);
+    ql_mqtt_publish(&mqtt_con_info.mqtt_cli, mqtt_con_info.pub_topic, (void *)data, len, 1, 0, iot_mqtt_pub_result_cb, NULL);
 }
 
 static void iot_mqtt_inpub_data_cb(mqtt_client_t *client, void *arg, int pkt_id, const char *topic, const unsigned char *payload, unsigned short payload_len)
 {
 	LOG_I("sub_topic: %s", topic);
 	LOG_I("payload: %s, payload_len:%d", payload, payload_len);
+    week_time("sys", 30); 
     net_engwe_data_parse((uint8_t *)payload, payload_len);
 }
 
@@ -456,6 +461,7 @@ void iot_mqtt_state_machine()
     if(pdp_active_info.pdp_is_active == 1 && sys_info.ota_flag == 0) {
         switch(mqtt_con_info.state) {
             case MQTT_BIND_SIM_AND_PROFILE:
+                sys_info.paltform_connect = 0;
                 ql_mqtt_client_deinit(&mqtt_con_info.mqtt_cli);
                 if(QL_DATACALL_SUCCESS != ql_bind_sim_and_profile(0, 1, &mqtt_con_info.sim_cid)) {
                     LOG_E("MQTT_BIND_SIM_AND_PROFILE FAIL");
@@ -499,12 +505,15 @@ void iot_mqtt_state_machine()
                 mqtt_con_info.client_info.client_id = gsm_info.imei;
                 mqtt_con_info.client_info.client_user = sys_config.mqtt_client_user;
                 mqtt_con_info.client_info.client_pass = sys_config.mqtt_client_pass;
+                mqtt_con_info.client_info.ssl_cfg = NULL;
                 sprintf(mqtt_con_info.pub_topic, "%s%s", sys_config.mqtt_pub_topic, gsm_info.imei);
                 if(mqtt_con_info.url == NULL) {
                     mqtt_con_info.url = malloc(128);
                     memset(mqtt_con_info.url, 0, 128);
                 }
                 sprintf(mqtt_con_info.url, "%s:%ld", sys_config.ip, sys_config.port);
+                LOG_I("MQTT USER:%s", mqtt_con_info.client_info.client_user);
+                LOG_I("MQTT PASS:%s", mqtt_con_info.client_info.client_pass);
                 LOG_I("MQTT URL:%s", mqtt_con_info.url);
                 ret = ql_mqtt_connect(&mqtt_con_info.mqtt_cli, mqtt_con_info.url, iot_mqtt_connect_result_cb, NULL,\
                  (const struct mqtt_connect_client_info_t *)&mqtt_con_info.client_info, iot_mqtt_state_exception_cb);
@@ -537,6 +546,7 @@ void iot_mqtt_state_machine()
                 LOG_I("MQTT_SET_INPUB");
                 ql_mqtt_set_inpub_callback(&mqtt_con_info.mqtt_cli, iot_mqtt_inpub_data_cb, NULL);
                 mqtt_con_info.state = MQTT_SUB;
+                sys_info.paltform_connect = 1;
             break;
             case MQTT_SUB:
                 mqtt_con_info.sub_res = 0;
@@ -557,6 +567,15 @@ void iot_mqtt_state_machine()
                         free(mqtt_con_info.sub_topic);
                     }
                     mqtt_con_info.state = MQTT_CONNECT_DET;
+                    net_engwe_signed();
+                    /*检测OTA成功 版本不一样说明更新成功*/
+                    if(strcmp(sys_config.soft_ver, SOFTVER) != 0) {
+                        net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+                        memset(sys_config.soft_ver, 0, sizeof(sys_config.soft_ver));
+                        memcpy(sys_config.soft_ver, SOFTVER, strlen(SOFTVER));
+                        SETBIT(sys_set_var.sys_updata_falg, SYS_CONFIG_SAVE);
+                    }
+
                 } else if(def_rtos_get_system_tick() - mqtt_sub_timeout > 12000) {
                     LOG_E("mqtt sub fail:%d", mqtt_client_sub_time);
                     def_rtos_task_sleep_s(mqtt_client_sub_time);
@@ -592,7 +611,6 @@ void iot_mqtt_init()
 
 void net_socket_thread(void *param)
 {
-    def_rtos_semaphore_wait(NotAliveSocketSem_t, RTOS_WAIT_FOREVER);
     iot_mqtt_init();
     while (1)
     {

@@ -9,6 +9,11 @@
 #define FAIL    -1
 
 #define ARRAY_SIZE(Z)   sizeof(Z)/sizeof(Z[0])
+#define SETBIT(dat, bit)  (dat) |= 1<<(bit)
+#define CLEARBIT(dat, bit) (dat) &= ~(1<<(bit))
+#define CHECKBIT(dat, bit) (((dat) >> (bit))&0x01)
+
+
 unsigned int GetCrc32(const unsigned char* pData, unsigned int Len);
 uint16_t Package_CheckSum(uint8_t* pdata, uint32_t len);
 uint16_t  HexSrt_To_Value(uint8_t *Hex,  char *HexSrt, uint16_t HexSrtLen);

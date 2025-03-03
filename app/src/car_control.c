@@ -209,6 +209,9 @@ int car_control_operate_res(CAR_CMD_Q car_cmd_q)
                 return OK;
         break;
         case CAR_CMD_SET_POWER_ON_PASSWORD:
+            if(car_set_save.en_power_on_psaaword == car_info.hmi_info.passwd_en) 
+                return OK;
+        break;
         case CAR_CMD_SET_ATSPHLIGHT_MODE:
         case CAR_CMD_SET_ATSPHLIGHT_COLOR_CUSTOM:
         case CAR_CMD_SET_ATSPHLIGHT_BRIGHTVAL:
@@ -222,6 +225,64 @@ int car_control_operate_res(CAR_CMD_Q car_cmd_q)
     return FAIL;
 }
 
+int look_car_fun(CAR_CMD_Q car_cmd_q)
+{
+    static uint8_t step = 0, i = 0;
+    static int64_t cmd_timeout;
+    uint8_t data[128];
+    uint16_t len;
+        switch(step){
+            case 0:
+                if(car_lock_control(car_cmd_q.src, CAR_UNLOCK_STA) != OK){
+                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
+                    net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                    step = 0;
+                    return -1;
+                } else {
+                    step = 1;
+                    cmd_timeout = def_rtos_get_system_tick();
+                }
+            break;
+            case 1:
+                if((def_rtos_get_system_tick() - cmd_timeout) > 10000) {
+                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
+                    net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                    step = 0;
+                    return -1;
+                } else if(car_info.lock_sta == CAR_UNLOCK_STA) {
+                    step = 2;
+                    i = 0;
+                    if(car_cmd_q.cmd == CAR_LOOK_CAR2) {
+                        voice_play_mark(LOOK_CAR_VOICE);
+                    }
+                    car_set_save.head_light = 1;
+                    car_control_cmd(CAR_CMD_SET_HEADLIGHT);
+                    cmd_timeout = def_rtos_get_system_tick();
+                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x01, 0);
+                    net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                }
+            break;
+            case 2:
+                if(def_rtos_get_system_tick() - cmd_timeout > 500) {
+                    cmd_timeout = def_rtos_get_system_tick();
+                    car_set_save.head_light = i%2;
+                    car_control_cmd(CAR_CMD_SET_HEADLIGHT);
+                    i++;
+                    if(i == 21) {
+                        step = 3;
+                    }
+                }
+            break;
+            case 3:
+                voice_play_off();
+                car_lock_control(car_cmd_q.src, CAR_LOCK_STA);
+                step = 0;
+                return 0;
+            break;
+        }
+        return 1;
+}
+
 void car_control_thread(void *param)
 {
     def_rtosStaus res;
@@ -233,19 +294,31 @@ void car_control_thread(void *param)
         res = def_rtos_queue_wait(car_cmd_que, (uint8_t *)&car_cmd_q, sizeof(CAR_CMD_Q), RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) continue;
         cmd_timeout = def_rtos_get_system_tick();
-        if(car_cmd_q.cmd == CAR_CMD_LOCK) {
-            if(car_lock_control(car_cmd_q.cmd, CAR_LOCK_STA) != OK){
+        if(car_cmd_q.cmd == CAR_LOOK_CAR1 || car_cmd_q.cmd == CAR_LOOK_CAR2) {
+            for(;;){
+                if(look_car_fun(car_cmd_q) == 1){
+                    def_rtos_task_sleep_ms(5);
+                } else {
+                    break;
+                }
+            }
+            continue;
+        } else if(car_cmd_q.cmd == CAR_CMD_LOCK) {
+            if(car_lock_control(car_cmd_q.src, CAR_LOCK_STA) != OK){
                 len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
                 net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                continue;
             }
         } else if(car_cmd_q.cmd == CAR_CMD_UNLOCK) {
-            if(car_lock_control(car_cmd_q.cmd, CAR_UNLOCK_STA) != OK){
+            if(car_lock_control(car_cmd_q.src, CAR_UNLOCK_STA) != OK){
                 len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
                 net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                continue;
             }
         } else if(car_control_cmd(car_cmd_q.cmd) != OK) {
             len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
             net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+            continue;
         }
         for(;;) {
             if(def_rtos_get_system_tick() - cmd_timeout > 10000) {
@@ -269,7 +342,8 @@ void car_init()
     def_rtos_queue_create(&car_cmd_que, sizeof(CAR_CMD_Q), 5);
     memset(&car_info, 0, sizeof(car_info));
     def_rtos_timer_create(&key_timer, NULL, key_timer_fun, NULL); 
-
+    car_info.car_unlock_state = CAR_UNLOCK_STILL;  //车辆静止
+    car_info.filp_state = CAR_NORMAL_STATE;
  //   car_set_save.mileage_unit= 1;
   //  car_control_cmd(CAR_CMD_SET_ATSPHLIGHT_COLOR_CUSTOM);
  //   car_control_cmd(CAR_CMD_SET_MILEAGE_UNIT);
@@ -280,13 +354,13 @@ void car_init()
 int car_lock_control(uint8_t src, uint8_t lock_operate)
 {
     static int64_t lock_time_t = 0;
-    if(sys_info.power_36v == 0) return FAIL;
     if(lock_operate == car_info.lock_sta) {
         return OK;
     }
-     if(def_rtos_get_system_tick() - lock_time_t < 5000 && car_info.lock_sta == CAR_LOCK_STA) {
+    if(sys_info.power_36v == 0) return FAIL;
+    if(def_rtos_get_system_tick() - lock_time_t < 5000 && car_info.lock_sta == CAR_LOCK_STA) {
         return FAIL;
-     }
+    }
     LOG_I("%d, %d", src, lock_operate);
     if(lock_operate == CAR_LOCK_STA) {
         lock_time_t = def_rtos_get_system_tick();

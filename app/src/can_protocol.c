@@ -67,7 +67,7 @@ static struct can_control_cmd_stu can_control_cmd_table[] = {
     {0XF4,  0X60,   0X02,   1}, //CMD_BMS_SET_CHARGE_SOC
     {0XF4,  0X14,   0X01,   1}, //CMD_BMS_DISCHARGE_SW
     {0XF4,  0X14,   0X02,   1}, //CMD_DOUBLE_BMS_WORK_MODE
-    {0X59,  0X60,   0X01,   2}, //CMD_CHARGE_POWER
+    {0X56,  0X60,   0X01,   2}, //CMD_CHARGE_POWER
 };
 
 
@@ -97,7 +97,8 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                     LOG_I("POWER_OFF");
                     car_info.hmi_info.power_on = 0;
                     if(car_info.lock_sta == CAR_UNLOCK_STA) {
-                         week_time("lock", 10);
+                         week_time("lock", 180);
+                         regular_heart_update();
                          voice_play_mark(LOCK_VOICE);   
                          car_info.lock_sta = CAR_LOCK_STA;
                          LOG_I("HMI_CMD_LOCK_SRC CAR_LOCK_STA");
@@ -124,6 +125,7 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                 //     }
                 // }
                 // last_power = car_info.hmi_info.power_on;
+                car_info.hmi_info.passwd_en = CHECKBIT(data[0], 6);
                 debug_data_printf("HMI_MATCH_INFO", data, data_len);
             break;
             case HMI_DATA:
@@ -139,6 +141,7 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                 if((7&(data[1]>>4)) == 2 && car_info.hmi_info.power_on == 1) {
                     if(car_info.lock_sta == CAR_LOCK_STA) {
                         car_info.lock_sta = CAR_UNLOCK_STA;
+                        regular_heart_update();
                         week_time("lock", -1); 
                         voice_play_mark(UNLOCK_VOICE);
                         LOG_I("HMI_CMD_LOCK_SRC CAR_UNLOCK_STA");
@@ -277,7 +280,11 @@ static void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                 car_info.bus_voltage = data[6] << 8 | data[5];
            //     debug_data_printf("CONTROL_DATA8", data, data_len);
             break;
-            
+            case CONTROL_DATA9:
+                car_info.cycle_total_time_h = ((data[4] << 16|data[3] << 8|data[2])/60)*10;  //返回分钟
+                car_info.m_agv_pedal_speed = data[1];
+                car_info.total_agv_pedal_speed = data[5];
+            break;
             case CONTROL_HWVER1:
                 memcpy(&car_info.control_hw_ver[0], (char *)&data[0], 8);
                 LOG_I("control_hw_ver:%s", car_info.control_hw_ver);
@@ -573,6 +580,19 @@ static void lock_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
     }
 }
 
+static void charger_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
+{
+    if(pdu.pdu1 >= 240) {
+        switch(pdu.pdu2) {
+            case CHARGER_STATE_INFO:
+                car_info.quick_charger_det = CHECKBIT(data[0], 4);
+                
+            break;
+        }
+
+    }
+}
+
 static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
 {
     CAN_PDU_STU can_pdu;
@@ -608,7 +628,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
         memcpy(trans_can_control.rq_data, rx_can_frame.Data, 8);
         switch(trans_can_control.src) {
             case CAN_NET_TRANS:
-            NET_CMD_MARK(NET_CMD_CAN_TRANS_Z0);
+            
             break;
             default:
             break;
@@ -684,6 +704,9 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
             car_info.lock_connect = 1;
             check_bms_timeout = def_rtos_get_system_tick();
             lock_info_handle(can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
+        break;
+        case CHARGER_ADR:
+            charger_info_handle(can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
         break;
     }
     LOG_I("SEND_ID:%08X, CAN_ID:%08x", can_send_cmd.can_tx_frame.ExtID, rx_can_frame.RBUF32_0);
@@ -1461,7 +1484,7 @@ void can_ota_quit()
 
 int can_ota_task(DEV_ID dev_id)
 {
-    can_ota_con.ota_step = OTA_IDEL_STEP;
+    int64_t can_ota_start_time_t;
     if(can_ota_con.ota_step != OTA_IDEL_STEP) return FAIL;
     can_ota_con.ota_step = OTA_QUEST_STEP;
     MCU_CMD_MARK(CMD_GPS_POWEROFF_INDEX);
@@ -1484,6 +1507,7 @@ int can_ota_task(DEV_ID dev_id)
         LOG_E("can_ota_data_uart.data_finish_sem is create fail");
         return FAIL;
     }
+    can_ota_start_time_t = def_rtos_get_system_tick();
     while (1)
     {
         switch (can_ota_con.ota_step)
@@ -1519,6 +1543,9 @@ int can_ota_task(DEV_ID dev_id)
             break;
         }
         def_rtos_task_sleep_ms(100);
+        if(def_rtos_get_system_tick() - can_ota_start_time_t > 15 * 60 *1000){
+            return FAIL;
+        }
     }
     return OK;
 }

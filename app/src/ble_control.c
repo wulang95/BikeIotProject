@@ -153,6 +153,7 @@ static void ble_ota_end()
 
 int ble_ota_task()
 {
+    int64_t ble_ota_start_time_t;
     if(ble_ota_ctrl.ota_sta != BLE_OTA_IDEL_STEP) return FAIL;
     ble_ota_ctrl.data = malloc(128);
     if(ble_ota_ctrl.data == NULL) return FAIL;
@@ -167,6 +168,7 @@ int ble_ota_task()
     ble_ota_ctrl.ota_res = 0xff;
     ble_ota_ctrl.data_len = 0;
     ble_ota_ctrl.pack_num = 0;
+    ble_ota_start_time_t = def_rtos_get_system_tick();
     while(1){
         switch(ble_ota_ctrl.ota_sta){
             case BLE_OTA_START_STEP:
@@ -197,6 +199,9 @@ int ble_ota_task()
                 def_rtos_semaphore_delete(ble_ota_ctrl.con_sem_t);
                 return FAIL;
             break;
+        }
+        if(def_rtos_get_system_tick() - ble_ota_start_time_t > 10*60*1000){
+            return FAIL;
         }
     }
 }
@@ -454,7 +459,7 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
         case CMD_BLE_ENTER_SLEEP:
             break;
         case CMD_BLE_HID_UNLOCK:   //持续检测到蓝牙信号，无关远离和靠近
-            if(sys_set_var.hid_lock_sw) {
+            if(sys_param_set.hid_lock_sw) {
                 // if(sys_set_var.hid_lock_sw_type == 0) {
                 //     car_lock_control(HID_CAR_CMD_SER, CAR_UNLOCK_STA);
                 //     ble_cmd_mark(CMD_BLE_HID_UNLOCK);
@@ -468,7 +473,7 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
             ble_cmd_mark(BLE_HID_UNLOCK_INDEX);
             break;
         case CMD_BLE_HID_LOCK:  //持续检测到蓝牙信号，无关远离和靠近
-            if(sys_set_var.hid_lock_sw) {
+            if(sys_param_set.hid_lock_sw) {
                 if(car_info.hmi_info.power_on && car_info.lock_sta == CAR_LOCK_STA){
                     car_control_cmd(CAR_CMD_JUMP_PASSWORD);
                     rtc_event_unregister(CAR_SET_EN_POWER_PASSWD);
