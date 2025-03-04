@@ -107,6 +107,7 @@ struct sys_param_set_stu {
     uint16_t shock_sensitivity;
     uint8_t farme_type;
     uint8_t fw_id[8];
+    uint16_t ota_seq;
     uint32_t crc32;
 };
 
@@ -255,7 +256,7 @@ struct sys_set_var_stu{
 
 #pragma pack()
 
-#define SOFTVER "1.1"
+#define SOFTVER "1.2"
 #define HWVER   "1.0"
 #define DEFAULT_MANUFACTURER  "EG" 
 #define DEFAULT_DNS "114.114.114.114"
@@ -277,7 +278,7 @@ struct sys_set_var_stu{
 #define BLE_NAME    "ENGWE"
 #define BLE_SUUID   0X1820
 
-#define OTA_FILE    "UFS:ble_simple_peripheral.bin"
+#define OTA_FILE    "UFS:fota.pack"
 
 extern SHAPE_SET sheepfang_data;
 extern SHAPE_SET forbidden_zone_data;
@@ -301,4 +302,5 @@ void sys_power_off_time_set(uint8_t time);
 void sys_log_out(const char *fmt, ...);
 void app_system_log_out_thread(void *param);
 void regular_heart_update();
+void flash_ota_close();
 #endif

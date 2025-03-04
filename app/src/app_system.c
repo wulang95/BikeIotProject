@@ -201,9 +201,9 @@ int flash_partition_size(FLASH_PARTITION flash_part)
             if(ota_fd > 0) {
                 return ql_fsize(ota_fd);
             } else {
-                ota_fd = ql_fopen(OTA_FILE, "rb+");
+                ota_fd = ql_fopen(sys_info.fota_packname, "rb+");
                 if(ota_fd < 0) {
-                    LOG_E("%s open fail", OTA_FILE);
+                    LOG_E("%s open fail", sys_info.fota_packname);
                     return  FAIL;
                 }
                 return ql_fsize(ota_fd);
@@ -213,6 +213,12 @@ int flash_partition_size(FLASH_PARTITION flash_part)
         break;
     }
     return OK;
+}
+
+void flash_ota_close()
+{
+    ql_fclose(ota_fd);
+    ota_fd = -1;
 }
 
 void sys_param_save(FLASH_PARTITION flash_part)
@@ -375,7 +381,7 @@ static void sys_param_set_default_init()
 
 static void sys_param_set_init()
 {
-    sys_param_set_default_init();
+ //   sys_param_set_default_init();
     flash_partition_read(SYS_SET_ADR, (void *)&sys_param_set, sizeof(sys_param_set), 0);
     if(sys_param_set.magic != IOT_MAGIC || sys_param_set.crc32 != GetCrc32((uint8_t *)&sys_param_set, sizeof(sys_param_set) - 4)) {
         sys_param_set_default_init();
@@ -448,7 +454,7 @@ static void sys_config_default_init()
 
 void sys_config_init()
 {
-    sys_config_default_init();
+ //   sys_config_default_init();
     flash_partition_read(SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
     if(sys_config.magic != IOT_MAGIC || sys_config.crc32 != GetCrc32((uint8_t *)&sys_config, sizeof(sys_config) - 4)) {
         flash_partition_read(BACK_SYS_CONFIG_ADR, (void *)&sys_config_back, sizeof(sys_config_back), 0);
@@ -538,13 +544,12 @@ void app_system_thread(void *param)
         if(res != RTOS_SUCEESS) {
             continue;
         }
-
         if(Gps.GpsPower == GPS_POWER_ON) {
             if(def_rtos_get_system_tick() - gps_resh_time_t > 3*1000 && (iot_error_check(IOT_ERROR_TYPE, GPS_ERROR) == 0)) {
                 iot_error_set(IOT_ERROR_TYPE, GPS_ERROR);
             }   
         }
-
+        iot_can_heart_fun();
         if(sys_set_var.sys_updata_falg != 0) {
             if(sys_set_var.sys_updata_falg & (1 << SYS_SET_SAVE)) {
                 sys_set_var.sys_updata_falg &= ~(1 << SYS_SET_SAVE);
@@ -748,15 +753,10 @@ void app_system_thread(void *param)
             net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
             car_info.charger_state = CHARGER_NONE_STA;
         }
-        if(car_info.quick_charger_det == 0 && car_info.quick_charger_flag == 1){
-            car_info.quick_charger_flag = 0;
-            car_info.charger_state = CHARGER_PUG_OUT;
-            LOG_I("CHARGER_PUG_OUT");
-            net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
-            car_info.charger_state = CHARGER_NONE_STA;
-        } 
         if(car_info.bms_info[0].charge_det == 0 && car_info.charger_det_flag == 1){
             car_info.charger_det_flag = 0;
+            car_info.quick_charger_det = 0;
+            car_info.quick_charger_flag = 0;
             car_info.charger_state = CHARGER_PUG_OUT;
             LOG_I("CHARGER_PUG_OUT");
             net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
@@ -860,6 +860,7 @@ void sys_param_init()
     forbidden_zone_data_init();
     sensor_cali_param_init();
     sys_info.shock_sw_state = sys_param_set.shock_sw;
+    memcpy(sys_info.fota_packname, OTA_FILE, strlen(OTA_FILE));
     LOG_I("OTA_CNT:%d", sys_param_set.ota_cnt);   
 }
 

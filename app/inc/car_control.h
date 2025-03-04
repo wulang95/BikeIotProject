@@ -254,6 +254,8 @@ struct car_info_stu {
     uint8_t charger_det_flag :1;
     uint8_t charger_full_flag :1;
     uint8_t charger_state;
+    uint16_t charge_vol;   //单位0.1V
+    uint8_t charge_cur;   //单位0.1A
     char control_hw_ver[16];
     char control_soft_ver[16];
     char control_sn[32];

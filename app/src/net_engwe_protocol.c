@@ -579,7 +579,11 @@ static uint16_t net_engwe_cmdId_bms_charge_info(uint8_t *p)
     p[lenth++] = 0;
     p[lenth++] = 4;
     p[lenth++] = sys_param_set.bms_charge_soc;
-    p[lenth++] = sys_param_set.bms_charge_current;
+    if(car_info.quick_charger_det) {
+        p[lenth++] = sys_param_set.bms_charge_current;
+    } else {
+        p[lenth++] = 0;
+    }
     return lenth;
 }
 
@@ -594,8 +598,11 @@ static void net_engwe_cmdId_bms_charge_set(uint8_t *data, uint16_t len, uint16_t
     sys_param_set.bms_charge_soc = data[0];
     sys_param_set.bms_charge_current = data[1];
     sys_set_var.sys_updata_falg |= 1;
-    car_control_cmd(CAR_BMS_CHARGE_SOC_SET);
-    car_control_cmd(CAR_BMS_CHARGE_CURRENT_SET);
+    if(car_info.quick_charger_det) {
+    //    car_control_cmd(CAR_BMS_CHARGE_SOC_SET);
+        car_control_cmd(CAR_BMS_CHARGE_CURRENT_SET);
+    }
+    
     lenth = net_engwe_cmdId_bms_charge_info(buf);
     net_engwe_pack_seq_up(CONFIG_FEEDBACK_UP, buf, lenth, seq);
 }
@@ -1026,7 +1033,7 @@ static uint16_t net_engwe_cmdId_forbidden_info(uint8_t *p)
     uint8_t i;
     int lat, lon;
     uint16_t radius;
-    u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[SHEEPFANG_SET_CMD]);
+    u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[FORBIDDEN_ZONE_SET_CMD]);
     lenth += 4; 
     lenth += 2;
     if(forbidden_zone_data.shape_type == CIRCLE) {
@@ -1425,8 +1432,9 @@ void net_engwe_fota_state_push(uint8_t ota_state)
         break;
     }
     memcpy(&buf[lenth], sys_param_set.fw_id, 8);
+    lenth += 8;
     buf[lenth++] = ota_state;
-    net_engwe_pack_up(STATUS_PUSH_UP, buf, lenth);
+    net_engwe_pack_seq_up(STATUS_PUSH_UP, buf, lenth, sys_param_set.ota_seq);
     free(buf);
 }
 
@@ -1440,7 +1448,7 @@ static void net_engwe_fota_deal(uint8_t *data, uint16_t len, uint16_t seq)
         net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
         res = FOTA_SERVE_STOP;
         http_upgrade_stop();
-    } else if(data[0] == 0x01) {
+    } else if(data[0] == 0x01 && (len == (16 + data[7])) && (data[7]!= 0)) {
         if(data[1] == 0x02){
             switch(data[2]) {
                 case 0x01:
@@ -1488,7 +1496,8 @@ static void net_engwe_fota_deal(uint8_t *data, uint16_t len, uint16_t seq)
         if(data[7] > 0) {
             memset(http_upgrade_info.url, 0, 255);
             memcpy(http_upgrade_info.url, &data[8], data[7]);
-        }
+            LOG_I("URL:%s", http_upgrade_info.url);
+        } 
         net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
         res = FOTA_IOT_RECV;
         http_upgrade_start();
@@ -1496,7 +1505,8 @@ static void net_engwe_fota_deal(uint8_t *data, uint16_t len, uint16_t seq)
         net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
         return;
     }
-    memcpy(sys_param_set.fw_id, &data[len - 10], 8);
+    sys_param_set.ota_seq = seq;
+    memcpy(&sys_param_set.fw_id[0], &data[len - 8], 8);
     SETBIT(sys_set_var.sys_updata_falg, SYS_SET_ADR);
     buf = malloc(64);
     if(buf == NULL){
@@ -1505,10 +1515,10 @@ static void net_engwe_fota_deal(uint8_t *data, uint16_t len, uint16_t seq)
     u32_big_to_litel_end_sw(&buf[lenth], CmdIdTable[OTA_STATE_INFO_CMD]);
     lenth +=4;
     buf[lenth++] = 0x00;
-    buf[lenth++] = 9;
+    buf[lenth++] = 0x0D;
     buf[lenth++] = data[1];
     buf[lenth++] = data[2];
-    memcpy(&buf[lenth], &data[len - 10], 8);
+    memcpy(&buf[lenth], &data[len - 8], 8);
     lenth += 8;
     buf[lenth++] = res;
     net_engwe_pack_seq_up(STATUS_PUSH_UP, buf, lenth, seq);

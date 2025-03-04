@@ -24,7 +24,7 @@ enum OTA_STEP{
 struct can_ota_con_stu can_ota_con;
 struct trans_can_control_stu  trans_can_control;
 def_rtos_queue_t can_tx_que;
-static int64_t check_hmi_timeout, check_control_timeout,check_lock_timeout, check_bms_timeout;
+static int64_t check_hmi_timeout, check_control_timeout,check_lock_timeout, check_bms_timeout,check_bms2_timeout, check_lock_timeout;
 CAN_SEND_CMD_STU can_send_cmd;
 
 struct can_cmd_order_s {
@@ -371,7 +371,7 @@ static void bms_info_handle(uint8_t bms_num, PDU_STU pdu, uint8_t *data, uint8_t
             break;
             case BMS_CELL_VOL1:
                 car_info.bms_info[bms_num].pack_series_number = data[0];
-                car_info.bms_info[bms_num].pack_series_number = data[1];
+                car_info.bms_info[bms_num].pack_parallel_number = data[1];
                 car_info.bms_info[bms_num].cell_val[0] = data[3] << 8 | data[2];
                 car_info.bms_info[bms_num].cell_val[1] = data[5] << 8 | data[4];
                 car_info.bms_info[bms_num].cell_val[2] = data[7] << 8 | data[6];
@@ -412,6 +412,9 @@ static void bms_info_handle(uint8_t bms_num, PDU_STU pdu, uint8_t *data, uint8_t
                 car_info.bms_info[bms_num].charge_mos = data[2]&0x01;
                 car_info.bms_info[bms_num].discharge_mos = (data[2]>>1)&0x01;
                 car_info.bms_info[bms_num].chargefull_sta = (data[2]>>2)&0x01;
+                if(car_info.bms_info[bms_num].chargefull_sta) {
+                    can_png_quest(BMS_ADR, BMS_BATTRY_PACK_RECORDDATA, 0);
+                }
                 car_info.bms_info[bms_num].double_bms_sta = data[3]&0x03;
                 car_info.bms_info[bms_num].charge_remain_time = data[5] << 8 | data[4];
                 car_info.bms_info[bms_num].design_val = data[6];
@@ -580,13 +583,15 @@ static void lock_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
     }
 }
 
+
 static void charger_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
 {
     if(pdu.pdu1 >= 240) {
         switch(pdu.pdu2) {
             case CHARGER_STATE_INFO:
-                car_info.quick_charger_det = CHECKBIT(data[0], 4);
-                
+                car_info.quick_charger_det = CHECKBIT(data[0], 4) == 0 ? 1: 0;
+                car_info.charge_vol = data[3] << 8 | data[2];
+                car_info.charge_cur = data[4];
             break;
         }
 
@@ -675,6 +680,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                 can_png_quest(BMS_ADR, BMS_HW_VER_A, 0);
             //    can_png_quest(BMS_ADR, BMS_HW_VER_B, 0);
                 can_png_quest(BMS_ADR, BMS_HW_VER_B, 0);
+                can_png_quest(BMS_ADR, BMS_BATTRY_PACK_RECORDDATA, 0);
             } 
             car_info.bms_info[0].connect= 1;
             check_bms_timeout = def_rtos_get_system_tick();
@@ -692,7 +698,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                 can_png_quest(SECOND_BMS_ADR, BMS_HW_VER_B, 0);
             } 
             car_info.bms_info[1].connect = 1;
-            check_bms_timeout = def_rtos_get_system_tick();
+            check_bms2_timeout = def_rtos_get_system_tick();
             bms_info_handle(1, can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
         break;
         case LOCK_ADR:
@@ -702,7 +708,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                 can_png_quest(LOCK_ADR, ELECTRONIC_LOCK_SOFT_VER, 0);
             }
             car_info.lock_connect = 1;
-            check_bms_timeout = def_rtos_get_system_tick();
+            check_lock_timeout = def_rtos_get_system_tick();
             lock_info_handle(can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
         break;
         case CHARGER_ADR:
@@ -1131,6 +1137,7 @@ void iot_en_power_on_passwd()
     car_set_save.en_power_on_psaaword = 1;
     car_control_cmd(CAR_CMD_EN_POWER_ON_PASSWORD);
 }
+/*
 static void iot_can_match_fun()
 {
     CAN_PDU_STU can_pdu;
@@ -1190,27 +1197,36 @@ static void iot_can_state_fun()
         LOG_E("def_rtos_queue_release is fail");
     }
 }
-
+*/
 void iot_can_heart_fun()
 {
     static uint32_t time_s = 0;
     if(time_s % 3 == 0) {
-        iot_can_match_fun();
+ //       iot_can_match_fun();
     }
     if(time_s % 2 == 0) {
-        iot_can_state_fun();
+//        iot_can_state_fun();
+    }
+    if(def_rtos_get_system_tick() - check_bms2_timeout > 5000) {
+        car_info.bms_info[1].init = 0;
+        car_info.bms_info[1].connect = 0;
     }
     if(def_rtos_get_system_tick() - check_hmi_timeout > 5000) {
         car_info.hmi_connnect = 0;
+        car_info.hmi_info.init = 0;
     }
     if(def_rtos_get_system_tick() - check_bms_timeout > 5000) {
+        car_info.bms_info[0].connect = 0;
+        car_info.bms_info[0].init = 0;
         ;//
     }
     if(def_rtos_get_system_tick() - check_control_timeout > 5000) {
         car_info.control_connect = 0;
+        car_info.con_init = 0;
     }
     if(def_rtos_get_system_tick() - check_lock_timeout > 5000) {
         car_info.lock_connect = 0;
+        car_info.electronic_lock.init = 0;
     }
     time_s++;
 }
@@ -1227,10 +1243,17 @@ void can_protocol_init()
 }
 
 struct can_ota_data_uart_stu can_ota_data_uart;
-
+static int64_t can_ota_time_t;
 static void can_ota_enter()
 {
-    if(can_ota_con.last_ota_step == can_ota_con.ota_step) return;
+    if(can_ota_con.last_ota_step == can_ota_con.ota_step) {
+        if(def_rtos_get_system_tick() - can_ota_time_t > 10000) {
+            LOG_E("can_ota_enter is error");
+            can_ota_con.ota_step = OTA_QUIT_STEP;
+        }
+        return;
+    }
+    can_ota_time_t = def_rtos_get_system_tick();
     stc_can_rxframe_t can_fram = {0};
     CAN_PDU_STU can_id_s;
     def_rtosStaus res;
@@ -1255,7 +1278,6 @@ static void can_ota_enter()
     can_fram.Data[7] = 0x41;
     LOG_I("enter ota");
     MCU_CMD_MARK(CMD_CAN_OTA_START_INDEX);
-
     res = def_rtos_queue_release(can_tx_que, sizeof(stc_can_rxframe_t), (uint8_t *)&can_fram, RTOS_WAIT_FOREVER);
     if(res != RTOS_SUCEESS) {
         LOG_E("def_rtos_queue_release is fail");
@@ -1294,7 +1316,14 @@ static uint16_t CalcCRC16(uint8_t *data, uint32_t len)
 
 static void can_ota_head(uint8_t retry)
 {
-    if(can_ota_con.last_ota_step == can_ota_con.ota_step) return;
+    if(can_ota_con.last_ota_step == can_ota_con.ota_step) {
+        if(def_rtos_get_system_tick() - can_ota_time_t > 10000) {
+            LOG_E("can_ota_head is error");
+            can_ota_con.ota_step = OTA_QUIT_STEP;
+        }
+        return;
+    }
+    can_ota_time_t = def_rtos_get_system_tick();
     stc_can_rxframe_t can_fram = {0};
     CAN_PDU_STU can_id_s;
     def_rtosStaus res;
@@ -1408,10 +1437,16 @@ static void can_ota_mcu_data_finish()
 
 static void can_ota_tail()
 {
-    if(can_ota_con.last_ota_step == can_ota_con.ota_step) return;
+    if(can_ota_con.last_ota_step == can_ota_con.ota_step) {
+        if(def_rtos_get_system_tick() - can_ota_time_t > 10000) {
+            LOG_E("can_ota_tail is fail");
+        }
+        return;
+    }
     stc_can_rxframe_t can_fram = {0};
     CAN_PDU_STU can_id_s;
     def_rtosStaus res;
+    can_ota_time_t = def_rtos_get_system_tick();
     can_id_s.src = IOT_ADR;
     can_id_s.pdu.da = can_ota_con.dev_id;
     can_id_s.pdu.pdu1 = 0xD3;
@@ -1485,9 +1520,10 @@ void can_ota_quit()
 int can_ota_task(DEV_ID dev_id)
 {
     int64_t can_ota_start_time_t;
+    can_ota_con.ota_step = OTA_IDEL_STEP;
     if(can_ota_con.ota_step != OTA_IDEL_STEP) return FAIL;
     can_ota_con.ota_step = OTA_QUEST_STEP;
-    MCU_CMD_MARK(CMD_GPS_POWEROFF_INDEX);
+    GPS_stop();
     can_ota_con.last_ota_step = OTA_IDEL_STEP;
     can_ota_con.totalen = flash_partition_size(DEV_APP_ADR);
     if(can_ota_con.totalen%4096) {

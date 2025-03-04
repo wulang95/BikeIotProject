@@ -142,19 +142,44 @@ int car_control_cmd(uint8_t cmd)
     case CAR_BMS_CHARGE_CURRENT_SET:
         switch(sys_param_set.bms_charge_current){
             case 2:
-                charge_power = 84;
+                if(car_info.bms_info[0].pack_series_number == 10){
+                    charge_power = 84;
+                }
+                else if(car_info.bms_info[0].pack_series_number == 13) {
+                    charge_power = 110;
+                }
             break;
             case 4:
-                charge_power = 168;
+                if(car_info.bms_info[0].pack_series_number == 10) {
+                    charge_power = 168;
+                }
+                else if(car_info.bms_info[0].pack_series_number == 13) {
+                    charge_power = 220;
+                }
             break;
             case 6:
-                charge_power = 252;
+                if(car_info.bms_info[0].pack_series_number == 10) {
+                    charge_power = 252;
+                }
+                else if(car_info.bms_info[0].pack_series_number == 13) {
+                    charge_power = 328;
+                }
             break;
             case 8:
-                charge_power = 336;
+                if(car_info.bms_info[0].pack_series_number == 10) {
+                    charge_power = 336;
+                }
+                else if(car_info.bms_info[0].pack_series_number == 13) {
+                    charge_power = 440;
+                }
             break;
             default:
+            if(car_info.bms_info[0].pack_series_number == 10){
                 charge_power = 84;
+            }
+            else if(car_info.bms_info[0].pack_series_number == 13) {
+                charge_power = 110;
+            }
             break;
         }
         iot_can_cmd_control(CMD_CHARGE_POWER, (uint8_t *)&charge_power, 0);

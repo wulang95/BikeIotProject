@@ -154,6 +154,7 @@ static void ble_ota_end()
 int ble_ota_task()
 {
     int64_t ble_ota_start_time_t;
+    ble_ota_ctrl.ota_sta = BLE_OTA_IDEL_STEP;
     if(ble_ota_ctrl.ota_sta != BLE_OTA_IDEL_STEP) return FAIL;
     ble_ota_ctrl.data = malloc(128);
     if(ble_ota_ctrl.data == NULL) return FAIL;

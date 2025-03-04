@@ -148,6 +148,7 @@ void mcu_ota_end()
 int mcu_ota_task()
 {
     int64_t mcu_ota_start_time_t;
+    mcu_ota_ctrl.ota_sta = MCU_OTA_IDEL_STEP;
     if(mcu_ota_ctrl.ota_sta != MCU_OTA_IDEL_STEP) return FAIL;
     mcu_ota_ctrl.data = malloc(128);
     if(mcu_ota_ctrl.data == NULL) return FAIL;
