@@ -160,11 +160,9 @@ struct polygon_p_stu {
 typedef struct {
     uint32_t magic;
     SHAPE_E shape_type;
-    union 
-    {
-        struct circle_p_stu circle;
-        struct polygon_p_stu polygon;
-    };
+    struct circle_p_stu circle;
+    struct polygon_p_stu polygon;
+    uint32_t res;
     uint32_t crc32;
 }SHAPE_SET;
 

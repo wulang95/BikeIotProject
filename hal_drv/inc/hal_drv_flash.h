@@ -9,9 +9,9 @@
 
 
 
-uint8_t hal_drv_flash_write(uint32_t addr, void *data, size_t len);
-uint8_t  hal_drv_flash_read(uint32_t addr, void *data, size_t len);
-uint8_t hal_drv_flash_erase(uint32_t addr, size_t len);
+int hal_drv_flash_write(uint32_t addr, void *data, size_t len);
+int hal_drv_flash_read(uint32_t addr, void *data, size_t len);
+int hal_drv_flash_erase(uint32_t addr, size_t len);
 
 
 

@@ -249,7 +249,7 @@ void net_engwe_pack_seq_up(uint8_t cmd_type, uint8_t *cmd_data, uint16_t cmd_len
     uint8_t *puf;
     uint16_t puf_len = 0;
     uint32_t timesp;
-    puf = malloc(512);
+    puf = malloc(1024);
     if(puf == NULL){
         return;
     }
@@ -283,7 +283,7 @@ static void net_engwe_pack_up(uint8_t cmd_type, uint8_t *cmd_data, uint16_t cmd_
     uint16_t puf_len = 0;
     uint32_t timesp;
     static uint16_t seq = 0;
-    puf = malloc(512);
+    puf = malloc(1024);
     if(puf == NULL){
         return;
     }
@@ -952,8 +952,8 @@ static uint16_t net_engwe_cmdId_sheepfang_info(uint8_t *p)
         u16_big_to_litel_end_sw(&p[lenth], radius);
         lenth += 2;
     } else if(sheepfang_data.shape_type == POLYGON){
-        p[lenth++] = 0x02;
-        p[lenth++] = sheepfang_data.polygon.point_num;
+         p[lenth++] = 0x02;
+         p[lenth++] = sheepfang_data.polygon.point_num;
         for(i = 0; i < sheepfang_data.polygon.point_num; i++){
             lat = (int)(sheepfang_data.polygon.p[i].lat*1000000);
             u32_big_to_litel_end_sw(&p[lenth], lat);
@@ -1197,7 +1197,6 @@ static void net_engwe_cmdId_forbidden_set(uint8_t *data, uint16_t len, uint16_t 
     net_engwe_pack_seq_up(CONFIG_FEEDBACK_UP, buf, lenth, seq);
 }
 
-
 void net_engwe_signed()
 {
     net_engwe_pack_up(SIGN_IN_UP, NULL, 0);
@@ -1208,7 +1207,7 @@ static void net_engwe_cmdId_param_query(uint32_t cmdId, uint16_t seq)
     uint8_t i;
     uint8_t *p;
     uint16_t lenth = 0;
-    p = malloc(512);
+    p = malloc(1024);
     if( p == NULL){
         net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
         return;
@@ -1570,7 +1569,7 @@ static void net_engwe_cmdId_handle(uint8_t cmd_type, uint32_t cmdId, uint16_t se
              } 
         break;
         case QUERY_INFORMATION_DOWN:  
-            if(cmdId != CmdIdTable[QUERY_PARAM_CMD] && len != 6) {
+            if(cmdId != CmdIdTable[QUERY_PARAM_CMD] && len != 4) {
                 net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
             } else {
                 net_engwe_cmdId_param_query(data[0] << 24 | data[1] << 16 | data[2]<<8| data[3], seq);

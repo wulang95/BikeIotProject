@@ -93,12 +93,8 @@ int Convert_LonLat(GPS_DATA *gps_data)
     char str[4][20] = {0};
     char *p1, *p2;
     char *dec_p;
-    char temp[6] = {0};
-    char lat[20] ={0}, lon[20] = {0};
-    unsigned long long degree = 0;
-    int temp_i;
-    char centPart[16] = {0};
-    char *centDecimal = NULL;
+    double lat, lon;
+    double degree;
 
     if(strlen(gps_data->LatLongData) < 5) return FAIL;
 
@@ -111,35 +107,25 @@ int Convert_LonLat(GPS_DATA *gps_data)
     str[3][0] = *p1;
     dec_p = strchr(str[0], '.');
     if(dec_p == NULL)return FAIL;
-    centDecimal = dec_p + 1;
-    memcpy(temp, str[0], dec_p - str[0]);
-    temp_i = atoi(temp);
-
-    sprintf(centPart, "%d%s", temp_i%100, centDecimal);
-    degree = atoll(centPart)*100/60;
-    sprintf(lon, "%d.%llu", temp_i/100, degree);
+    
+    lon = strtod(str[0], NULL);
+    degree = (lon - (int)(lon/100)*100) /60.0;
+    lon = (int)(lon/100)+ degree;
     if(str[1][0] == 'S'){
-        gps_data->Longitude = -strtod(lon,NULL);
+        gps_data->Longitude = -lon;
     } else {
-        gps_data->Longitude = strtod(lon, NULL);
+        gps_data->Longitude = lon;
     }
 
-    memset(temp, 0, 6);
-    dec_p = strchr(str[2], '.');
-    if(dec_p == NULL) return FAIL;
-    centDecimal = dec_p + 1;
-    memcpy(temp, str[2], dec_p - str[0]);
-    temp_i = atoi(temp);
-
-    memset(centPart, 0, sizeof(centPart));
-    sprintf(centPart, "%d%s", temp_i%100, centDecimal);
-    degree = atoll(centPart)*100/60;
-    sprintf(lat, "%d.%llu", temp_i/100, degree);
+    lat = strtod(str[2], NULL);
+    degree = (lat - (int)(lat/100)*100) /60.0;
+    lat = (int)(lat/100)+ degree;
     if(str[3][0] == 'W') {
-        gps_data->Latitude = -strtod(lat, NULL);
+        gps_data->Latitude = -lat;
     } else{
-        gps_data->Latitude = strtod(lat, NULL);
+        gps_data->Latitude = lat;
     }
+    LOG_I("lon:%f, lat:%f", gps_data->Longitude, gps_data->Latitude);
     return OK;
 }
 

@@ -78,7 +78,7 @@ void app_start_thread(void *param)
     if(err != RTOS_SUCEESS){
         LOG_E("pdp_active_thread is create fail!");
     }
-    err = def_rtos_task_create(&net_socket_task, 1024*8, TASK_PRIORITY_NORMAL, net_socket_thread);
+    err = def_rtos_task_create(&net_socket_task, 1024*12, TASK_PRIORITY_NORMAL, net_socket_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("net_socket_thread is create fail!");
     }

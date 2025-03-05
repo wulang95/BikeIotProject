@@ -66,6 +66,7 @@ void sys_power_off_time_set(uint8_t time)
 
 int flash_partition_erase(FLASH_PARTITION flash_part)
 {
+    int err;
     switch(flash_part) {
         case DEV_APP_ADR:
             if(ota_fd > 0) ql_fclose(ota_fd);
@@ -87,10 +88,12 @@ int flash_partition_erase(FLASH_PARTITION flash_part)
             hal_drv_flash_erase(SENSOR_CALIBRATION_DATA_ADDR, SENSOR_CALIBRATION_DATA_SIZE);
             break;
         case SHEEP_FOLD_P_ADR:
-            hal_drv_flash_erase(SHEEP_FOLD_POINT_ADDR, SHEEP_FOLD_POINT_SIZE);
+            err = hal_drv_flash_erase(SHEEP_FOLD_POINT_ADDR, SHEEP_FOLD_POINT_SIZE);
+            LOG_I("err:%d", err);
             break;
         case FORBIDDEN_ZONE_P_ADR:
-            hal_drv_flash_erase(FORBIDDEN_ZONE_POINT_ADDR, FORBIDDEN_ZONE_SIZE);
+            err = hal_drv_flash_erase(FORBIDDEN_ZONE_POINT_ADDR, FORBIDDEN_ZONE_SIZE);
+            LOG_I("err:%d", err);
             break;
         default:
             break;
@@ -135,10 +138,12 @@ int flash_partition_write(FLASH_PARTITION flash_part, void *data, size_t lenth, 
             hal_drv_flash_write(SENSOR_CALIBRATION_DATA_ADDR + shift, data, lenth);
             break;
         case SHEEP_FOLD_P_ADR:  
-            hal_drv_flash_write(SHEEP_FOLD_POINT_ADDR + shift, data, lenth);
+            res = hal_drv_flash_write(SHEEP_FOLD_POINT_ADDR + shift, data, lenth);
+            LOG_I("res:%d", res);
             break;
         case FORBIDDEN_ZONE_P_ADR:
-            hal_drv_flash_write(FORBIDDEN_ZONE_POINT_ADDR + shift, data, lenth);
+            res = hal_drv_flash_write(FORBIDDEN_ZONE_POINT_ADDR + shift, data, lenth);
+            LOG_I("res:%d", res);
             break;
         default:
             break;
@@ -249,12 +254,14 @@ void sys_param_save(FLASH_PARTITION flash_part)
             flash_partition_write(SENSEOR_CALIBRATION_ADR, (void *)&sensor_calibration_data, sizeof(sensor_calibration_data) , 0);
         break;
         case SHEEP_FOLD_P_ADR:
+            LOG_I("SHEEP_FOLD_P_ADR");
             sheepfang_data.magic = IOT_MAGIC;
             sheepfang_data.crc32 = GetCrc32((uint8_t *)&sheepfang_data, sizeof(sheepfang_data) - 4);
             flash_partition_erase(SHEEP_FOLD_P_ADR);
             flash_partition_write(SHEEP_FOLD_P_ADR, (void *)&sheepfang_data, sizeof(sheepfang_data) , 0);
         break;
         case FORBIDDEN_ZONE_P_ADR:
+            LOG_I("FORBIDDEN_ZONE_P_ADR");
             sheepfang_data.magic = IOT_MAGIC;
             forbidden_zone_data.crc32 = GetCrc32((uint8_t *)&forbidden_zone_data, sizeof(forbidden_zone_data) - 4);
             flash_partition_erase(FORBIDDEN_ZONE_P_ADR);
@@ -270,13 +277,13 @@ void debug_data_printf(char *str_tag, const uint8_t *in_data, uint16_t data_len)
     uint16_t i, len;
     char data_str[4];
     char *str;
-    if(data_len <= 0 || in_data == NULL || str_tag == NULL) return;
-    str = malloc(512);
+    if(data_len == 0 || in_data == NULL || str_tag == NULL || (strlen(str_tag) > 20)) return;
+    str = malloc(1024);
     if(str == NULL){
         return;
     }
-    sprintf(str, "%s[%d]:", str_tag, data_len);
-    len = data_len > 512?512:data_len;
+    len = data_len > 480?480:data_len;
+    sprintf(str, "%s[%d]:", str_tag, len);
     for(i = 0; i < len; i++){
         sprintf(data_str, "%02x ", in_data[i]);
         strncat(str, data_str, strlen(data_str));
@@ -405,7 +412,12 @@ static void sheepfang_data_init()
             }
         }
     } else {
-        memset(&sheepfang_data, 0, sizeof(sheepfang_data));
+        LOG_E("SHEEP_FOLD_P_ADR is invalid");
+        sheepfang_data.magic = IOT_MAGIC;
+        sheepfang_data.shape_type = FENCE_NONE;
+        sheepfang_data.crc32 = GetCrc32((uint8_t *)&sheepfang_data, sizeof(sheepfang_data) - 4);
+        flash_partition_erase(SHEEP_FOLD_P_ADR);
+        flash_partition_write(SHEEP_FOLD_P_ADR, (void *)&sheepfang_data, sizeof(sheepfang_data), 0);
     }
 }
 
@@ -416,15 +428,22 @@ static void forbidden_zone_data_init()
     if((forbidden_zone_data.magic == IOT_MAGIC) && (forbidden_zone_data.crc32 == GetCrc32((uint8_t *)&forbidden_zone_data, sizeof(forbidden_zone_data) - 4))){
         if(forbidden_zone_data.shape_type == CIRCLE){
             LOG_I("CIRCLE");
-            LOG_I("center:%d, %d, radius:%d", forbidden_zone_data.circle.center.lat, forbidden_zone_data.circle.center.lon, forbidden_zone_data.circle.radius);
+            LOG_I("center:%f, %f, radius:%f", forbidden_zone_data.circle.center.lat, forbidden_zone_data.circle.center.lon, forbidden_zone_data.circle.radius);
         } else if(forbidden_zone_data.shape_type == POLYGON) {
             LOG_I("POLYGON");
             for(i = 0; i < forbidden_zone_data.polygon.point_num; i++) {
-                LOG_I("P[%d]:%d, %d",i, forbidden_zone_data.polygon.p[i].lat, forbidden_zone_data.polygon.p[i].lon);
+                LOG_I("P[%d]:%f, %f",i, forbidden_zone_data.polygon.p[i].lat, forbidden_zone_data.polygon.p[i].lon);
             }
         }
     } else {
+        LOG_E("FORBIDDEN_ZONE_P_ADR is invalid");
         memset(&forbidden_zone_data, 0, sizeof(forbidden_zone_data));
+        forbidden_zone_data.magic = IOT_MAGIC;
+        forbidden_zone_data.shape_type = FENCE_NONE;
+        forbidden_zone_data.crc32 = GetCrc32((uint8_t *)&forbidden_zone_data, sizeof(forbidden_zone_data) - 4);
+        flash_partition_erase(FORBIDDEN_ZONE_P_ADR);
+        flash_partition_write(FORBIDDEN_ZONE_P_ADR, (void *)&forbidden_zone_data, sizeof(forbidden_zone_data), 0);
+        flash_partition_read(FORBIDDEN_ZONE_P_ADR, (void *)&forbidden_zone_data, sizeof(forbidden_zone_data), 0);
     }
 }
 
@@ -561,10 +580,12 @@ void app_system_thread(void *param)
             }
             if(sys_set_var.sys_updata_falg & (1 << SHEEP_DATA_SAVE)){
                 sys_set_var.sys_updata_falg &= ~(1 << SHEEP_DATA_SAVE);
+                LOG_I("SHEEP_DATA_SAVE");
                 sys_param_save(SHEEP_FOLD_P_ADR);
             }
             if(sys_set_var.sys_updata_falg & (1 << FORBIDDEN_DATA_SAVE)){
                 sys_set_var.sys_updata_falg &= ~(1 << FORBIDDEN_DATA_SAVE);
+                LOG_I("FORBIDDEN_DATA_SAVE");
                 sys_param_save(FORBIDDEN_ZONE_P_ADR);
             }
         }

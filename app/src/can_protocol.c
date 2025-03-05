@@ -86,7 +86,6 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
     if(pdu.pdu1 >= 240){
         switch(pdu.pdu2) {
             case HMI_MATCH_INFO: 
-
       //          car_info.hmi_info.power_on = data[0]&0x80?1:0;
                 car_info.hmi_info.encry_mode_data = data[0]&0x7f;
                 car_info.hmi_info.key = data[1];
@@ -210,6 +209,69 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
     }
 }
 
+static void control_fault_handle(uint8_t fault)
+{
+    switch(fault){
+        case 1:
+            iot_error_set(CAR_ERROR_TYPE, CTRL_PHASE_OC_FAULT);
+        break;
+        case 2:
+            iot_error_set(CAR_ERROR_TYPE, CTRL_BUS_OC_FAULT);
+        break;
+        case 3:
+            iot_error_set(CAR_ERROR_TYPE, CTRL_HALL_FAULT);
+        break;
+        case 5:
+            iot_error_set(CAR_ERROR_TYPE, CTRL_TEMP_FAULT);
+        break;
+        case 30:
+            iot_error_set(CAR_ERROR_TYPE, COMM_FAULT);
+        break;
+        case 6:
+            iot_error_set(CAR_ERROR_TYPE, MOTOR_TEMP_FAULT);
+        break;
+        case 4:
+            iot_error_set(CAR_ERROR_TYPE, BRAKE_FAULT);
+        break;
+        case 10:
+            iot_error_set(CAR_ERROR_TYPE, UNDEFINED_FAULT);
+        break;
+        case 8:
+            iot_error_set(CAR_ERROR_TYPE, CTRL_COMM_FAULT);
+        break;
+        case 9:
+            iot_error_set(CAR_ERROR_TYPE, CTRL_UV_OV_FAULT);
+        break;
+        case 31:
+            iot_error_set(CAR_ERROR_TYPE, BASIS_VOL_FAULT);
+        break;
+        case 36:
+            iot_error_set(CAR_ERROR_TYPE, TORQUE_VOL_FAULT);
+        break;
+        case 37:
+            iot_error_set(CAR_ERROR_TYPE, SPEED_SENSOR_FAULT);
+        break;
+        case 38:
+            iot_error_set(CAR_ERROR_TYPE, TEMP_SENSOR_FAULT);
+        break;
+        case 40:
+            iot_error_set(CAR_ERROR_TYPE, CUR_FEEDBACK_CIRCUIT_FAULT);
+        break;
+        case 41:
+            iot_error_set(CAR_ERROR_TYPE, DRIVE_VOL_FAULT);
+        break;
+        case 42:
+            iot_error_set(CAR_ERROR_TYPE, ABNORMAL_CURRENT_FAULT);
+        break;
+        case 43:
+            iot_error_set(CAR_ERROR_TYPE, MOTOR_PHASE_LOSS_FAULT);
+        break;
+        case 50:
+            iot_error_set(CAR_ERROR_TYPE, TORUQE_VOL_DETEC_CIR_FAULT);
+        break;
+    }
+}
+
 static void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
 {
     if(pdu.pdu1 >= 240){
@@ -228,6 +290,7 @@ static void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                 car_info.headlight_sta = data[1]>>7;
                 car_info.speed = data[4]<<8 | data[3];
                 car_info.fault_code = data[5];
+                control_fault_handle(car_info.fault_code);
            //     debug_data_printf("CONTROL_DATA1", data, data_len);
             break;
             case CONTROL_DATA2:
@@ -344,6 +407,7 @@ static void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
         }
     }
 }
+
 
 static void bms_info_handle(uint8_t bms_num, PDU_STU pdu, uint8_t *data, uint8_t data_len)
 {
