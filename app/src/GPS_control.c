@@ -138,6 +138,8 @@ void GPS_Init()
     }
     GPS_Ringbuf = rt_ringbuffer_create(GPS_DATA_LEN);
 	gps_resh_time_t = 0;
+    Gps.GpsPower = GPS_POWER_OFF;
+    GPS_Start(GPS_MODE_TM);
 }
 
 void gps_data_trans(uint8_t *data, uint16_t len)
@@ -268,7 +270,7 @@ uint8_t  GPS_RMC_Proces(char *Data, GPS_DATA  *pGpsData)
                 break;
             case 12:
                 Temp = Buf[0];
-                if((Temp == 'A') || (Temp == 'D') || (Temp == 'E') || (Temp == 'N'))                       
+                if((Temp == 'A') || (Temp == 'D') || (Temp == 'E') || (Temp == 'N'))    /*N:表示无定位*/                   
                 {
                     pGpsData->Mode[0] = Temp;
                     return OK;
@@ -582,20 +584,30 @@ static void GPS_Composite_PosData()
     Len += sprintf(Gps.PosData + Len, "%s,%s,%s", GpsDataBuf.Time2, GpsDataBuf.SeaLevelH, GpsDataBuf.Mode);
     #else
     Point cur_p;
-    Gps.ground_speed = (uint16_t)(strtod(GpsDataBuf.Ground_speed, NULL)*10);
-    Gps.hdop = (uint8_t)(strtod(GpsDataBuf.HDOP, NULL)*10);
-    Gps.direction = (uint16_t)(strtod(GpsDataBuf.Yaw, NULL)*10);
+    if(GpsDataBuf.GpsFlag == 0){
+        return;
+    }
+    Gps.ground_speed = (uint16_t)(strtod(GpsDataBuf.Ground_speed, NULL)*10.0);
+    LOG_I("ground_speed:%d", Gps.ground_speed);
+    if(strtod(GpsDataBuf.HDOP, NULL)*10.0 > 255.0){
+        Gps.hdop = 25;
+    } else {
+        Gps.hdop = strtod(GpsDataBuf.HDOP, NULL)*10.0;
+    }
+    Gps.direction = (uint16_t)(strtod(GpsDataBuf.Yaw, NULL)*10.0);
+    LOG_I("direction:%d", Gps.direction);
     Gps.high = (uint16_t)GpsDataBuf.high;
     Gps.Lat = GpsDataBuf.Latitude*1000000;
     Gps.Long = GpsDataBuf.Longitude*1000000;
     cur_p.lat = Gps.Lat;
     cur_p.lon = Gps.Long;
+    LOG_I("statenum:%d", Gps.SateNum);
     /*羊圈检测*/
     if(sheepfang_data.shape_type == CIRCLE && sys_param_set.total_fence_sw) {
         if(isInner_circle(sheepfang_data.circle.center, sheepfang_data.circle.radius, cur_p) == 0){  //在羊圈外 
             if(sys_set_var.sheepfang_flag == 0) {
                 sys_set_var.sheepfang_flag = 1;  
-                voice_play_mark(ELECTRONIC_FENCE_VOICE);
+            //    voice_play_mark(ELECTRONIC_FENCE_VOICE);   //关锁不响
                 sys_info.sheepfang_sta = SHEEPFANG_LEAVE;
                 LOG_I("SHEEPFANG_LEAVE");
                 net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
@@ -617,7 +629,7 @@ static void GPS_Composite_PosData()
         if(isInner_polygon(cur_p, sheepfang_data.polygon.p, sheepfang_data.polygon.point_num) == 0){
             if(sys_set_var.sheepfang_flag == 0) {
                 sys_set_var.sheepfang_flag = 1;  
-                voice_play_mark(ELECTRONIC_FENCE_VOICE);
+           //     voice_play_mark(ELECTRONIC_FENCE_VOICE);
                 sys_info.sheepfang_sta = SHEEPFANG_LEAVE;
                 LOG_I("SHEEPFANG_LEAVE");
                 net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
@@ -644,7 +656,7 @@ static void GPS_Composite_PosData()
         if(isInner_circle(forbidden_zone_data.circle.center, forbidden_zone_data.circle.radius, cur_p) == 1){  //在禁区里
             if(sys_set_var.forbidden_flag == 0) {
                 sys_set_var.forbidden_flag = 1;  
-                voice_play_mark(ELECTRONIC_FENCE_VOICE);
+            //    voice_play_mark(ELECTRONIC_FENCE_VOICE);
                 sys_info.fence_sta= FORBIDDEN_ENTER;
                 LOG_I("FORBIDDEN_ENTER");
                 net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
@@ -666,7 +678,7 @@ static void GPS_Composite_PosData()
         if(isInner_polygon(cur_p, forbidden_zone_data.polygon.p, forbidden_zone_data.polygon.point_num) == 1){
             if(sys_set_var.forbidden_flag == 0) {
                 sys_set_var.forbidden_flag = 1;  
-                voice_play_mark(ELECTRONIC_FENCE_VOICE);
+         //       voice_play_mark(ELECTRONIC_FENCE_VOICE);
                 sys_info.fence_sta = FORBIDDEN_ENTER;
                 LOG_I("FORBIDDEN_ENTER");
                 net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
@@ -690,6 +702,50 @@ static void GPS_Composite_PosData()
 
 
     #endif
+}
+
+int GPS_reinit()
+{
+    static uint8_t step = 0;
+    static int64_t gps_time_t = 0;
+    if(Gps.init == 0) step = 0;
+    switch (step) {
+        case 0:
+            Gps.init = 2;
+            GPS_stop();
+            step = 1;
+            gps_time_t = def_rtos_get_system_tick();
+        break;
+        case 1:
+            if(Gps.GpsPower == GPS_POWER_OFF) {
+                step = 2;
+                gps_time_t = def_rtos_get_system_tick();
+            }
+            else if(def_rtos_get_system_tick() - gps_time_t > 12000){
+                step = 4;
+            }
+        case 2:
+            if(def_rtos_get_system_tick() -  gps_time_t > 5000) {
+                step = 3;
+                GPS_Start(GPS_MODE_CONT);
+                gps_time_t = def_rtos_get_system_tick();
+            }
+        break;
+        case 3:
+            if(Gps.GpsPower == GPS_POWER_ON) {
+                LOG_I("GPS init ok");
+                Gps.init = 1;
+                return 0;
+            } else if(def_rtos_get_system_tick() - gps_time_t > 12000) {
+                step = 4;
+            }
+        break;
+        case 4:
+            LOG_E("GPS init fail");
+            return 2;
+        break;
+    }
+    return 1;
 }
 
 void GPS_stop()

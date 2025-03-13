@@ -96,9 +96,13 @@ static void exit_lower_power()
     } else {
         sys_info.iot_mode = IOT_WAIT_ACTIVE_MODE;
     }
+    if(sys_info.iot_error != 0) {
+        app_set_led_ind(LED_SYS_FAULT);
+    }
+ //   net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
     hal_drv_write_gpio_value(O_BLE_WEEK_SIG, HIGH_L);
-    system_timer_start();
-    
+    ble_heart_time_t = def_rtos_get_system_tick();
+    system_timer_start();   
 }
 
 void low_power_thread(void *param)

@@ -247,8 +247,6 @@ void imu_algo_thread(void *param)
 		} else {
             car_info.filp_state = CAR_NORMAL_STATE;
         }
-
-
 		LOG_I("accl[0]:%0.2f, accl[1]:%0.2f, accl[2]:%0.2f", accl[0], accl[1], accl[2]);
 		LOG_I("gyro[0]:%0.2f, gyro[1]:%0.2f, gyro[2]:%0.2f", gyro[0], gyro[1], gyro[2]);	
 		accel_correct[0] = Filter_Apply(accl[0],&accel_buf[0],&accel_filter);

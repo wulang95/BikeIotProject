@@ -7,6 +7,7 @@ extern "C" {
 #include <string.h>
 #include <stdlib.h>
 #include "net_engwe_protocol.h"
+#include "ble_protocol.h"
 
 enum{
     NET_CAR_CMD_SER,
@@ -64,6 +65,7 @@ enum {
     CHARGER_PUG_OUT,
     CHARGER_FULL,
     CHARGER_QUICK_IN,
+    CHARGER_STATE,
 };
 
 typedef struct {
@@ -71,7 +73,8 @@ typedef struct {
     uint8_t src;
     union 
     {
-       REAL_OPERATE_STU net_car_control;
+        BLE_OPERATE_STU ble_car_control; 
+        REAL_OPERATE_STU net_car_control;
     };
 }CAR_CMD_Q;
 
@@ -208,7 +211,7 @@ struct car_info_stu {
     uint16_t motor_speed; //电机转速
     uint16_t max_speed; //最高车速 0.1km/h
     uint32_t cycle_time_s;  //骑行时间
-    uint32_t cycle_total_time_h; //总骑行时长 0.1h
+    uint32_t cycle_total_time; //总骑行时长 Min
     uint8_t fault_code;
     uint8_t sync_time[6];  /*同步时间*/
     uint8_t bright_lev;     /*亮度等级*/

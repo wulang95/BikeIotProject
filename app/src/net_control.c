@@ -3,7 +3,6 @@
 #include "sockets.h"
 #include "lwip/ip_addr.h"
 #include "lwip/ip6_addr.h"
-
 #include "lwip/netdb.h"
 #include "lwip/netif.h"
 #include "lwip/inet.h"
@@ -24,6 +23,7 @@
 #define MIN_FUN     0
 #define ALL_FUN     1
 #define DIS_FUN     4
+
 struct gsm_info_stu gsm_info;
 static char ip4_adr_str[16];
 
@@ -64,6 +64,33 @@ typedef struct {
 
 PDP_ACTIVE_INFO_STU pdp_active_info;
 SOCKET_CON_INFO_STU socket_con_info;
+typedef struct {
+    uint8_t state;
+    uint16_t sim_cid;
+    mqtt_client_t mqtt_cli;
+    struct mqtt_connect_client_info_t client_info;
+    int mqtt_connected;
+    int sub_res;
+    char *url;
+    char *sub_topic;
+    def_rtos_sem_t mqtt_disconnet_sem_t;
+    char pub_topic[128];
+}MQTT_CON_INFO;
+
+MQTT_CON_INFO mqtt_con_info;
+
+enum {
+    MQTT_BIND_SIM_AND_PROFILE = 1,
+    MQTT_CLIENT_INIT,
+    MQTT_CONNECT,
+    MQTT_CONNECT_RES,
+    MQTT_SET_INPUB,
+    MQTT_SUB,
+    MQTT_SUB_RES,
+    MQTT_CONNECT_DET,
+    MQTT_UNSUB_RES,
+    MQTT_DISCONNECT,
+};
 
 void net_control_init()
 {
@@ -94,9 +121,12 @@ static void pdp_active_state_machine(void)
     switch (pdp_active_info.pdp_state) {
         case PDP_NOT_ACTIVATED:
             LOG_I("PDP_NOT_ACTIVATED");
+            week_time("pdp", -1); 
             sys_info.pdp_reg = 0;
             pdp_active_info.pdp_is_active = 0;
+            sys_info.paltform_connect = 0;
             pdp_active_info.pdp_state  = PDP_CONDITIONS_CHECK;
+            mqtt_con_info.state = MQTT_BIND_SIM_AND_PROFILE;
             check_csq_timeout = def_rtos_get_system_tick();
         break;
         case PDP_CONDITIONS_CHECK:
@@ -162,6 +192,7 @@ static void pdp_active_state_machine(void)
         break;
         case PDP_ACTIVE_DETECT:
             LOG_I("PDP_ACTIVE_DETECT");
+            week_time("pdp", 30);
             hal_drv_pdp_detect_block();
             pdp_active_info.pdp_state = PDP_NOT_ACTIVATED;
         break;
@@ -375,34 +406,9 @@ static void iot_server_socket_state_machine(void)
             break;
         }
     }
-}
-*/
-typedef struct {
-    uint8_t state;
-    uint16_t sim_cid;
-    mqtt_client_t mqtt_cli;
-    struct mqtt_connect_client_info_t client_info;
-    int mqtt_connected;
-    int sub_res;
-    char *url;
-    char *sub_topic;
-    def_rtos_sem_t mqtt_disconnet_sem_t;
-    char pub_topic[128];
-}MQTT_CON_INFO;
+} */
 
-MQTT_CON_INFO mqtt_con_info;
 
-enum {
-    MQTT_BIND_SIM_AND_PROFILE = 1,
-    MQTT_CLIENT_INIT,
-    MQTT_CONNECT,
-    MQTT_CONNECT_RES,
-    MQTT_SET_INPUB,
-    MQTT_SUB,
-    MQTT_SUB_RES,
-    MQTT_CONNECT_DET,
-    MQTT_DISCONNECT,
-};
 
 
 static void iot_mqtt_connect_result_cb(mqtt_client_t *client, void *arg, mqtt_connection_status_e status)
@@ -417,7 +423,6 @@ static void iot_mqtt_state_exception_cb(mqtt_client_t *client)
 {
     LOG_E("mqtt session abnormal disconnect");
     mqtt_con_info.mqtt_connected = 0;
-
     ql_rtos_semaphore_release(mqtt_con_info.mqtt_disconnet_sem_t);
 
 }
@@ -434,10 +439,13 @@ static void iot_mqtt_pub_result_cb(mqtt_client_t *client, void *arg,int err)
 
 void iot_mqtt_public(const uint8_t *data, uint16_t len)
 {
+    if(sys_info.paltform_connect == 0) {
+        return;
+    }
     LOG_I("pub_topic:%s", mqtt_con_info.pub_topic);
     debug_data_printf("pub_data", data, len);
     rtc_event_register(NET_HEART_EVENT, sys_param_set.net_heart_interval, 1);
-    ql_mqtt_publish(&mqtt_con_info.mqtt_cli, mqtt_con_info.pub_topic, (void *)data, len, 1, 0, iot_mqtt_pub_result_cb, NULL);
+    ql_mqtt_publish(&mqtt_con_info.mqtt_cli, mqtt_con_info.pub_topic, (void *)data, len, sys_config.mqtt_qos, 0, iot_mqtt_pub_result_cb, NULL);
 }
 
 static void iot_mqtt_inpub_data_cb(mqtt_client_t *client, void *arg, int pkt_id, const char *topic, const unsigned char *payload, unsigned short payload_len)
@@ -446,6 +454,12 @@ static void iot_mqtt_inpub_data_cb(mqtt_client_t *client, void *arg, int pkt_id,
 	LOG_I("payload: %s, payload_len:%d", payload, payload_len);
     week_time("sys", 30); 
     net_engwe_data_parse((uint8_t *)payload, payload_len);
+}
+
+void iot_mqtt_disconnect()
+{
+    LOG_I("iot_mqtt_disconnect");
+    ql_mqtt_disconnect(&mqtt_con_info.mqtt_cli, NULL, NULL);
 }
 
 void iot_mqtt_state_machine()
@@ -458,11 +472,13 @@ void iot_mqtt_state_machine()
     static uint64_t mqtt_sub_timeout = 0;
     static uint16_t mqtt_count = 0;
     static int ret = MQTTCLIENT_SUCCESS;
-    if(pdp_active_info.pdp_is_active == 1 && sys_info.ota_flag == 0) {
+    if(pdp_active_info.pdp_is_active == 1) {
         switch(mqtt_con_info.state) {
             case MQTT_BIND_SIM_AND_PROFILE:
+                week_time("net", -1); 
                 sys_info.paltform_connect = 0;
-                ql_mqtt_client_deinit(&mqtt_con_info.mqtt_cli);
+                ret = ql_mqtt_client_deinit(&mqtt_con_info.mqtt_cli);
+                LOG_I("ret:%d", ret);
                 if(QL_DATACALL_SUCCESS != ql_bind_sim_and_profile(0, 1, &mqtt_con_info.sim_cid)) {
                     LOG_E("MQTT_BIND_SIM_AND_PROFILE FAIL");
                     def_rtos_task_sleep_s(mqtt_bind_time);
@@ -498,11 +514,18 @@ void iot_mqtt_state_machine()
                 mqtt_con_info.client_info.pkt_timeout = 5;
                 mqtt_con_info.client_info.retry_times = 3;
                 mqtt_con_info.client_info.keep_alive = 60;
-                mqtt_con_info.client_info.will_qos = 0;
                 mqtt_con_info.client_info.will_retain = 0;
-                mqtt_con_info.client_info.will_topic = NULL;
-                mqtt_con_info.client_info.will_msg = NULL;
+                if(sys_config.mqtt_will_en == 1) {
+                    mqtt_con_info.client_info.will_topic = sys_config.mqtt_will_topic;
+                    mqtt_con_info.client_info.will_msg = sys_config.mqtt_will_msg;
+                    mqtt_con_info.client_info.will_qos = sys_config.mqtt_qos;
+                } else {
+                    mqtt_con_info.client_info.will_topic = NULL;
+                    mqtt_con_info.client_info.will_msg = NULL;
+                    mqtt_con_info.client_info.will_qos = 0;
+                }
                 mqtt_con_info.client_info.client_id = gsm_info.imei;
+                LOG_I("ID:%s", mqtt_con_info.client_info.client_id);
                 mqtt_con_info.client_info.client_user = sys_config.mqtt_client_user;
                 mqtt_con_info.client_info.client_pass = sys_config.mqtt_client_pass;
                 mqtt_con_info.client_info.ssl_cfg = NULL;
@@ -521,10 +544,11 @@ void iot_mqtt_state_machine()
                 mqtt_con_info.state = MQTT_CONNECT_RES;
             break;
             case MQTT_CONNECT_RES:
+                LOG_I("ret:%d, connect:%d", ret,mqtt_con_info.mqtt_connected);
                 if(ret == MQTTCLIENT_WOUNDBLOCK && mqtt_con_info.mqtt_connected == 1) {
-                    if(mqtt_con_info.url) {
-                        free(mqtt_con_info.url);
-                    }
+                    // if(mqtt_con_info.url) {
+                    //     free(mqtt_con_info.url);
+                    // }
                     mqtt_con_info.state = MQTT_SET_INPUB;
                     mqtt_count= 0;
                     mqtt_connect_ret_time = 1;
@@ -545,8 +569,8 @@ void iot_mqtt_state_machine()
             case MQTT_SET_INPUB:
                 LOG_I("MQTT_SET_INPUB");
                 ql_mqtt_set_inpub_callback(&mqtt_con_info.mqtt_cli, iot_mqtt_inpub_data_cb, NULL);
-                mqtt_con_info.state = MQTT_SUB;
                 sys_info.paltform_connect = 1;
+                mqtt_con_info.state = MQTT_SUB;
             break;
             case MQTT_SUB:
                 mqtt_con_info.sub_res = 0;
@@ -556,19 +580,19 @@ void iot_mqtt_state_machine()
                 }
                 sprintf(mqtt_con_info.sub_topic, "%s%s", sys_config.mqtt_sub_topic, gsm_info.imei);
                 LOG_I("MQTT SUB TOPIC:%s", mqtt_con_info.sub_topic);
-                ret = ql_mqtt_sub_unsub(&mqtt_con_info.mqtt_cli, mqtt_con_info.sub_topic, 1, iot_mqtt_requst_result_cb, NULL, 1);
+                ret = ql_mqtt_sub_unsub(&mqtt_con_info.mqtt_cli, mqtt_con_info.sub_topic, sys_config.mqtt_qos, iot_mqtt_requst_result_cb, NULL, 1);
                 mqtt_sub_timeout = def_rtos_get_system_tick();
                 mqtt_con_info.state = MQTT_SUB_RES;
             break;
             case MQTT_SUB_RES:
                 if(ret == MQTTCLIENT_WOUNDBLOCK && mqtt_con_info.sub_res == 1) {
                     mqtt_client_sub_time = 0;
-                    if(mqtt_con_info.sub_topic) {
-                        free(mqtt_con_info.sub_topic);
-                    }
+                    // if(mqtt_con_info.sub_topic) {
+                    //     free(mqtt_con_info.sub_topic);
+                    // }
                     mqtt_con_info.state = MQTT_CONNECT_DET;
                     net_engwe_signed();
-                    /*检测OTA成功 版本不一样说明更新成功*/
+                //    检测OTA成功 版本不一样说明更新成功
                     if(strcmp(sys_config.soft_ver, SOFTVER) != 0) {
                         net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
                         memset(sys_config.soft_ver, 0, sizeof(sys_config.soft_ver));
@@ -576,7 +600,7 @@ void iot_mqtt_state_machine()
                         SETBIT(sys_set_var.sys_updata_falg, SYS_CONFIG_SAVE);
                     }
 
-                } else if(def_rtos_get_system_tick() - mqtt_sub_timeout > 12000) {
+                } else if(def_rtos_get_system_tick() - mqtt_sub_timeout > 12000) {  
                     LOG_E("mqtt sub fail:%d", mqtt_client_sub_time);
                     def_rtos_task_sleep_s(mqtt_client_sub_time);
                     mqtt_client_sub_time =  mqtt_client_sub_time << 1;
@@ -591,10 +615,15 @@ void iot_mqtt_state_machine()
             break;
             case MQTT_CONNECT_DET:
                 LOG_I("MQTT_CONNECT_DET");
+                week_time("net", 30); 
+           //     ql_mqtt_disconnect(&mqtt_con_info.mqtt_cli, )
                 ql_rtos_semaphore_wait(mqtt_con_info.mqtt_disconnet_sem_t, QL_WAIT_FOREVER);
                 socket_disconnect_handle();
                 LOG_E("mqtt connect is fail");
                 mqtt_con_info.state = MQTT_BIND_SIM_AND_PROFILE;
+             //   sys_info.paltform_connect = 0;
+             //   mqtt_con_info.state = MQTT_CONNECT;
+            //    ql_mqtt_client_deinit(&mqtt_con_info.mqtt_cli);
             break;
         }
     }
@@ -616,8 +645,11 @@ void net_socket_thread(void *param)
     {
         LOG_I("IS RUN");
         iot_mqtt_state_machine();
+        def_rtos_task_sleep_ms(200);
+     //   def_rtos_task_sleep_s(1);
      //   iot_server_socket_state_machine();
-        def_rtos_task_sleep_ms(100);
     }
     def_rtos_task_delete(NULL);
 }
+
+

@@ -344,7 +344,7 @@ static void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
            //     debug_data_printf("CONTROL_DATA8", data, data_len);
             break;
             case CONTROL_DATA9:
-                car_info.cycle_total_time_h = ((data[4] << 16|data[3] << 8|data[2])/60)*10;  //返回分钟
+                car_info.cycle_total_time = data[4] << 16|data[3] << 8|data[2];  //返回分钟
                 car_info.m_agv_pedal_speed = data[1];
                 car_info.total_agv_pedal_speed = data[5];
             break;

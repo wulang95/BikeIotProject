@@ -280,6 +280,7 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
         def_rtos_queue_release(can_rcv_que, sizeof(stc_can_rxframe_t), (uint8_t *)&can_frame, RTOS_WAIT_FOREVER);
         break;
     case CMD_GPS_POWERON:
+        gps_resh_time_t = def_rtos_get_system_tick();
         Gps.GpsPower = GPS_POWER_ON;
     break;
     case CMD_GPS_POWEROFF:
@@ -433,6 +434,9 @@ void mcu_uart_recv_thread(void *param)
                         j = 0;
                         memset(&data, 0, sizeof(data));
                     }
+
+
+                    
                 break;
                 case 1:
                     if(c == HEADL) {

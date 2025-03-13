@@ -74,8 +74,12 @@ enum {
     INTERNAL_BAT_HEART_SW,
     LOCK_HEART2_SW,
     UNLOCK_HEART2_SW,
-    BLE_CONNECT_PUSH_HEART_SW,
-    BLE_DISCON_PUSH_HERAT_SW,
+};
+
+enum {
+    GPS_MODE = 0,
+    BLE_MODE,
+    SENSOR_MODE,
 };
 
 #define OFFLINE_OPERATE_PUSH_DEFAULT (0x00000040|0x00000080|0x00000020)
@@ -91,8 +95,6 @@ struct sys_param_set_stu {
     uint32_t internal_battry_work_interval; //内电池工作心跳间隔
     uint16_t unlock_car_heart2_interval;
     uint16_t lock_car_heart2_interval;
-    uint16_t ble_connect_operate_push_interval;
-    uint16_t ble_disconnect_operate_push_interval;
     uint8_t auto_power_off_time;
     uint8_t hid_lock_sw;
     uint8_t shock_sw;
@@ -127,9 +129,9 @@ struct sys_config_stu {
     char mqtt_client_id[32];
     char mqtt_pub_topic[64];
     char mqtt_sub_topic[64];
-    char mqtt_qos;
-    uint16_t mqtt_keep_alive;
-    char mqtt_will_msg[64];
+    uint8_t mqtt_qos;
+    uint8_t mqtt_will_en;
+    char mqtt_will_msg[32];
     char mqtt_will_topic[64];
     char sn[15];
     char manufacturer[16];
@@ -238,6 +240,7 @@ struct sys_info_stu {
     char fota_packname[255];
     unsigned long long car_error;
     unsigned iot_error;
+    uint8_t mode_reinit_flag;
 };
 
 struct sys_set_var_stu{
@@ -259,14 +262,14 @@ struct sys_set_var_stu{
 #define DEFAULT_MANUFACTURER  "EG" 
 #define DEFAULT_DNS "114.114.114.114"
 #define DEFAULT_SN      "123456789" 
-#define DEFAULT_DEV_TYPE    "K10" 
+#define DEFAULT_DEV_TYPE    "1102EU" 
 #define DEFAULT_APN     "asia.bics"
 /*"linksnet"*/
 /*"asia.bics"*/
 #define DEFAULT_IP  "mqtt://dev-mqtt.engweapp.cn"
 /*"mqtt://broker.emqx.io:1883" */
 /*"iot.engweapp.cn"*/
-#define DEFAULT_PORT  9506  
+#define DEFAULT_PORT    9506  
 /*9682*/
 #define DEFAULT_MQTT_SUB_PRE  "iot/engwe/subscribe/"
 #define DEFAULT_MQTT_PUB_PRE  "iot/engwe/publish/"

@@ -252,15 +252,18 @@ int car_control_operate_res(CAR_CMD_Q car_cmd_q)
 
 int look_car_fun(CAR_CMD_Q car_cmd_q)
 {
-    static uint8_t step = 0, i = 0;
+    static uint8_t step = 0, i = 0, last_car_sta;
     static int64_t cmd_timeout;
     uint8_t data[128];
     uint16_t len;
         switch(step){
             case 0:
+                last_car_sta = car_info.lock_sta;
                 if(car_lock_control(car_cmd_q.src, CAR_UNLOCK_STA) != OK){
-                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
-                    net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                    if(car_cmd_q.src == NET_CAR_CMD_SER) {
+                        len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
+                        net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                    }
                     step = 0;
                     return -1;
                 } else {
@@ -270,8 +273,10 @@ int look_car_fun(CAR_CMD_Q car_cmd_q)
             break;
             case 1:
                 if((def_rtos_get_system_tick() - cmd_timeout) > 10000) {
-                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
-                    net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                    if(car_cmd_q.src == NET_CAR_CMD_SER) {
+                        len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
+                        net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                    }
                     step = 0;
                     return -1;
                 } else if(car_info.lock_sta == CAR_UNLOCK_STA) {
@@ -283,8 +288,10 @@ int look_car_fun(CAR_CMD_Q car_cmd_q)
                     car_set_save.head_light = 1;
                     car_control_cmd(CAR_CMD_SET_HEADLIGHT);
                     cmd_timeout = def_rtos_get_system_tick();
-                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x01, 0);
-                    net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                    if(car_cmd_q.src == NET_CAR_CMD_SER) {
+                        len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x01, 0);
+                        net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                    }
                 }
             break;
             case 2:
@@ -300,7 +307,9 @@ int look_car_fun(CAR_CMD_Q car_cmd_q)
             break;
             case 3:
                 voice_play_off();
-                car_lock_control(car_cmd_q.src, CAR_LOCK_STA);
+                if(last_car_sta == CAR_LOCK_STA) {
+                    car_lock_control(car_cmd_q.src, CAR_LOCK_STA);
+                }
                 step = 0;
                 return 0;
             break;
@@ -330,14 +339,22 @@ void car_control_thread(void *param)
             continue;
         } else if(car_cmd_q.cmd == CAR_CMD_LOCK) {
             if(car_lock_control(car_cmd_q.src, CAR_LOCK_STA) != OK){
-                len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
-                net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                if(car_cmd_q.src == NET_CAR_CMD_SER) {
+                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
+                    net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                } else if(car_cmd_q.src == BLUE_CAR_CMD_SER) {
+                    ble_cmd_opearte_res_up(car_cmd_q.ble_car_control.ble_cmd);     
+                } 
                 continue;
             }
         } else if(car_cmd_q.cmd == CAR_CMD_UNLOCK) {
             if(car_lock_control(car_cmd_q.src, CAR_UNLOCK_STA) != OK){
-                len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
-                net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                if(car_cmd_q.src == NET_CAR_CMD_SER) {
+                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
+                    net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                } else if(car_cmd_q.src == BLUE_CAR_CMD_SER) {
+                    ble_cmd_opearte_res_up(car_cmd_q.ble_car_control.ble_cmd); 
+                }
                 continue;
             }
         } else if(car_control_cmd(car_cmd_q.cmd) != OK) {
@@ -346,15 +363,23 @@ void car_control_thread(void *param)
             continue;
         }
         for(;;) {
-            if(def_rtos_get_system_tick() - cmd_timeout > 10000) {
-                len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
-                net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+            if(def_rtos_get_system_tick() - cmd_timeout > 6000) {
+                if(car_cmd_q.src == NET_CAR_CMD_SER) {
+                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
+                    net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                } else if(car_cmd_q.src == BLUE_CAR_CMD_SER) {
+                    ble_cmd_opearte_res_up(car_cmd_q.ble_car_control.ble_cmd); 
+                }        
                 break;
             }
             def_rtos_task_sleep_ms(5);
             if(car_control_operate_res(car_cmd_q) == OK) {
-                len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x01, 0);
-                net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                if(car_cmd_q.src == NET_CAR_CMD_SER) {
+                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x01, 0);
+                    net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
+                } else if(car_cmd_q.src == BLUE_CAR_CMD_SER) {
+                    ble_cmd_opearte_res_up(car_cmd_q.ble_car_control.ble_cmd); 
+                }
                 break;
             }
         }

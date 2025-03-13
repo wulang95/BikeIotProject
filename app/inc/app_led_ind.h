@@ -15,7 +15,9 @@ typedef enum {
     LED_SYS_OTA,
     LED_ALL_OFF,
     LED_WAIT_ALIVE,
+    LED_ARARM,
     LED_TEST,
+    LED_IND_MAX,
 }LED_IND;
 
 void app_set_led_ind(LED_IND led_ind_sta);

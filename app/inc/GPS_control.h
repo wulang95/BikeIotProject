@@ -45,7 +45,8 @@ typedef struct GPS_DATA_STRUCT
 
 typedef struct GPS_INFO_STRUCT
 {
-    uint8_t  GpsPower;           		
+    uint8_t  GpsPower;   
+    uint8_t init;        		
 	uint32_t Status;             		
     uint8_t  GpsMode;            		
     uint8_t  SendCmdFlag;        		
@@ -81,7 +82,7 @@ void gps_data_trans(uint8_t *data, uint16_t len);
 void gps_control_thread(void *param);
 void GPS_Start(uint8_t Mode);
 void GPS_stop();
-
+int GPS_reinit();//重新上电
 
 
 

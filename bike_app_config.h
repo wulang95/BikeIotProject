@@ -2,6 +2,7 @@
 #define  __CONFIG_H
 #include "ql_gpio.h"
 #include "ql_adc.h"
+#include "hal_drv_uart.h"
 
 #define DBG_ENABLE   1
 #define BLE_UART    UART2

@@ -29,6 +29,7 @@ void iot_error_set(uint8_t err_type, uint8_t error)
             iot_error_print(IOT_ERROR_TYPE, error);
         break;
     }
+    app_set_led_ind(LED_SYS_FAULT);   //出现故障时，闪红灯报警
 }
 
 
@@ -56,3 +57,4 @@ uint8_t iot_error_check(uint8_t err_type, uint8_t error)
     }
     return 0;
 }
+

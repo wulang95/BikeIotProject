@@ -81,6 +81,8 @@ static uint16_t net_engwwe_iot_hw_info(uint8_t *p)
     lenth += 15;
     memcpy(&p[lenth], ble_info.mac_str, 17);
     lenth += 17;
+    memcpy(&p[lenth], sys_config.dev_type, 6);
+    lenth += 6;
     return lenth;
 }
 
@@ -162,10 +164,17 @@ static uint16_t net_engwe_cmdId_net_info(uint8_t *p)
     lenth += 2;
     u32_big_to_litel_end_sw(&p[lenth], net_info.cid);
     lenth += 4;
+
+    
     p[lenth++] = net_info.net_state;
     p[lenth++] = net_info.act;
     p[lenth++] = net_info.fre_band;
-    p[lenth++] = net_info.csq;
+    if(net_info.rsrp <= -113) {      /*待确认*/
+        p[lenth++] = 99;
+    } else {
+        p[lenth++] = (net_info.rsrp+113)/2;
+    }
+    
     p[lenth++] = net_info.bit_error_rate;
     return lenth;
 }
@@ -222,7 +231,7 @@ static uint16_t net_engwe_cmdId_ride_info(uint8_t *p)
     lenth += 2;
     u32_big_to_litel_end_sw(&p[lenth], car_info.cycle_time_s);
     lenth += 4;
-    u32_big_to_litel_end_sw(&p[lenth], car_info.cycle_total_time_h);
+    u32_big_to_litel_end_sw(&p[lenth], car_info.cycle_total_time);
     lenth += 4;
     u32_big_to_litel_end_sw(&p[lenth], car_info.single_odo);
     lenth += 4;
@@ -819,20 +828,6 @@ static uint16_t net_engwe_cmdId_iot_post_set_inv_query(uint8_t *p)
     }
     u16_big_to_litel_end_sw(&p[lenth], sys_param_set.unlock_car_heart2_interval);
     lenth += 2;
-    if(sys_param_set.net_heart_sw & (1 << BLE_CONNECT_PUSH_HEART_SW)){
-        p[lenth++] = 0x01;
-    } else {
-        p[lenth++] = 0x02;
-    }
-    u16_big_to_litel_end_sw(&p[lenth], sys_param_set.ble_connect_operate_push_interval);
-    lenth += 2;
-    if(sys_param_set.net_heart_sw &(1<<BLE_DISCON_PUSH_HERAT_SW)){
-        p[lenth++] = 0x01;
-    } else {
-        p[lenth++] = 0x02;
-    }
-    u16_big_to_litel_end_sw(&p[lenth], sys_param_set.ble_disconnect_operate_push_interval);
-    lenth += 2;
     return lenth;
 }
 
@@ -843,7 +838,7 @@ static void net_engwe_cmdId_iot_post_inv_set(uint8_t *data, uint16_t len, uint16
     uint32_t time_interval32;
     uint8_t buf[64];
     uint16_t lenth;
-    if(len != 25) {
+    if(len != 19) {
         net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
     }
     net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
@@ -903,28 +898,6 @@ static void net_engwe_cmdId_iot_post_inv_set(uint8_t *data, uint16_t len, uint16
     data_offset += 2;
     if(time_interval != 0){
         sys_param_set.unlock_car_heart2_interval = time_interval;
-    }
-    if(data[data_offset] == 0x01){
-        sys_param_set.net_heart_sw |= 1<< BLE_CONNECT_PUSH_HEART_SW;
-    } else if(data[data_offset] == 0x02){
-        sys_param_set.net_heart_sw &= ~(1<< BLE_CONNECT_PUSH_HEART_SW);
-    }
-    data_offset++;
-    time_interval = u16_big_to_litel_end(&data[data_offset]);
-    data_offset += 2;
-    if(time_interval != 0){
-        sys_param_set.ble_connect_operate_push_interval = time_interval;
-    }
-    if(data[data_offset] == 0x01){
-        sys_param_set.net_heart_sw |= 1<< BLE_DISCON_PUSH_HERAT_SW;
-    } else if(data[data_offset] == 0x02){
-        sys_param_set.net_heart_sw &= ~(1<< BLE_DISCON_PUSH_HERAT_SW);
-    }
-    data_offset++;
-    time_interval = u16_big_to_litel_end(&data[data_offset]);
-    data_offset += 2;
-    if(time_interval != 0){
-        sys_param_set.ble_disconnect_operate_push_interval = time_interval;
     }
     regular_heart_update();
     sys_set_var.sys_updata_falg |= 1<<0;
@@ -1134,9 +1107,63 @@ static uint16_t net_engwe_hw_info(uint8_t *p)
     lenth += 15;
     memcpy(&p[lenth], ble_info.mac_str, 17);
     lenth += 17;
-    p[lenth++] = 2; //IOT型号待定
+    memcpy(&p[lenth], sys_config.dev_type, 6);
+    lenth += 6;
     return lenth;
 
+}
+static uint16_t net_engwe_mqtt_set_info(uint8_t *p)
+{
+    uint16_t lenth = 0, data_len = 0;
+    u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[MQTT_SET_CMD]);
+    lenth += 4;
+    lenth += 2; //长度
+    data_len += 2;
+
+    p[lenth++] = sys_config.mqtt_qos+1;
+    data_len++;
+
+    p[lenth++] = strlen(sys_config.mqtt_pub_topic);
+    data_len++;
+    memcpy(&p[lenth], sys_config.mqtt_pub_topic, strlen(sys_config.mqtt_pub_topic));
+    data_len += strlen(sys_config.mqtt_pub_topic);
+    lenth += strlen(sys_config.mqtt_pub_topic);
+
+    p[lenth++] = strlen(sys_config.mqtt_sub_topic);
+    data_len++;
+    memcpy(&p[lenth], sys_config.mqtt_sub_topic, strlen(sys_config.mqtt_sub_topic));
+    lenth += strlen(sys_config.mqtt_sub_topic);
+    data_len += strlen(sys_config.mqtt_sub_topic);
+
+    p[lenth++] = strlen(sys_config.mqtt_client_user);
+    data_len++;
+    memcpy(&p[lenth], sys_config.mqtt_client_user, strlen(sys_config.mqtt_client_user));
+    lenth += strlen(sys_config.mqtt_client_user);
+    data_len += strlen(sys_config.mqtt_client_user);
+
+    p[lenth++] = strlen(sys_config.mqtt_client_pass);
+    data_len++;
+    memcpy(&p[lenth], sys_config.mqtt_client_pass, strlen(sys_config.mqtt_client_pass));
+    lenth += strlen(sys_config.mqtt_client_pass);
+    data_len += strlen(sys_config.mqtt_client_pass);
+
+    p[lenth++] = sys_config.mqtt_will_en? 0x02:0x01;
+    data_len++;
+
+    p[lenth++] = strlen(sys_config.mqtt_will_msg);
+    data_len++;
+    memcpy(&p[lenth], sys_config.mqtt_will_msg, strlen(sys_config.mqtt_will_msg));
+    lenth += strlen(sys_config.mqtt_will_msg);
+    data_len += strlen(sys_config.mqtt_will_msg);
+
+    p[lenth++] = strlen(sys_config.mqtt_will_topic);
+    data_len++;
+    memcpy(&p[lenth], sys_config.mqtt_will_topic, strlen(sys_config.mqtt_will_topic));
+    lenth += strlen(sys_config.mqtt_will_topic);
+    data_len += strlen(sys_config.mqtt_will_topic);
+
+    u32_big_to_litel_end_sw(&p[4], data_len);
+    return lenth;
 }
 
 static void net_engwe_cmdId_forbidden_set(uint8_t *data, uint16_t len, uint16_t seq)
@@ -1271,10 +1298,10 @@ static void net_engwe_cmdId_param_query(uint32_t cmdId, uint16_t seq)
                     lenth += net_engwe_cmdId_sheepfang_info(&p[lenth]);
                 break;
                 case MQTT_SET_CMD:
-                    
+                    lenth += net_engwe_mqtt_set_info(&p[lenth]);
                 break;
                 case RIDE_INV_INFO_CMD:
-
+                    lenth += net_engwe_cmdId_ride_info(&p[lenth]);
                 break;
             }
         }
@@ -1352,10 +1379,10 @@ void net_engwe_cmd_push(uint8_t cmd_type, uint32_t info_id)
                     lenth += net_engwe_cmdId_forbidden_info(&p[lenth]);
                 break;
                 case MQTT_SET_CMD:
-
+                    lenth += net_engwe_mqtt_set_info(&p[lenth]);
                 break;
                 case RIDE_INV_INFO_CMD:
-
+                    lenth += net_engwe_cmdId_ride_info(&p[lenth]);
                 break;
             } 
         }
@@ -1524,6 +1551,97 @@ static void net_engwe_fota_deal(uint8_t *data, uint16_t len, uint16_t seq)
     free(buf);
 }
 
+
+static void net_engwe_mqtt_set(uint8_t *data, uint16_t len, uint16_t seq)
+{
+    uint8_t *buf;
+    uint16_t lenth = 0;
+    uint8_t data_lenth;
+    buf = malloc(512);
+    if(buf == NULL) {
+        net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
+        return;
+    }
+    if(data[lenth] != 0) {
+        if(data[lenth]>=1 && data[lenth] <= 3) {
+            sys_config.mqtt_qos = data[lenth] - 1; 
+        } else {
+            net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
+            return;
+        }
+    }
+    lenth++;
+    data_lenth = data[lenth];
+    lenth++;
+    if(data_lenth > 64) {
+        net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
+        return;
+    } else if(data_lenth > 0) {
+        memset(sys_config.mqtt_pub_topic, 0, sizeof(sys_config.mqtt_pub_topic));
+        memcpy(sys_config.mqtt_pub_topic, &data[lenth], data_lenth);
+        lenth += data_lenth;
+    } 
+    data_lenth = data[lenth];
+    lenth++;
+    if(data_lenth > 64) {
+        net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
+        return;
+    } else if(data_lenth > 0) {
+        memset(sys_config.mqtt_sub_topic, 0, sizeof(sys_config.mqtt_sub_topic));
+        memcpy(sys_config.mqtt_sub_topic, &data[lenth], data_lenth);
+        lenth += data_lenth;
+    }
+
+    data_lenth = data[lenth];
+    lenth++;
+    if(data_lenth > 32){
+        net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
+        return;
+    } else if(data_lenth > 0){
+        memset(sys_config.mqtt_client_user, 0, sizeof(sys_config.mqtt_client_user));
+        memcpy(sys_config.mqtt_client_user, &data[lenth], data_lenth);
+        lenth += data_lenth;
+    }
+    data_lenth = data[lenth];
+    lenth++;
+    if(data_lenth > 32) {
+        net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
+        return;
+    } else if(data_lenth > 0){
+        memset(sys_config.mqtt_client_pass, 0, sizeof(sys_config.mqtt_client_pass));
+        memcpy(sys_config.mqtt_client_pass, &data[lenth], data_lenth);
+        lenth += data_lenth;
+    }
+    if(data[lenth] != 0x00){
+        sys_config.mqtt_will_en = (data[lenth] == 0x01)?0:1;
+    }
+    lenth++;
+    data_lenth = data[lenth];
+    lenth++;
+    if(data_lenth > 32) {
+        net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
+        return;
+    } else if(data_lenth > 0) {
+        memset(sys_config.mqtt_will_msg, 0, sizeof(sys_config.mqtt_will_msg));
+        memcpy(sys_config.mqtt_will_msg, &data[lenth], data_lenth);
+        lenth += data_lenth;
+    }
+    data_lenth = data[lenth];
+    lenth++;
+    if(data_lenth > 64) {
+        net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
+        return;
+    } else if(data_lenth > 0) {
+        memset(sys_config.mqtt_will_topic, 0, sizeof(sys_config.mqtt_will_topic));
+        memcpy(sys_config.mqtt_will_topic, &data[lenth], data_lenth);
+        lenth += data_lenth;
+    }
+    SETBIT(sys_set_var.sys_updata_falg, SYS_CONFIG_SAVE);   
+    
+    lenth = net_engwe_mqtt_set_info(buf);
+    net_engwe_pack_seq_up(CONFIG_FEEDBACK_UP, buf, lenth, seq);
+    free(buf);
+}
 static void net_engwe_cmdId_handle(uint8_t cmd_type, uint32_t cmdId, uint16_t seq, uint8_t *data, uint16_t len)
 {
     LOG_I("cmd_type:%x, cmdId:%0x, len:%d, seq:%x", cmd_type, cmdId, len, seq);
@@ -1562,11 +1680,9 @@ static void net_engwe_cmdId_handle(uint8_t cmd_type, uint32_t cmdId, uint16_t se
                 net_engwe_cmdId_sheepfang_set(data, len, seq);
              } else if(cmdId == CmdIdTable[FORBIDDEN_ZONE_SET_CMD]) {
                 net_engwe_cmdId_forbidden_set(data, len, seq);
-             } else if(cmdId == CmdIdTable[CAN_TRANS_CMD]) {
-
-             } else if(cmdId == CmdIdTable[RIDE_INV_INFO_CMD]) {
-
-             } 
+             } else if(cmdId == CmdIdTable[MQTT_SET_CMD]) {
+                net_engwe_mqtt_set(data, len, seq);
+             }
         break;
         case QUERY_INFORMATION_DOWN:  
             if(cmdId != CmdIdTable[QUERY_PARAM_CMD] && len != 4) {

@@ -28,15 +28,19 @@ typedef struct {
 }LED_CONTROL_STU;
 
 LED_CONTROL_STU sys_fault_ind[] = {
-        {O_RED_IND, 1,  100},
-        {O_RED_IND, 0,  4900},
+        {O_RED_IND, 1,  500},
+        {O_RED_IND, 0,  2000},
         {O_RED_IND, 0,  LED_LOOP},
-    };
+};
+
+LED_CONTROL_STU sys_alarm_ind[] = {
+    {O_RED_IND, 1,  500},
+    {O_RED_IND, 0,  500},
+    {O_RED_IND, 5,  LED_LOOP},
+};
 
 LED_CONTROL_STU sys_ota_ind[] = {
-    {O_WHITE_IND, 1, 100},
-    {O_WHITE_IND, 0, 2000},
-    {O_WHITE_IND, 0, LED_STOP},
+    {O_WHITE_IND, 1, LED_STOP},
 };
 
 LED_CONTROL_STU sys_wait_alive[] = {
@@ -77,17 +81,19 @@ LED_CONTROL_STU sys_test[] = {
     {O_WHITE_IND, 0, LED_LOOP},
 };
 
-LED_CONTROL_STU *led_control_que[] = {
+LED_CONTROL_STU *led_control_que[LED_IND_MAX] = {
         sys_fault_ind,
         sys_ota_ind,
         led_all_off,
         sys_wait_alive,
+        sys_alarm_ind,
         sys_test,
 };
 
 
 static LED_CONTROL_STU *led_cur_ind;
 static uint8_t led_step;
+static uint8_t led_cent;
 void led_set_value(uint8_t led, uint8_t value)
 {
     hal_drv_write_gpio_value(led, value);
@@ -96,6 +102,7 @@ void led_set_value(uint8_t led, uint8_t value)
 void app_set_led_ind(LED_IND led_ind_sta)
 {
     led_step = 0;
+    led_cent = 0;
     led_set_value(O_WHITE_IND, 0);
     led_set_value(O_RED_IND, 0);
     led_cur_ind = led_control_que[led_ind_sta];
@@ -106,8 +113,14 @@ void app_set_led_ind(LED_IND led_ind_sta)
 
 void app_led_timer_func(void *param)
 {
-    switch (led_cur_ind[led_step].active){
+    switch (led_cur_ind[led_step].active) {
         case LED_LOOP:
+            if(led_cur_ind[led_step].value != 0) {
+                led_cent++;
+                if(led_cent == led_cur_ind[led_step].value) {
+                    return;
+                }
+            }
             led_step = 0;
             def_rtos_timer_start(led_timer, 10, 0);
         break;

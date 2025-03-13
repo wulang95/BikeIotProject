@@ -23,7 +23,7 @@ typedef struct {
     NET_STATE net_state;
     ACCESS_NET act;
     uint8_t fre_band;
-    uint8_t csq;
+    int rsrp;
     uint8_t bit_error_rate;
 }NET_NW_INFO;
 

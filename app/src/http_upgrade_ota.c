@@ -533,6 +533,7 @@ void app_http_ota_init()
 
 void http_upgrade_start()
 {
+    app_set_led_ind(LED_SYS_OTA);
     def_rtos_smaphore_release(http_upgrade_info.http_ota_sem);
 
 }
@@ -706,6 +707,7 @@ void app_http_ota_thread(void *param)
         {
             case HTTP_OTA_WAIT:
                 sys_info.ota_flag = 0;
+                app_set_led_ind(LED_ALL_OFF);
                 res = def_rtos_semaphore_wait(http_upgrade_info.http_ota_sem, RTOS_WAIT_FOREVER);
                 if(res != RTOS_SUCEESS) {
                     continue;

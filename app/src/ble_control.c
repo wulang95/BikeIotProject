@@ -47,6 +47,8 @@ struct ble_cmd_rely_order_s ble_cmd_rely_order[] = {
     {true,              2000,                3        },         /*CMD_BLE_OTA_START*/
     {true,              2000,                3        },         /*CMD_BLE_OTA_DATA*/
     {true,              5000,                3        },         /*CMD_BLE_OTA_END*/
+    {false,              0,                  0        },         /*CMD_BLE_SIGN*/
+    {false,              0,                  0        },        /*CMD_BLE_HEART*/
 };
 
 #define SENDDATALEN         256
@@ -88,7 +90,7 @@ enum {
     BLE_OTA_END_STEP,
     BLE_OTA_ERROR_STEP,
 };
-
+int64_t ble_heart_time_t;
 static struct ble_ota_config_stu ble_ota_config;
 static struct ble_ota_ctrl_stu ble_ota_ctrl;
 static void ble_ota_start()
@@ -438,7 +440,6 @@ void sys_set_ble_adv_start()
 
 void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
 {
-    char *p = NULL;
     LOG_I("cmd:%0x", cmd);
     switch(cmd)
     {
@@ -455,10 +456,19 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
         case CMD_BLE_DISCONNECT:
         case CMD_BLE_SET_ADV_INTERVAL:
         case CMD_BLE_SET_CON_PARAM:
-        
         case CMD_BLE_DELETE_BIND_INFO:
         case CMD_BLE_ENTER_SLEEP:
             break;
+        case CMD_BLE_HEART:
+            
+        break;
+        case CMD_BLE_SIGN:
+            LOG_I("ble sign");
+            if(ble_info.init == 1 && ble_info.adv_sta == 1) {   //防止系统异常重启
+                LOG_I("ble reset");
+                sys_set_ble_adv_start();
+            }
+        break;
         case CMD_BLE_HID_UNLOCK:   //持续检测到蓝牙信号，无关远离和靠近
             if(sys_param_set.hid_lock_sw) {
                 // if(sys_set_var.hid_lock_sw_type == 0) {
@@ -495,18 +505,19 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
         case CMD_BLE_GET_VER:
             LOG_I("BLE_VER:%s", (char *)data);
             memcpy(&ble_info.ver[0], &data[0], strlen((char *)data));
-            if(ble_info.adv_sta == 0)
-            sys_set_ble_adv_start();
+            if(ble_info.adv_sta == 0) {
+                sys_set_ble_adv_start();
+            }
             break;
         case CMD_BLE_GET_MAC:
             memcpy(ble_info.mac, data, 6);
             break;
         case CMD_BLE_VIRT_AT:
-            p = (char *)malloc(len+3);
-            sprintf(p, "%s\r\n", (char *)data);
-            LOG_I("[%d]%s", strlen(p), p);
-            app_virt_uart_write(AT_VIRT_BLE, p);
-            free(p);
+            // p = (char *)malloc(len+3);
+            // sprintf(p, "%s\r\n", (char *)data);
+            // LOG_I("[%d]%s", strlen(p), p);
+            // app_virt_uart_write(AT_VIRT_BLE, p);
+            // free(p);
             break;
         case CMD_BLE_OTA_START:
             LOG_I("BLE_OTA_START");
@@ -550,6 +561,7 @@ void ble_control_recv_thread(void *param)
             iot_error_clean(IOT_ERROR_TYPE, BLE_ERROR);
         }
         debug_data_printf("blerecv",rcv, len);
+        ble_heart_time_t = def_rtos_get_system_tick();
         for(i = 0; i < len; i++){
             c = rcv[i];
             switch(step) {
@@ -647,6 +659,42 @@ static void ble_power_init()
     } 
     sprintf(ble_info.mac_str, "%02X:%02X:%02X:%02X:%02X:%02X", ble_info.mac[0], ble_info.mac[1], ble_info.mac[2], ble_info.mac[3], ble_info.mac[4], ble_info.mac[5]);
 } 
+
+int ble_reinit()
+{
+    static uint8_t step = 0;
+    static int64_t ble_time_t = 0;
+    if(ble_info.init == 0) step = 0;
+    switch(step) {
+        case 0:
+            ble_info.init = 2;
+            LOG_I("ble power off");
+            hal_drv_write_gpio_value(O_BLE_POWER, LOW_L);
+            ble_time_t = def_rtos_get_system_tick();
+            step = 1;
+        break;
+        case 1:
+            if(def_rtos_get_system_tick() - ble_time_t > 5000) {
+                LOG_I("ble power on");
+                hal_drv_write_gpio_value(O_BLE_POWER, HIGH_L);
+                ble_time_t = def_rtos_get_system_tick();
+                step = 2;
+            } 
+        break;
+        case 2:
+            if(def_rtos_get_system_tick() - ble_time_t > 2000){
+                LOG_I("ble is error");
+                ble_info.adv_sta = 0;
+                sys_set_ble_adv_start();
+                step = 0;
+                ble_info.init = 1;
+                return 0;
+            }
+        break;
+    }
+    return 1;
+}
+
 
 
 void ble_control_init()

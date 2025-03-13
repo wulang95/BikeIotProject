@@ -202,7 +202,8 @@ NET_NW_INFO hal_drv_get_operator_info()
     nw_info.cid = reg_info.data_reg.cid;
     nw_info.net_state = (reg_info.data_reg.state == QL_NW_REG_STATE_HOME_NETWORK) ? 1:(reg_info.data_reg.state == QL_NW_REG_STATE_ROAMING)?0:0xff;
     nw_info.act = (reg_info.data_reg.act == QL_NW_ACCESS_TECH_GSM) ? 0:(reg_info.data_reg.act == QL_NW_ACCESS_TECH_E_UTRAN)?1:0xff;
-    nw_info.csq = csq;
+    nw_info.rsrp = pt_info.rsrp;
+    LOG_I("rsrp:%d", pt_info.rsrp);
     nw_info.bit_error_rate = pt_info.bitErrorRate;
     hal_virt_at_write("AT+QNWINFO\r\n");
     hal_virt_at_read(at_buf, 64, 500);

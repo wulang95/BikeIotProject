@@ -18,7 +18,7 @@ void net_socket_thread(void *param);
 void pdp_active_thread(void *param);
 void net_socket_send(uint8_t *data, uint16_t len);
 void iot_mqtt_public(const uint8_t *data, uint16_t len);
-
+void iot_mqtt_disconnect();
 
 
 

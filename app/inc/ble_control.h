@@ -65,6 +65,8 @@ enum {
     BLE_OTA_START_INDEX,            /*0X10*/
     BLE_OTA_DATA_INDEX,             /*0X11*/
     BLE_OTA_END_INDEX,              /*0X12*/
+    BLE_SIGN_INDEX,                 /*0X13*/
+    BLE_HEART_INDEX,                /*0X14*/
     BLE_INDEX_MAX
 };
 
@@ -87,8 +89,11 @@ enum {
     CMD_BLE_OTA_START = 0X10,           /*0X10*/
     CMD_BLE_OTA_DATA = 0X11,            /*0X11*/
     CMD_BLE_OTA_END = 0X12,             /*0X12*/
+    CMD_BLE_SIGN = 0X13,                /*0X13*/
+    CMD_BLE_HEART = 0X14,               /*0X14*/
 };
 
+extern int64_t ble_heart_time_t;
 extern struct ble_info_s ble_info;
 void ble_send_data(uint8_t *data, uint16_t len);
 void ble_control_init();
@@ -100,7 +105,7 @@ void ble_set_scanrsp_data(uint8_t *data, uint8_t len);
 void ble_cmd_pack(uint8_t cmd, uint8_t *data, uint16_t len, uint8_t *buff, uint16_t *buf_len);
 void ble_cmd_mark(uint8_t cmd);
 int ble_ota_task();
-
+int ble_reinit();
 
 
 

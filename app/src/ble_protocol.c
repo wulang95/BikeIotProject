@@ -69,6 +69,7 @@ enum {
     BLE_CMD_S_APN = 0X010B,
     BLE_CMD_Q_HIDKEY_STA = 0X010C,
     BLE_CMD_S_HIDKEY_SW = 0X010D,
+    BLE_CMD_LOOK_CAR = 0X0110,
     BLE_CMD_Q_CHARGE_POWER = 0X0111,
     BLE_CMD_S_CHARGE_POWER = 0X0112,
     BLE_CMD_S_QUIT_NAVIGATION_TIME = 0X0114,
@@ -741,34 +742,43 @@ static void ble_cmd_car_brightness_level(uint8_t brightness_level, uint8_t query
     ble_send_data(buf, len);
 }
 
-static void ble_cmd_lock_res_ack()
+
+static void ble_cmd_lock_control(uint8_t dat)
+{
+    CAR_CMD_Q car_cmd;
+    car_cmd.src = BLUE_CAR_CMD_SER;
+    car_cmd.ble_car_control.ble_cmd = BLE_CMD_LOCK_ASK;
+    if(dat == 0x01) {
+        LOG_I("BLE CAR_UNLOCK_STA");
+        car_cmd.cmd = CAR_CMD_UNLOCK;
+    } else if(dat == 0x02) {
+        car_cmd.cmd = CAR_CMD_LOCK;
+    }
+    CAR_CMD_MARK(car_cmd);
+}
+
+void ble_cmd_opearte_res_up(uint16_t cmd)
 {
     uint8_t data[256] = {0}, buf[256];
     uint16_t data_len = 0;
     uint16_t len;
-    if(car_info.lock_sta == CAR_LOCK_STA) {
-        data[data_len++] = 0x02;
-    } else {
-        data[data_len++] = 0x01;
+
+    switch(cmd){
+        case BLE_CMD_LOCK_ASK:
+            if(car_info.lock_sta == CAR_LOCK_STA) {
+                data[data_len++] = 0x02;
+            } else {
+                data[data_len++] = 0x01;
+            }
+        break;
     }
-    ble_protocol_data_pack(BLE_CMD_LOCK_ASK, &data[0], data_len, &buf[0], &len);
+    ble_protocol_data_pack(cmd, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
 }
 
-static void ble_cmd_lock_control(uint8_t dat)
-{
-    if(dat == 0x01) {
-        LOG_I("BLE CAR_UNLOCK_STA");
-        car_lock_control(BLUE_CAR_CMD_SER, CAR_UNLOCK_STA);
-    } else if(dat == 0x02) {
-        car_lock_control(BLUE_CAR_CMD_SER, CAR_LOCK_STA);
-    }
-    ble_cmd_lock_res_ack();
-}
 
 
-
-static void ble_cmd_set_apn_info(uint8_t *dat, uint8_t lenth)
+ static void ble_cmd_set_apn_info(uint8_t *dat, uint8_t lenth)
 {
     uint8_t data[256] = {0}, buf[256];
     uint16_t data_len = 0;
@@ -1386,6 +1396,18 @@ static void ble_cmd_trans_set(uint8_t *dat)
     ble_send_data(buf, len);
 } 
 
+static void ble_cmd_look_car()
+{
+    uint8_t buf[64];
+    uint16_t len;
+    CAR_CMD_Q car_cmd_q;
+    car_cmd_q.src = BLUE_CAR_CMD_SER;
+    car_cmd_q.cmd = CAR_LOOK_CAR2;
+    car_cmd_q.ble_car_control.ble_cmd = BLE_CMD_LOOK_CAR;
+    CAR_CMD_MARK(car_cmd_q);
+    ble_protocol_data_pack(BLE_CMD_LOOK_CAR, NULL, 0, &buf[0], &len);
+    ble_send_data(buf, len);
+}
 
 void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 {
@@ -1543,6 +1565,9 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
         case BLE_CMD_LOG_SW:
             ble_cmd_log_sw(data);
         break;
+        case BLE_CMD_LOOK_CAR:
+            ble_cmd_look_car();
+        break;
         default:
         break;
     }
@@ -1603,11 +1628,25 @@ void ble_up_cycle_data_heart_service()
     data[data_len++] = sys_info.paltform_connect ? 0x01:0x02;
     data[data_len++] = gsm_info.csq;
     data[data_len++] = sys_info.bat_soc;
-    data[data_len++] = 0;
     data[data_len++] = Gps.SateNum;
 
-    data[data_len++] = car_info.lock_sta?0x01:0x02;
-    data[data_len++] = 0x01;
+    data[data_len++] = (car_info.lock_sta == CAR_UNLOCK_STA)?0x01:0x02;
+    data[data_len++] = 0x01;  //开关机
+    if(car_info.bms_info[0].chargefull_sta) {
+        data[data_len++] = 0xFF;
+    } else if(car_info.bms_info[0].charge_sta) {
+        data[data_len++] = 0x01; 
+    }  else {
+        data[data_len++] = 0x00;
+    }
+    data[data_len++] = (car_info.bms_info[0].pack_vol*10) >> 8;
+    data[data_len++] = (car_info.bms_info[0].pack_vol*10)&0xff;
+    data[data_len++] = car_info.total_agv_pedal_speed>>8;
+    data[data_len++] = car_info.total_agv_pedal_speed&0xff;
+    data[data_len++] =(car_info.cycle_total_time >> 24)&0xff;
+    data[data_len++] =(car_info.cycle_total_time >> 16)&0xff;
+    data[data_len++] =(car_info.cycle_total_time >> 8)&0xff;
+    data[data_len++] =car_info.cycle_total_time&0xff;
     ble_protocol_data_pack(BLE_CMD_U_RIDEDATA_SERVICE, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
     free(data);
