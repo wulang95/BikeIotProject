@@ -67,6 +67,7 @@ typedef struct GPS_INFO_STRUCT
 	
     char     PosData[80];      
 
+    uint8_t vaild;
     uint8_t hdop;
     uint16_t ground_speed;
     uint16_t direction;
@@ -83,7 +84,7 @@ void gps_control_thread(void *param);
 void GPS_Start(uint8_t Mode);
 void GPS_stop();
 int GPS_reinit();//重新上电
-
+void GPS_fence_detection();
 
 
 

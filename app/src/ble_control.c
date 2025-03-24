@@ -477,7 +477,7 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
                 // } else {
                 if(car_info.hmi_info.power_on && car_info.lock_sta == CAR_LOCK_STA){
                     car_control_cmd(CAR_CMD_JUMP_PASSWORD);
-                    rtc_event_unregister(CAR_SET_EN_POWER_PASSWD);
+                //    rtc_event_unregister(CAR_SET_EN_POWER_PASSWD);
                 }
                 // }
             }
@@ -487,7 +487,7 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
             if(sys_param_set.hid_lock_sw) {
                 if(car_info.hmi_info.power_on && car_info.lock_sta == CAR_LOCK_STA){
                     car_control_cmd(CAR_CMD_JUMP_PASSWORD);
-                    rtc_event_unregister(CAR_SET_EN_POWER_PASSWD);
+               //     rtc_event_unregister(CAR_SET_EN_POWER_PASSWD);
                 }
             }
             ble_cmd_mark(BLE_HID_LOCK_INDEX);

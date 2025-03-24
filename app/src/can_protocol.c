@@ -97,17 +97,16 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                     car_info.hmi_info.power_on = 0;
                     if(car_info.lock_sta == CAR_UNLOCK_STA) {
                          week_time("lock", 180);
-                         regular_heart_update();
                          voice_play_mark(LOCK_VOICE);   
                          car_info.lock_sta = CAR_LOCK_STA;
                          LOG_I("HMI_CMD_LOCK_SRC CAR_LOCK_STA");
                     }
                 } else if(((data[0]&0x80)>>7) == 1 && car_info.hmi_info.power_on == 0) {
                     car_info.hmi_info.power_on = 1;
-                    if(app_rtc_event_query_remain_time(CAR_SET_EN_POWER_PASSWD)){
-                        car_control_cmd(CAR_CMD_JUMP_PASSWORD);
-                        rtc_event_unregister(CAR_SET_EN_POWER_PASSWD);
-                    }
+                    // if(app_rtc_event_query_remain_time(CAR_SET_EN_POWER_PASSWD)){
+                    //     car_control_cmd(CAR_CMD_JUMP_PASSWORD);
+                    //     rtc_event_unregister(CAR_SET_EN_POWER_PASSWD);
+                    // }
                     LOG_I("POWER_ON");
                 }
 
@@ -139,10 +138,9 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                 car_info.hmi_info.encry_lock_sta = data[2];
                 if((7&(data[1]>>4)) == 2 && car_info.hmi_info.power_on == 1) {
                     if(car_info.lock_sta == CAR_LOCK_STA) {
-                        car_info.lock_sta = CAR_UNLOCK_STA;
-                        regular_heart_update();
                         week_time("lock", -1); 
                         voice_play_mark(UNLOCK_VOICE);
+                        car_info.lock_sta = CAR_UNLOCK_STA;
                         LOG_I("HMI_CMD_LOCK_SRC CAR_UNLOCK_STA");
                     }
                 }

@@ -245,11 +245,8 @@ struct car_info_stu {
     uint16_t bus_voltage;  //母线电压 0.1V
     uint32_t trip_calorie;  //消耗卡路里
     uint16_t ebike_calorie;
-    union 
-    {
-        uint8_t car_unlock_state;
-        uint8_t car_lock_state;
-    };
+    uint8_t car_unlock_state;
+    uint8_t car_lock_state;
     uint8_t filp_state;
     uint8_t move_alarm;
     uint8_t quick_charger_det :1; //为1时检测到快充接入

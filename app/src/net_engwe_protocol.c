@@ -91,6 +91,11 @@ static uint16_t net_engwe_cmdId_gps_info(uint8_t *p)
     uint16_t lenth = 0;
     u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[GPS_INFO_CMD]);
     lenth += 4;
+    if(Gps.vaild == 0) {
+        p[lenth++] = 0;
+        p[lenth++] = 2;
+        return lenth;
+    }
     p[lenth++] = 0;
     p[lenth++] = 18;
     p[lenth++] = Gps.SateNum;
@@ -127,7 +132,7 @@ static uint16_t net_engwe_cmdId_car_state(uint8_t *p)
     p[lenth++] = car_info.filp_state;
     p[lenth++] = car_info.charger_state;//充电状态
     p[lenth++] = sys_info.iot_mode;
-    p[lenth++] = sys_info.power_36v ? 0x01:0x02;
+    p[lenth++] = sys_info.power_sta;
     p[lenth++] = sys_info.sheepfang_sta;
     p[lenth++] = sys_info.fence_sta;
     if(car_info.lock_sta == CAR_LOCK_STA) {
@@ -222,7 +227,7 @@ static uint16_t net_engwe_cmdId_ride_info(uint8_t *p)
     u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[RIDE_INFO_CMD]);
     lenth += 4;
     p[lenth++] = 0;
-    p[lenth++] = 30;
+    p[lenth++] = 34;
     u16_big_to_litel_end_sw(&p[lenth], car_info.speed);
     lenth += 2;
     u16_big_to_litel_end_sw(&p[lenth], car_info.avg_speed);
@@ -252,6 +257,7 @@ static uint16_t net_engwe_cmdId_ride_info(uint8_t *p)
     lenth += 2;
     return lenth;
 }
+
 
 void net_engwe_pack_seq_up(uint8_t cmd_type, uint8_t *cmd_data, uint16_t cmd_len, uint16_t seq_num)
 {
@@ -516,7 +522,6 @@ static void net_engwe_cmdId_CarSet(uint8_t *data, uint16_t len, uint16_t seq)
             sys_param_set.hid_lock_sw = 1;
         else if(data[2] == 0x02) 
             sys_param_set.hid_lock_sw = 0;
-        SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
     }
     if(data[3] != 0) {
         if(data[3] == 0x01) {
@@ -525,7 +530,6 @@ static void net_engwe_cmdId_CarSet(uint8_t *data, uint16_t len, uint16_t seq)
         else if(data[3] == 0x02){
             sys_param_set.shock_sw = 0;
         }
-        SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
     }
     if(data[4] != 0) {
         if(data[4] == 0x01) {   
@@ -547,8 +551,8 @@ static void net_engwe_cmdId_CarSet(uint8_t *data, uint16_t len, uint16_t seq)
         else if(data[9] == 0x02) {
             sys_param_set.total_fence_sw = 0;
         }
-        SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
     }
+    SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
     /*配置上报*/
     u32_big_to_litel_end_sw(&buf[lenth], CmdIdTable[CAR_CONFIG_CMD]);
     lenth += 4;
@@ -1768,10 +1772,9 @@ START:
 def_rtos_queue_t net_engwe_cmd_que;
 void NET_ENGWE_CMD_MARK(uint8_t cmd)
 {
-    if(cmd != STATUS_PUSH_UP && cmd != REGULARLY_REPORT_UP && cmd != REGULARLY_REPORT2_UP && cmd != OPERATION_PUSH_UP && cmd != HEART_UP) {
-        return;
+    if(cmd == STATUS_PUSH_UP || cmd == REGULARLY_REPORT_UP || cmd == REGULARLY_REPORT2_UP || cmd == OPERATION_PUSH_UP || cmd == HEART_UP) {
+        def_rtos_queue_release(net_engwe_cmd_que, sizeof(uint8_t), &cmd, RTOS_WAIT_FOREVER);
     }
-    def_rtos_queue_release(net_engwe_cmd_que, sizeof(uint8_t), &cmd, RTOS_WAIT_FOREVER);
 }
 
 

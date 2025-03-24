@@ -394,6 +394,7 @@ void car_init()
     def_rtos_timer_create(&key_timer, NULL, key_timer_fun, NULL); 
     car_info.car_unlock_state = CAR_UNLOCK_STILL;  //车辆静止
     car_info.filp_state = CAR_NORMAL_STATE;
+    car_info.car_lock_state = CAR_LOCK_STILL;
  //   car_set_save.mileage_unit= 1;
   //  car_control_cmd(CAR_CMD_SET_ATSPHLIGHT_COLOR_CUSTOM);
  //   car_control_cmd(CAR_CMD_SET_MILEAGE_UNIT);

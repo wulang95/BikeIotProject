@@ -69,6 +69,10 @@ enum {
     BLE_CMD_S_APN = 0X010B,
     BLE_CMD_Q_HIDKEY_STA = 0X010C,
     BLE_CMD_S_HIDKEY_SW = 0X010D,
+    
+    BLE_CMD_Q_MOVE_SW = 0X010E,
+    BLE_CMD_MOVE_SW = 0X010F,
+
     BLE_CMD_LOOK_CAR = 0X0110,
     BLE_CMD_Q_CHARGE_POWER = 0X0111,
     BLE_CMD_S_CHARGE_POWER = 0X0112,
@@ -802,7 +806,7 @@ static void ble_cmd_set_power_on_password(uint8_t *dat, uint8_t lenth)
     car_control_cmd(CAR_CMD_SET_POWER_ON_PASSWORD);
     memcpy(&data[data_len], dat, lenth);
     data_len += lenth;
-    ble_protocol_data_pack(BLE_CMD_S_APN, &data[0], data_len, &buf[0], &len);
+    ble_protocol_data_pack(BLE_CMD_S_POWER_PASSWORD, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
 }
 
@@ -817,7 +821,8 @@ static void ble_navigation_service(uint8_t *data)
     LOG_I("total_nav_range:%d", car_state_data.total_nav_range);
     iot_can_state2_fun();
     iot_can_navigation_data();
-    rtc_event_register(CAR_NAVIGATION_QUIT, car_set_save.navigation_quit_time, 0);
+    LOG_I("navigation_quit_time:%d", sys_param_set.navigation_quit_time);
+    rtc_event_register(CAR_NAVIGATION_QUIT, sys_param_set.navigation_quit_time, 0);
 }
 
 static void ble_atsphlight_sta_query()
@@ -1343,15 +1348,13 @@ static void ble_set_charge_power(uint8_t *dat)
     ble_send_data(buf, len);
 }
 
-static void ble_set_navigation_quit_time(uint8_t *dat)
+static void ble_set_navigation_quit_time()
 {
     uint8_t data[16] = {0}, buf[64];
     uint16_t data_len = 0;
     uint16_t len;
 
-    car_set_save.navigation_quit_time = dat[0];
-    data[data_len++] = dat[0];
-    rtc_event_register(CAR_NAVIGATION_QUIT, car_set_save.navigation_quit_time, 0);
+    data[data_len++] = car_set_save.navigation_quit_time;
     ble_protocol_data_pack(BLE_CMD_S_QUIT_NAVIGATION_TIME, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
 }
@@ -1395,6 +1398,29 @@ static void ble_cmd_trans_set(uint8_t *dat)
     ble_protocol_data_pack(BLE_CMD_CAN_TRANS_SET, &data[0], 1, &buf[0], &len);
     ble_send_data(buf, len);
 } 
+static void ble_cmd_qury_move_sw()
+{
+    uint8_t data[16] = {0}, buf[64];
+    uint16_t len;
+    data[0] = sys_param_set.shock_sw?0x01:0x02;
+    ble_protocol_data_pack(BLE_CMD_Q_MOVE_SW, &data[0], 1, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
+static void ble_cmd_set_move_sw(uint8_t dat)
+{
+    uint8_t data[16] = {0}, buf[64];
+    uint16_t len;
+    if(dat == 0x01) {
+        sys_param_set.shock_sw = 1;
+    } else {
+        sys_param_set.shock_sw = 0;
+    }
+    SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
+    data[0] = dat;
+    ble_protocol_data_pack(BLE_CMD_MOVE_SW, &data[0], 1, &buf[0], &len);
+    ble_send_data(buf, len);
+}
 
 static void ble_cmd_look_car()
 {
@@ -1408,6 +1434,8 @@ static void ble_cmd_look_car()
     ble_protocol_data_pack(BLE_CMD_LOOK_CAR, NULL, 0, &buf[0], &len);
     ble_send_data(buf, len);
 }
+
+
 
 void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 {
@@ -1512,7 +1540,7 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
             ble_set_charge_power(data);
         break;
         case BLE_CMD_S_QUIT_NAVIGATION_TIME:
-            ble_set_navigation_quit_time(data);
+            ble_set_navigation_quit_time();
         break;
         case BLE_CMD_S_POWER_PASSWORD:
             ble_cmd_set_power_on_password(data, len);
@@ -1567,6 +1595,12 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
         break;
         case BLE_CMD_LOOK_CAR:
             ble_cmd_look_car();
+        break;
+        case BLE_CMD_Q_MOVE_SW:
+            ble_cmd_qury_move_sw();
+        break;
+        case BLE_CMD_MOVE_SW:
+            ble_cmd_set_move_sw(data[0]);
         break;
         default:
         break;
@@ -1672,7 +1706,6 @@ void ble_protocol_recv_thread(void *param)
         debug_data_printf("ble_protocol_rec", buf, len);
         for(i = 0; i< len; i++){
             res = buf[i];
-            LOG_I("STEP:%d", step);
             switch(step)
             {
             case 0:

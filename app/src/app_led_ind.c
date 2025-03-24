@@ -34,9 +34,9 @@ LED_CONTROL_STU sys_fault_ind[] = {
 };
 
 LED_CONTROL_STU sys_alarm_ind[] = {
-    {O_RED_IND, 1,  500},
-    {O_RED_IND, 0,  500},
-    {O_RED_IND, 5,  LED_LOOP},
+    {O_RED_IND, 1,  300},
+    {O_RED_IND, 0,  200},
+    {O_RED_IND, 4,  LED_LOOP},
 };
 
 LED_CONTROL_STU sys_ota_ind[] = {

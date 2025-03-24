@@ -456,11 +456,6 @@ static void iot_mqtt_inpub_data_cb(mqtt_client_t *client, void *arg, int pkt_id,
     net_engwe_data_parse((uint8_t *)payload, payload_len);
 }
 
-void iot_mqtt_disconnect()
-{
-    LOG_I("iot_mqtt_disconnect");
-    ql_mqtt_disconnect(&mqtt_con_info.mqtt_cli, NULL, NULL);
-}
 
 void iot_mqtt_state_machine()
 {
@@ -469,6 +464,7 @@ void iot_mqtt_state_machine()
     static uint32_t mqtt_connect_ret_time = 1;
     static uint32_t mqtt_client_sub_time = 1;
     static uint64_t mqtt_connect_timeout = 0;
+    static uint64_t mqtt_disconnect_timeout = 0;
     static uint64_t mqtt_sub_timeout = 0;
     static uint16_t mqtt_count = 0;
     static int ret = MQTTCLIENT_SUCCESS;
@@ -571,6 +567,7 @@ void iot_mqtt_state_machine()
                 ql_mqtt_set_inpub_callback(&mqtt_con_info.mqtt_cli, iot_mqtt_inpub_data_cb, NULL);
                 sys_info.paltform_connect = 1;
                 mqtt_con_info.state = MQTT_SUB;
+                mqtt_disconnect_timeout = def_rtos_get_system_tick();
             break;
             case MQTT_SUB:
                 mqtt_con_info.sub_res = 0;
@@ -599,7 +596,6 @@ void iot_mqtt_state_machine()
                         memcpy(sys_config.soft_ver, SOFTVER, strlen(SOFTVER));
                         SETBIT(sys_set_var.sys_updata_falg, SYS_CONFIG_SAVE);
                     }
-
                 } else if(def_rtos_get_system_tick() - mqtt_sub_timeout > 12000) {  
                     LOG_E("mqtt sub fail:%d", mqtt_client_sub_time);
                     def_rtos_task_sleep_s(mqtt_client_sub_time);
@@ -616,14 +612,12 @@ void iot_mqtt_state_machine()
             case MQTT_CONNECT_DET:
                 LOG_I("MQTT_CONNECT_DET");
                 week_time("net", 30); 
-           //     ql_mqtt_disconnect(&mqtt_con_info.mqtt_cli, )
                 ql_rtos_semaphore_wait(mqtt_con_info.mqtt_disconnet_sem_t, QL_WAIT_FOREVER);
-                socket_disconnect_handle();
+                if(def_rtos_get_system_tick() - mqtt_disconnect_timeout < 60000) {      /*防止掉线频繁连接*/
+                    socket_disconnect_handle();
+                }
                 LOG_E("mqtt connect is fail");
                 mqtt_con_info.state = MQTT_BIND_SIM_AND_PROFILE;
-             //   sys_info.paltform_connect = 0;
-             //   mqtt_con_info.state = MQTT_CONNECT;
-            //    ql_mqtt_client_deinit(&mqtt_con_info.mqtt_cli);
             break;
         }
     }

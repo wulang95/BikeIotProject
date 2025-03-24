@@ -77,9 +77,9 @@ enum {
 };
 
 enum {
-    GPS_MODE = 0,
-    BLE_MODE,
-    SENSOR_MODE,
+    GPS_MODEL = 0,
+    BLE_MODEL,
+    SENSOR_MODEL,
 };
 
 #define OFFLINE_OPERATE_PUSH_DEFAULT (0x00000040|0x00000080|0x00000020)
@@ -110,6 +110,7 @@ struct sys_param_set_stu {
     uint8_t farme_type;
     uint8_t fw_id[8];
     uint16_t ota_seq;
+    uint8_t navigation_quit_time;
     uint32_t crc32;
 };
 
@@ -206,6 +207,13 @@ enum {
     FORBIDDEN_OUT,      //在禁区外
 };
 
+enum {
+    BATTERY_IN = 0x01,
+    BATTERY_OUT,
+    BATTERY_USE,
+    BATTERY_INNER,
+};
+
 #pragma pack(1)
 struct sys_info_stu {
     uint16_t battry_val;
@@ -234,6 +242,7 @@ struct sys_info_stu {
     uint8_t iot_mode;
     uint8_t sheepfang_sta;
     uint8_t fence_sta;
+    uint8_t track_mode;
     uint8_t ble_log_sw;
     uint8_t shock_sw_state;
     uint8_t ble_can_trans_sw;
@@ -241,6 +250,8 @@ struct sys_info_stu {
     unsigned long long car_error;
     unsigned iot_error;
     uint8_t mode_reinit_flag;
+    uint8_t power_sta;
+    uint8_t fence_voice_flag;
 };
 
 struct sys_set_var_stu{

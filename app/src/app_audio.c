@@ -25,7 +25,7 @@ struct audio_con_stu
 struct audio_con_stu audio_con_table[] = {
     {1,     0,      LOCK_VOICE_FILE},
     {1,     0,      UNLOCK_VOICE_FILE},
-    {3,    1000,   ALARM_VOICE_FILE},
+    {1,    0,   ALARM_VOICE_FILE},
     {5,    1000,   LOOK_CAR_VOICE_FILE},
     {0Xff,     1000,   ENTER_PENALTY_AREA_VOICE_FILE},
 };
@@ -173,8 +173,7 @@ void app_audio_thread(void *param)
             if(play_flag == 1) break;
             LOG_I("audio play:%s", audio_play.file_name);
         }
-        LOG_I("play_flag:%d, audio_play.play_cnt:%d, res:%d, aud is quit", play_flag, audio_play.play_cnt, res);
-        
+        LOG_I("play_flag:%d, audio_play.play_cnt:%d, res:%d, aud is quit", play_flag, audio_play.play_cnt, res);    
     }
     def_rtos_task_delete(NULL);
 }

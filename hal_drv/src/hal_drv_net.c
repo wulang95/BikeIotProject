@@ -104,6 +104,7 @@ uint8_t hal_drv_get_cpin()
     return res;
 }
 
+
 void hal_dev_set_c_fun(uint8_t fun, uint8_t rst)
 {
      ql_dev_set_modem_fun(fun, rst, 0);
@@ -118,6 +119,7 @@ uint8_t hal_dev_get_c_fun()
 
 void sys_reset()
 {
+    LOG_I("sys_reset...");
     def_rtos_task_sleep_s(5);
     ql_power_reset(RESET_NORMAL);
 }
