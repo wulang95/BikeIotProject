@@ -43,6 +43,9 @@ void iot_error_clean(uint8_t err_type, uint8_t error)
             sys_info.iot_error &= ~(1<< error);
         break;
     }
+    if(sys_info.car_error == 0 && sys_info.iot_error == 0){
+        app_set_led_ind(LED_ALL_OFF);
+    }
 }
 
 uint8_t iot_error_check(uint8_t err_type, uint8_t error)

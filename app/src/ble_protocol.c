@@ -76,6 +76,9 @@ enum {
     BLE_CMD_LOOK_CAR = 0X0110,
     BLE_CMD_Q_CHARGE_POWER = 0X0111,
     BLE_CMD_S_CHARGE_POWER = 0X0112,
+    BLE_CMD_CLEAN_BIND_INFO = 0X0119,
+    BLE_CMD_Q_BMS_HEALTH_INFO = 0X011C,
+    BLE_CMD_U_BMS_HEALTH_INFO = 0X011D,
     BLE_CMD_S_QUIT_NAVIGATION_TIME = 0X0114,
     BLE_CMD_S_RESTORE_FACTORY_CONFIG = 0X8049,
     BLE_CMD_S_CLEAN_ODO_DATA = 0XBEC7,
@@ -1435,7 +1438,57 @@ static void ble_cmd_look_car()
     ble_send_data(buf, len);
 }
 
+static void ble_cmd_q_bms_health_info()
+{
+    uint8_t buf[64], data[64];
+    uint16_t len;
+    uint16_t lenth = 0;
 
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.capacity_input_quantity >> 24)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.capacity_input_quantity >> 16)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.capacity_input_quantity >> 8)&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.capacity_input_quantity&0xff;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_input_quantity >> 24)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_input_quantity >> 16)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_input_quantity >> 8)&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.engwe_input_quantity&0xff;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_use_time >> 24)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_use_time >> 16)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_use_time >> 8)&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.extreme_temperature_use_time&0xff;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_charge_time >> 24)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_charge_time >> 16)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_charge_time >> 8)&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.extreme_temperature_charge_time&0xff;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.deep_discharge_count >>8 )&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.deep_discharge_count&0xff;
+
+    data[lenth++] = car_info.bms_info[0].ece_regulation.battery_self_discharge_rate;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.engwe_exchange_efficiency;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.capactity_output_quantity >> 24)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.capactity_output_quantity >> 16)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.capactity_output_quantity >> 8)&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.capactity_output_quantity&0xff;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_output_quantity >> 24)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_output_quantity >> 16)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_output_quantity >> 8)&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.engwe_output_quantity&0xff;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.battery_internal_resistance >>8)&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.battery_internal_resistance&0xff;
+    data[lenth++] = car_info.bms_info[0].manufacture_date.year;
+    data[lenth++] = car_info.bms_info[0].manufacture_date.month;
+    data[lenth++] = car_info.bms_info[0].manufacture_date.day;
+
+    ble_protocol_data_pack(BLE_CMD_U_BMS_HEALTH_INFO, &data[0], lenth, &buf[0], &len);
+    ble_send_data(buf, len);
+}
 
 void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 {
@@ -1601,6 +1654,9 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
         break;
         case BLE_CMD_MOVE_SW:
             ble_cmd_set_move_sw(data[0]);
+        break;
+        case BLE_CMD_Q_BMS_HEALTH_INFO:
+            ble_cmd_q_bms_health_info();
         break;
         default:
         break;

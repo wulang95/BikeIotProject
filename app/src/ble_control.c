@@ -85,6 +85,9 @@ struct ble_ota_ctrl_stu{
 
 enum {
     BLE_OTA_IDEL_STEP = 0,
+    BLE_OTA_DISCON,
+    BLE_OTA_CHECK_DISCON,
+    BLE_OTA_STOP_AVD,
     BLE_OTA_START_STEP,
     BLE_OTA_DATA_STEP,
     BLE_OTA_END_STEP,
@@ -156,6 +159,7 @@ static void ble_ota_end()
 int ble_ota_task()
 {
     int64_t ble_ota_start_time_t;
+    int64_t ble_ota_discon_time_t = 0;
     ble_ota_ctrl.ota_sta = BLE_OTA_IDEL_STEP;
     if(ble_ota_ctrl.ota_sta != BLE_OTA_IDEL_STEP) return FAIL;
     ble_ota_ctrl.data = malloc(128);
@@ -165,8 +169,7 @@ int ble_ota_task()
         return FAIL;
     }
     LOG_I("ble_ota_task is run");
-    ble_cmd_mark(BLE_ADV_STOP_INDEX);
-    ble_ota_ctrl.ota_sta = BLE_OTA_START_STEP;
+    ble_ota_ctrl.ota_sta = BLE_OTA_DISCON;
     ble_ota_ctrl.offset = 0;
     ble_ota_ctrl.ota_res = 0xff;
     ble_ota_ctrl.data_len = 0;
@@ -174,6 +177,32 @@ int ble_ota_task()
     ble_ota_start_time_t = def_rtos_get_system_tick();
     while(1){
         switch(ble_ota_ctrl.ota_sta){
+            case BLE_OTA_DISCON:
+                if(sys_info.ble_connect == 1) {
+                    ble_cmd_mark(BLE_DISCONNECT_INDEX);
+                    ble_ota_ctrl.ota_sta = BLE_OTA_CHECK_DISCON;
+                    ble_ota_discon_time_t = def_rtos_get_system_tick();
+                } else {
+                    ble_cmd_mark(BLE_ADV_STOP_INDEX);
+                    ble_ota_ctrl.ota_sta = BLE_OTA_START_STEP;
+                }
+            break;
+            case BLE_OTA_CHECK_DISCON:
+                if(sys_info.ble_connect == 0) {
+                    ble_ota_ctrl.ota_sta = BLE_OTA_STOP_AVD;
+                    ble_ota_discon_time_t = def_rtos_get_system_tick();
+                    ble_cmd_mark(BLE_ADV_STOP_INDEX);
+                } else if(def_rtos_get_system_tick() - ble_ota_discon_time_t > 10000) {
+                    ble_ota_ctrl.ota_sta = BLE_OTA_ERROR_STEP;
+                }
+            break;
+            case BLE_OTA_STOP_AVD:
+                if(ble_info.adv_sta == 0) {
+                    ble_ota_ctrl.ota_sta = BLE_OTA_START_STEP;
+                } else if(def_rtos_get_system_tick() - ble_ota_discon_time_t > 10000) {
+                    ble_ota_ctrl.ota_sta = BLE_OTA_ERROR_STEP;
+                }
+            break;
             case BLE_OTA_START_STEP:
                 ble_ota_start();
             break;
@@ -184,6 +213,7 @@ int ble_ota_task()
                 ble_ota_end();
                 free(ble_ota_ctrl.data);
                 def_rtos_semaphore_delete(ble_ota_ctrl.con_sem_t);
+                def_rtos_task_sleep_ms(8000);
                 if(ble_ota_ctrl.ota_res == 0) {
                     LOG_I("BLE OTA IS SUCCESS");
                     ble_cmd_mark(BLE_GET_VER_INDEX);
@@ -198,7 +228,9 @@ int ble_ota_task()
             case BLE_OTA_ERROR_STEP:
                 LOG_I("BLE_OTA_ERROR_STEP");
                 ble_cmd_mark(BLE_ADV_START_INDEX);
-                free(ble_ota_ctrl.data);
+                if(ble_ota_ctrl.data){
+                    free(ble_ota_ctrl.data);
+                }
                 def_rtos_semaphore_delete(ble_ota_ctrl.con_sem_t);
                 return FAIL;
             break;
@@ -403,14 +435,11 @@ void ble_set_scanrsp_data(uint8_t *data, uint8_t len)
 void sys_set_ble_adv_start()
 {
     uint8_t buf[32];
-    char str[30];
     uint8_t len = 0;
-    sprintf(str, "%s-%02X", BLE_NAME, ble_info.mac[5]);
-    LOG_I("%s", str);
     buf[1+len] = GAP_ADVTYPE_LOCAL_NAME_COMPLETE;
     len++;
-    memcpy(&buf[1+len], str, strlen(str));
-    len += strlen(str);
+    memcpy(&buf[1+len], ble_info.ble_name, strlen(ble_info.ble_name));
+    len += strlen(ble_info.ble_name);
     buf[0] = len;
     len += 1;
     buf[len++] = 3;
@@ -510,7 +539,7 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
             }
             break;
         case CMD_BLE_GET_MAC:
-            memcpy(ble_info.mac, data, 6);
+        //    memcpy(ble_info.mac, data, 6);
             break;
         case CMD_BLE_VIRT_AT:
             // p = (char *)malloc(len+3);
@@ -658,6 +687,7 @@ static void ble_power_init()
         return;
     } 
     sprintf(ble_info.mac_str, "%02X:%02X:%02X:%02X:%02X:%02X", ble_info.mac[0], ble_info.mac[1], ble_info.mac[2], ble_info.mac[3], ble_info.mac[4], ble_info.mac[5]);
+    sprintf(ble_info.ble_name, "%s-%02X", BLE_NAME, ble_info.mac[5]);
 } 
 
 int ble_reinit()

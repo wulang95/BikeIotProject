@@ -11,6 +11,8 @@
 #include    "log_port.h"
 enum OTA_STEP{
     OTA_IDEL_STEP = 0,
+    OTA_CAR_UNLOCK,
+    OTA_CHECK_CAR_UNLOCK,
     OTA_QUEST_STEP,
     OTA_PACK_HEAD_STEP,
     OTA_PACK_DATA_STEP,
@@ -532,6 +534,31 @@ static void bms_info_handle(uint8_t bms_num, PDU_STU pdu, uint8_t *data, uint8_t
                 memcpy(&car_info.bms_info[bms_num].hw_ver[8], &data[0], 8);
                 LOG_I("hw_ver:%s", car_info.bms_info->hw_ver);
             break;
+            case BMS_HEALTH_INFO1:
+                car_info.bms_info[bms_num].ece_regulation.capacity_input_quantity = data[3] << 24 | data[2] << 16 | data[1] << 8 | data[0];
+                car_info.bms_info[bms_num].ece_regulation.engwe_input_quantity = data[7] << 24 | data[6] << 16 | data[5] << 8 | data[4];
+            break;
+            case BMS_HEALTH_INFO2:
+                car_info.bms_info[bms_num].ece_regulation.extreme_temperature_use_time = data[3] << 24 | data[2] << 16 | data[1] << 8 | data[0];
+                car_info.bms_info[bms_num].ece_regulation.extreme_temperature_charge_time = data[7] << 24 | data[6] << 16 | data[5] << 8 | data[4];
+            break;
+            case BMS_HEALTH_INFO3:
+                car_info.bms_info[bms_num].ece_regulation.deep_discharge_count = data[1] << 8 | data[0];
+                car_info.bms_info[bms_num].ece_regulation.battery_self_discharge_rate = data[2];
+                car_info.bms_info[bms_num].ece_regulation.engwe_exchange_efficiency = data[3];
+                car_info.bms_info[bms_num].ece_regulation.battery_internal_resistance = data[5] << 8 | data[4];
+                car_info.bms_info[bms_num].ece_regulation.dev_type = data[6];
+                car_info.bms_info[bms_num].ece_regulation.function_support = data[7];
+            break;
+            case BMS_HEALTH_INFO4:
+                car_info.bms_info[bms_num].ece_regulation.capactity_output_quantity = data[3] << 24 | data[2] << 16 | data[1] << 8 | data[0];
+                car_info.bms_info[bms_num].ece_regulation.engwe_output_quantity = data[7] << 24 | data[6] << 16 | data[5] << 8 | data[4];
+            break;
+            case BMS_MANUFACTURE_DATE:
+                car_info.bms_info[bms_num].manufacture_date.year = data[0];
+                car_info.bms_info[bms_num].manufacture_date.month = data[1];
+                car_info.bms_info[bms_num].manufacture_date.day = data[2];
+            break;
         }
     }
 }
@@ -738,6 +765,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                 can_png_quest(BMS_ADR, BMS_SOFT_VER, 0);
                 can_png_quest(BMS_ADR, BMS_SOFT_VER_EXTEND1, 0);
                 can_png_quest(BMS_ADR, BMS_SOFT_VER_EXTEND2, 0);
+                can_png_quest(BMS_ADR, BMS_CELL_VOL1, 0);
             //    can_png_quest(BMS_ADR, BMS_SOFT_VER_EXTEND3, 0);
                 can_png_quest(BMS_ADR, BMS_HW_VER_A, 0);
             //    can_png_quest(BMS_ADR, BMS_HW_VER_B, 0);
@@ -754,6 +782,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                 can_png_quest(SECOND_BMS_ADR, BMS_SOFT_VER, 0);
                 can_png_quest(SECOND_BMS_ADR, BMS_SOFT_VER_EXTEND1, 0);
                 can_png_quest(SECOND_BMS_ADR, BMS_SOFT_VER_EXTEND2, 0);
+                can_png_quest(SECOND_BMS_ADR, BMS_CELL_VOL1, 0);
             //    can_png_quest(BMS_ADR, BMS_SOFT_VER_EXTEND3, 0);
                 can_png_quest(SECOND_BMS_ADR, BMS_HW_VER_A, 0);
             //    can_png_quest(BMS_ADR, BMS_HW_VER_B, 0);
@@ -1226,7 +1255,7 @@ static void iot_can_match_fun()
     if(res != RTOS_SUCEESS) {
         LOG_E("def_rtos_queue_release is fail");
     }
-}
+}*/
 
 static void iot_can_state_fun()
 {
@@ -1249,6 +1278,11 @@ static void iot_can_state_fun()
     data[3] |= sys_info.gps_state << 5;
     data[3] |= sys_info.ble_connect << 4;
     data[3] |= sys_info.exits_bat << 3;
+    if(sys_info.ble_connect == 1) {
+        data[3] |= 1 << 2;
+    } else {
+        data[3] &= ~(1 << 2);
+    }
     can_dat.ExtID = can_pdu.can_id;
     can_dat.Cst.Control_f.DLC = 8;
     can_dat.Cst.Control_f.IDE = 1;
@@ -1259,7 +1293,7 @@ static void iot_can_state_fun()
         LOG_E("def_rtos_queue_release is fail");
     }
 }
-*/
+
 void iot_can_heart_fun()
 {
     static uint32_t time_s = 0;
@@ -1267,26 +1301,25 @@ void iot_can_heart_fun()
  //       iot_can_match_fun();
     }
     if(time_s % 2 == 0) {
-//        iot_can_state_fun();
+        iot_can_state_fun();
     }
-    if(def_rtos_get_system_tick() - check_bms2_timeout > 5000) {
+    if(def_rtos_get_system_tick() - check_bms2_timeout > 10000) {
         car_info.bms_info[1].init = 0;
         car_info.bms_info[1].connect = 0;
     }
-    if(def_rtos_get_system_tick() - check_hmi_timeout > 5000) {
+    if(def_rtos_get_system_tick() - check_hmi_timeout > 10000) {
         car_info.hmi_connnect = 0;
         car_info.hmi_info.init = 0;
     }
-    if(def_rtos_get_system_tick() - check_bms_timeout > 5000) {
+    if(def_rtos_get_system_tick() - check_bms_timeout > 10000) {
         car_info.bms_info[0].connect = 0;
         car_info.bms_info[0].init = 0;
-        ;//
     }
-    if(def_rtos_get_system_tick() - check_control_timeout > 5000) {
+    if(def_rtos_get_system_tick() - check_control_timeout > 10000) {
         car_info.control_connect = 0;
         car_info.con_init = 0;
     }
-    if(def_rtos_get_system_tick() - check_lock_timeout > 5000) {
+    if(def_rtos_get_system_tick() - check_lock_timeout > 10000) {
         car_info.lock_connect = 0;
         car_info.electronic_lock.init = 0;
     }
@@ -1568,13 +1601,12 @@ void can_ota_quit()
     mcu_uart_send(buf, lenth);
 
     def_rtos_task_sleep_ms(100);
-    mcu_data_pack(CMD_GPS_POWERON, NULL, 0, buf, &lenth);
-    mcu_uart_send(buf, lenth);
     can_data_send(can_fram);
 
     def_rtos_task_sleep_ms(100);
     can_id_s.pdu.da = 0x00;
     can_fram.ExtID = can_id_s.can_id;
+    can_data_send(can_fram);
     can_data_send(can_fram);
     can_ota_con.last_ota_step = OTA_QUIT_STEP;
 }
@@ -1582,10 +1614,10 @@ void can_ota_quit()
 int can_ota_task(DEV_ID dev_id)
 {
     int64_t can_ota_start_time_t;
+    int64_t can_ota_unlock_time_t = 0;
     can_ota_con.ota_step = OTA_IDEL_STEP;
     if(can_ota_con.ota_step != OTA_IDEL_STEP) return FAIL;
-    can_ota_con.ota_step = OTA_QUEST_STEP;
-    GPS_stop();
+    can_ota_con.ota_step = OTA_CAR_UNLOCK;
     can_ota_con.last_ota_step = OTA_IDEL_STEP;
     can_ota_con.totalen = flash_partition_size(DEV_APP_ADR);
     if(can_ota_con.totalen%4096) {
@@ -1604,12 +1636,27 @@ int can_ota_task(DEV_ID dev_id)
     if(def_rtos_semaphore_create(&can_ota_data_uart.data_finish_sem, 0) != RTOS_SUCEESS){
         LOG_E("can_ota_data_uart.data_finish_sem is create fail");
         return FAIL;
-    }
+    } 
     can_ota_start_time_t = def_rtos_get_system_tick();
     while (1)
     {
         switch (can_ota_con.ota_step)
         {
+        case OTA_CAR_UNLOCK:
+            car_lock_control(IOT_CAR_CMD_SER, CAR_UNLOCK_STA);
+            can_ota_con.ota_step = OTA_CHECK_CAR_UNLOCK;
+            can_ota_unlock_time_t = def_rtos_get_system_tick();
+        break;
+        case OTA_CHECK_CAR_UNLOCK:
+            if(car_info.lock_sta == CAR_UNLOCK_STA) {
+                can_ota_con.ota_step = OTA_QUEST_STEP;
+                if(Gps.GpsPower == GPS_POWER_ON) {
+                    GPS_stop();
+                }
+            } else if(def_rtos_get_system_tick() - can_ota_unlock_time_t > 10000) {
+                can_ota_con.ota_step = OTA_QUIT_STEP;
+            }
+        break;
         case OTA_QUEST_STEP:
             can_ota_enter();  
             break;
@@ -1630,6 +1677,8 @@ int can_ota_task(DEV_ID dev_id)
             can_ota_quit();
             def_rtos_semaphore_delete(can_ota_data_uart.data_sem);
             def_rtos_semaphore_delete(can_ota_data_uart.data_finish_sem);
+            def_rtos_task_sleep_ms(10000);
+            car_lock_control(IOT_CAR_CMD_SER, CAR_LOCK_STA);
             if(can_ota_con.pack_cout == can_ota_con.total_pack) {
                 LOG_I("CAN OTA IS SUCCESS");
                 return OK;
@@ -1642,6 +1691,7 @@ int can_ota_task(DEV_ID dev_id)
         }
         def_rtos_task_sleep_ms(100);
         if(def_rtos_get_system_tick() - can_ota_start_time_t > 15 * 60 *1000){
+            car_lock_control(IOT_CAR_CMD_SER, CAR_LOCK_STA);
             return FAIL;
         }
     }

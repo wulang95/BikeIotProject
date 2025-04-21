@@ -101,7 +101,7 @@ struct sys_param_set_stu {
     uint8_t total_fence_sw;   //总围栏开关
     uint32_t ota_cnt;
     uint8_t bms_charge_soc;
-    uint8_t bms_charge_current;
+    uint8_t bms_charge_current;   /*2A 4A 6A 8A*/
     uint32_t net_engwe_state_push_cmdId;
     uint32_t net_engwe_report_time1_cmdId;
     uint32_t net_engwe_report_time2_cmdId;
@@ -111,6 +111,7 @@ struct sys_param_set_stu {
     uint8_t fw_id[8];
     uint16_t ota_seq;
     uint8_t navigation_quit_time;
+    uint8_t ota_flag;
     uint32_t crc32;
 };
 
@@ -248,7 +249,9 @@ struct sys_info_stu {
     uint8_t ble_can_trans_sw;
     char fota_packname[255];
     unsigned long long car_error;
+    unsigned long long last_car_error;
     unsigned iot_error;
+    unsigned last_iot_error;
     uint8_t mode_reinit_flag;
     uint8_t power_sta;
     uint8_t fence_voice_flag;
@@ -261,14 +264,13 @@ struct sys_set_var_stu{
     uint8_t sys_updata_falg; //bit0表示sys_param, bit1表示sys_config, bit2表示sheepdata, bit3表示forbiddendata
     uint8_t sys_reboot_flag; 
     uint8_t car_power_en;   //0，无效 1， EN下电  2， EN上电
-    uint8_t ble_bind_infoClean; //0， 无效  1，删除
     uint8_t iot_active;   //0,无效 1，取消激活 2，激活
     uint8_t hid_lock_sw_type;  //无感解锁开关类型， 0x00, 进入范围内解锁，离开关锁。0x01:iot检测手机接近时解锁  
 };
 
 #pragma pack()
 
-#define SOFTVER "1.2"
+#define SOFTVER "1.3"
 #define HWVER   "1.0"
 #define DEFAULT_MANUFACTURER  "EG" 
 #define DEFAULT_DNS "114.114.114.114"

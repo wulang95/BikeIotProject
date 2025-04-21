@@ -59,13 +59,14 @@ void car_close_lock()
 int car_control_cmd(uint8_t cmd)
 {
     uint8_t data = 0;
-    uint16_t charge_power;
+    uint8_t dat[2];
+    uint16_t charge_power = 220;
     if(sys_info.power_36v == 0) 
     {   
         return FAIL;
     }
     LOG_I("cmd:%d", cmd);
-    if(cmd == CAR_CMD_LOCK || cmd == CAR_CMD_UNLOCK) {
+    if(cmd == CAR_CMD_LOCK || cmd == CAR_CMD_UNLOCK ||cmd == CAR_BMS_CHARGE_CURRENT_SET) {
         ;
     } else if(car_info.hmi_info.power_on && (cmd == CAR_CMD_EN_POWER_ON_PASSWORD || cmd == CAR_CMD_JUMP_PASSWORD)) {
         ;
@@ -182,7 +183,9 @@ int car_control_cmd(uint8_t cmd)
             }
             break;
         }
-        iot_can_cmd_control(CMD_CHARGE_POWER, (uint8_t *)&charge_power, 0);
+        dat[0] = (uint8_t)charge_power&0xff;
+        dat[1] = (uint8_t)(charge_power>>8)&0xff;
+        iot_can_cmd_control(CMD_CHARGE_POWER, (uint8_t *)dat, 0);
         break;
     default:
         break;
@@ -407,6 +410,9 @@ int car_lock_control(uint8_t src, uint8_t lock_operate)
     static int64_t lock_time_t = 0;
     if(lock_operate == car_info.lock_sta) {
         return OK;
+    }
+    if( sys_info.ota_flag == 1 && src != IOT_CAR_CMD_SER) {
+        return FAIL;
     }
     if(sys_info.power_36v == 0) return FAIL;
     if(def_rtos_get_system_tick() - lock_time_t < 5000 && car_info.lock_sta == CAR_LOCK_STA) {

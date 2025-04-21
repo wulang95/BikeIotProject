@@ -193,7 +193,7 @@ static uint16_t net_engwe_cmdId_bms_info(uint8_t bms_num, uint8_t *p)
         p[lenth++] = 0;
         p[lenth++] = 20;
         p[lenth++] = 0x01;
-        p[lenth++] = bms_num;
+        p[lenth++] = bms_num + 1;;
         p[lenth++] = car_info.bms_info[bms_num].soc;
         p[lenth++] = car_info.bms_info[bms_num].soh;
         u16_big_to_litel_end_sw(&p[lenth], car_info.bms_info[bms_num].remain_capacity);
@@ -443,6 +443,7 @@ static void net_engwe_cmdId_real_operate(uint8_t *data, uint16_t len, uint16_t s
         break;
         case 0X0F:
             ble_cmd_mark(BLE_DELETE_BIND_INDEX);
+            ble_cmd_mark(BLE_DISCONNECT_INDEX);
             buf_len = net_engwe_cmdId_operate_respos(buf, car_cmd_q.net_car_control, 0x01, 0);
             net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, buf, buf_len, car_cmd_q.net_car_control.seq); 
         break;
@@ -610,7 +611,7 @@ static void net_engwe_cmdId_bms_charge_set(uint8_t *data, uint16_t len, uint16_t
     net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
     sys_param_set.bms_charge_soc = data[0];
     sys_param_set.bms_charge_current = data[1];
-    sys_set_var.sys_updata_falg |= 1;
+    SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
     if(car_info.quick_charger_det) {
     //    car_control_cmd(CAR_BMS_CHARGE_SOC_SET);
         car_control_cmd(CAR_BMS_CHARGE_CURRENT_SET);
@@ -1315,6 +1316,46 @@ static void net_engwe_cmdId_param_query(uint32_t cmdId, uint16_t seq)
     free(p);
 }
 
+static uint16_t net_engwe_cmdId_bms_health_info( uint8_t bms_num,uint8_t *p)
+{
+    uint16_t lenth = 0;
+    u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[BMS_HEALTH_CMD]);
+    lenth += 4;
+    if(car_info.bms_info[bms_num].connect == 0) {
+        p[lenth++] = 0x00;
+        p[lenth++] = 0x02;
+        return lenth;
+    }else {
+        p[lenth++] = 0x00;
+        p[lenth++] = 36;
+        p[lenth++] = bms_num+1;
+        u32_big_to_litel_end_sw(&p[lenth], car_info.bms_info[bms_num].ece_regulation.capacity_input_quantity);
+        lenth += 4;
+        u32_big_to_litel_end_sw(&p[lenth], car_info.bms_info[bms_num].ece_regulation.engwe_input_quantity);
+        lenth += 4;
+        u32_big_to_litel_end_sw(&p[lenth], car_info.bms_info[bms_num].ece_regulation.extreme_temperature_use_time);
+        lenth += 4;
+        u32_big_to_litel_end_sw(&p[lenth], car_info.bms_info[bms_num].ece_regulation.extreme_temperature_charge_time);
+        lenth += 4;
+        u16_big_to_litel_end_sw(&p[lenth], car_info.bms_info[bms_num].ece_regulation.deep_discharge_count);
+        lenth += 2;
+        p[lenth++] = car_info.bms_info[bms_num].ece_regulation.battery_self_discharge_rate;
+        p[lenth++] = car_info.bms_info[bms_num].ece_regulation.engwe_exchange_efficiency;
+        u16_big_to_litel_end_sw(&p[lenth], car_info.bms_info[bms_num].ece_regulation.battery_internal_resistance);
+        lenth += 2;
+        p[lenth++] = car_info.bms_info[bms_num].ece_regulation.dev_type;
+        p[lenth++] = car_info.bms_info[bms_num].ece_regulation.function_support;
+        u32_big_to_litel_end_sw(&p[lenth], car_info.bms_info[bms_num].ece_regulation.capactity_output_quantity);
+        lenth += 4;
+        u32_big_to_litel_end_sw(&p[lenth], car_info.bms_info[bms_num].ece_regulation.engwe_output_quantity);
+        lenth += 4;
+        p[lenth++] = car_info.bms_info[bms_num].manufacture_date.year;
+        p[lenth++] = car_info.bms_info[bms_num].manufacture_date.month;
+        p[lenth++] = car_info.bms_info[bms_num].manufacture_date.day;
+        return lenth;
+    }
+}
+
 void net_engwe_cmd_push(uint8_t cmd_type, uint32_t info_id)
 {
     uint8_t i;
@@ -1388,6 +1429,9 @@ void net_engwe_cmd_push(uint8_t cmd_type, uint32_t info_id)
                 case RIDE_INV_INFO_CMD:
                     lenth += net_engwe_cmdId_ride_info(&p[lenth]);
                 break;
+                case BMS_HEALTH_CMD:
+                    lenth += net_engwe_cmdId_bms_health_info(0, &p[lenth]);
+                break;
             } 
         }
     }
@@ -1413,7 +1457,7 @@ void net_engwe_fota_state_push(uint8_t ota_state)
             buf[lenth++] = 0x00;
         break;
         case BLUE_FIRMWARE_TYPE:
-            buf[lenth++] = 0x02;
+            buf[lenth++] = 0x03;
             buf[lenth++] = 0x00;
         break;
         case MCU_FIRMWARE_TYPE:
@@ -1530,14 +1574,13 @@ static void net_engwe_fota_deal(uint8_t *data, uint16_t len, uint16_t seq)
         } 
         net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
         res = FOTA_IOT_RECV;
-        http_upgrade_start();
     } else {
         net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
         return;
     }
     sys_param_set.ota_seq = seq;
     memcpy(&sys_param_set.fw_id[0], &data[len - 8], 8);
-    SETBIT(sys_set_var.sys_updata_falg, SYS_SET_ADR);
+    SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
     buf = malloc(64);
     if(buf == NULL){
         return;
@@ -1552,6 +1595,7 @@ static void net_engwe_fota_deal(uint8_t *data, uint16_t len, uint16_t seq)
     lenth += 8;
     buf[lenth++] = res;
     net_engwe_pack_seq_up(STATUS_PUSH_UP, buf, lenth, seq);
+    http_upgrade_start();
     free(buf);
 }
 

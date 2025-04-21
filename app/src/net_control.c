@@ -590,12 +590,21 @@ void iot_mqtt_state_machine()
                     mqtt_con_info.state = MQTT_CONNECT_DET;
                     net_engwe_signed();
                 //    检测OTA成功 版本不一样说明更新成功
-                    if(strcmp(sys_config.soft_ver, SOFTVER) != 0) {
-                        net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
-                        memset(sys_config.soft_ver, 0, sizeof(sys_config.soft_ver));
-                        memcpy(sys_config.soft_ver, SOFTVER, strlen(SOFTVER));
-                        SETBIT(sys_set_var.sys_updata_falg, SYS_CONFIG_SAVE);
-                    }
+                    LOG_I("last_ver:%s, cur_ver:%s", sys_config.soft_ver, SOFTVER);
+                    if(sys_param_set.ota_flag == 1){
+                        if(strcmp(sys_config.soft_ver, SOFTVER) != 0) {
+                            LOG_I("OTA SUCCESS");
+                            net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+                            memset(sys_config.soft_ver, 0, sizeof(sys_config.soft_ver));
+                            memcpy(sys_config.soft_ver, SOFTVER, strlen(SOFTVER));
+                            SETBIT(sys_set_var.sys_updata_falg, SYS_CONFIG_SAVE);
+                        } else {
+                            LOG_I("OTA FAIL");
+                            net_engwe_fota_state_push(FOTA_VER_ERROR);
+                        }
+                        sys_param_set.ota_flag = 0;
+                        SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
+                    }      
                 } else if(def_rtos_get_system_tick() - mqtt_sub_timeout > 12000) {  
                     LOG_E("mqtt sub fail:%d", mqtt_client_sub_time);
                     def_rtos_task_sleep_s(mqtt_client_sub_time);

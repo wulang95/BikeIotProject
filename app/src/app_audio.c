@@ -122,6 +122,7 @@ void app_audio_init()
         LOG_E("config side tone gain failed");
         return;
     }
+    ql_aud_set_volume(QL_AUDIO_PLAY_TYPE_LOCAL, AUDIOHAL_SPK_VOL_6);
     err = def_rtos_queue_create(&audio_que_t, sizeof(uint8_t), 1);
     if(err != RTOS_SUCEESS) {
         LOG_E("audio_que_t is create failed");

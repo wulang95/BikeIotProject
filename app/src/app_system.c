@@ -239,8 +239,7 @@ void sys_param_save(FLASH_PARTITION flash_part)
         break;
         case BACK_SYS_CONFIG_ADR:
             LOG_I("BACK_SYS_CONFIG_ADR");
-            sys_config_back.magic = IOT_MAGIC;
-            sys_config_back.crc32 = GetCrc32((uint8_t *)&sys_config_back, sizeof(sys_config_back) - 4);
+            sys_config_back = sys_config;
             flash_partition_erase(BACK_SYS_CONFIG_ADR);
             flash_partition_write(BACK_SYS_CONFIG_ADR, (void *)&sys_config_back, sizeof(sys_config_back), 0);
         break;
@@ -389,7 +388,8 @@ static void sys_param_set_default_init()
     sys_param_set.unlock_car_heart2_interval = 10;
     sys_param_set.net_engwe_report_time1_cmdId = 3;
     sys_param_set.net_engwe_report_time2_cmdId = 3;
-    sys_param_set.shock_sensitivity = 3;
+    sys_param_set.shock_sensitivity = 2;
+    sys_param_set.bms_charge_current = 8;
     sys_param_set.shock_sw = 1;
     sys_param_set.hid_lock_sw = 1;
     sys_param_set.navigation_quit_time = 15;
@@ -466,7 +466,7 @@ static void sys_config_default_init()
     memcpy(&sys_config.dev_type, DEFAULT_DEV_TYPE, 6);
     memcpy(&sys_config.apn, DEFAULT_APN, strlen(DEFAULT_APN));
     memcpy(&sys_config.ip, DEFAULT_IP, strlen(DEFAULT_IP));
-    memcpy(&sys_config.DSN, DEFAULT_SN, strlen(DEFAULT_SN));
+    memcpy(&sys_config.DSN, DEFAULT_DNS, strlen(DEFAULT_DNS));
     sys_config.port = DEFAULT_PORT;
     sys_config.magic = IOT_MAGIC;
     sys_config.mqtt_qos = 1;
@@ -486,7 +486,6 @@ static void sys_config_default_init()
 
 void sys_config_init()
 {
- //   sys_config_default_init();
     flash_partition_read(SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
     if(sys_config.magic != IOT_MAGIC || sys_config.crc32 != GetCrc32((uint8_t *)&sys_config, sizeof(sys_config) - 4)) {
         flash_partition_read(BACK_SYS_CONFIG_ADR, (void *)&sys_config_back, sizeof(sys_config_back), 0);
@@ -603,7 +602,7 @@ void app_system_thread(void *param)
             continue;
         }
         if(Gps.GpsPower == GPS_POWER_ON) {
-            if(def_rtos_get_system_tick() - gps_resh_time_t > 5*1000 && (iot_error_check(IOT_ERROR_TYPE, GPS_ERROR) == 0)) {
+            if(def_rtos_get_system_tick() - gps_resh_time_t > 15*1000 && (iot_error_check(IOT_ERROR_TYPE, GPS_ERROR) == 0)) {
                 iot_error_set(IOT_ERROR_TYPE, GPS_ERROR);
                 net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
                 Gps.init = 0;  //触发错误处理
@@ -629,8 +628,16 @@ void app_system_thread(void *param)
                 CLEARBIT(sys_info.mode_reinit_flag, BLE_MODEL);
             }
         }
+        /*报错推送*/
+        if(sys_info.last_car_error != sys_info.car_error || sys_info.iot_error != sys_info.last_iot_error) {
+            sys_info.last_car_error = sys_info.car_error;
+            sys_info.last_iot_error = sys_info.iot_error;
+            net_engwe_cmd_push(STATUS_PUSH_UP, 0x00000200);
+        }
 
-        iot_can_heart_fun();
+        if(car_info.lock_sta == CAR_UNLOCK_STA) {
+            iot_can_heart_fun();
+        }   
         if(sys_set_var.sys_updata_falg != 0) {
             if(sys_set_var.sys_updata_falg & (1 << SYS_SET_SAVE)) {
                 sys_set_var.sys_updata_falg &= ~(1 << SYS_SET_SAVE);
@@ -639,6 +646,7 @@ void app_system_thread(void *param)
             if(sys_set_var.sys_updata_falg & (1 << SYS_CONFIG_SAVE)) {
                 sys_set_var.sys_updata_falg &= ~(1 << SYS_CONFIG_SAVE);
                 sys_param_save(SYS_CONFIG_ADR);
+                sys_param_save(BACK_SYS_CONFIG_ADR);
             }
             if(sys_set_var.sys_updata_falg & (1 << SHEEP_DATA_SAVE)){
                 sys_set_var.sys_updata_falg &= ~(1 << SHEEP_DATA_SAVE);
@@ -672,15 +680,11 @@ void app_system_thread(void *param)
             // }
             if(TEMP == 0) {
           //      GPS_Start(GPS_MODE_CONT);
-              //  voice_play_mark(ALARM_VOICE);
+          //      voice_play_mark(ELECTRONIC_FENCE_VOICE);
                 // LOG_I("imu_algo_timer_stop");
             //     imu_algo_timer_stop();
                 TEMP = 1;
             } 
-        }
-        if(sys_set_var.ble_bind_infoClean) {
-            ble_cmd_mark(BLE_DELETE_BIND_INDEX);
-            sys_set_var.ble_bind_infoClean = 0;
         }
         if(sys_set_var.car_power_en) {
             if(sys_set_var.car_power_en == 1) {
@@ -753,15 +757,17 @@ void app_system_thread(void *param)
         //         ble_cmd_mark(BLE_DISCONNECT_INDEX);
         // }
         
-        if(car_info.last_lock_sta != car_info.lock_sta) {
+        if(car_info.last_lock_sta != car_info.lock_sta && (sys_info.ota_flag == 0)) {
             car_info.last_lock_sta = car_info.lock_sta;
             if(car_info.lock_sta == CAR_UNLOCK_STA) {
                 GPS_Start(GPS_MODE_CONT);
                 SETBIT(sys_param_set.net_engwe_report_time1_cmdId, RIDE_INFO_CMD);
+                SETBIT(sys_param_set.net_engwe_report_time1_cmdId, BATTRY_INFO_CMD);
             } else {
                 GPS_stop();//关锁后关GPS
                 sys_info.fence_voice_flag = 0;
                 CLEARBIT(sys_param_set.net_engwe_report_time1_cmdId, RIDE_INFO_CMD);
+                CLEARBIT(sys_param_set.net_engwe_report_time1_cmdId, BATTRY_INFO_CMD);
             }
             regular_heart_update();
             net_engwe_cmd_push(OPERATION_PUSH_UP, sys_param_set.net_engwe_offline_opearte_push_cmdId);
@@ -868,6 +874,7 @@ void app_system_thread(void *param)
 
         /*充电检测*/
         if(car_info.quick_charger_det && car_info.quick_charger_flag == 0){
+            car_control_cmd(CAR_BMS_CHARGE_CURRENT_SET);
             car_info.quick_charger_flag = 1;
             car_info.charger_state = CHARGER_PLUG_IN;
             net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
@@ -1034,6 +1041,9 @@ void app_sys_init()
     register_module("lock");
     register_module("sensor");
     register_module("track");
+    register_module("ota");
+
+
     sys_log_buf = rt_ringbuffer_create(SYS_LOG_LEN);
  //   flash_partition_erase(DEV_APP_ADR);
     week_time("sys", 30); 

@@ -10,6 +10,7 @@ extern "C" {
 #include "ble_protocol.h"
 
 enum{
+    IOT_CAR_CMD_SER = 0,
     NET_CAR_CMD_SER,
     BLUE_CAR_CMD_SER,
     HID_CAR_CMD_SER,
@@ -168,6 +169,27 @@ struct bms_info_stu{
     char code[32];
     char soft_ver[32];
     char hw_ver[16];
+
+    struct {
+        uint32_t capacity_input_quantity;  /*容量输入量 单位mAh*/
+        uint32_t engwe_input_quantity;  /*电能输入量 单位mWh*/
+        uint32_t extreme_temperature_use_time;  /*极限温度使用时间 S*/
+        uint32_t extreme_temperature_charge_time; /*极端温度充电时间 S*/
+        uint16_t deep_discharge_count;  /*深度放电次数*/
+        uint8_t battery_self_discharge_rate;  /*电池自耗率 单位0.4%，范围0%~100%*/
+        uint8_t engwe_exchange_efficiency;  /*电能换算效率 单位0.4%，范围0%~100%*/
+        uint16_t battery_internal_resistance;  /*电池内部阻抗 单位mR*/
+        uint8_t dev_type;  /*设备类型 0:三元锂电池  1：磷酸铁锂电池 2-255：预留*/
+        uint8_t function_support;  /*功能支持 bit0:是否支持快充, bit1~7:预留*/
+        uint32_t capactity_output_quantity;  /*容量输出量 单位mAh*/
+        uint32_t engwe_output_quantity;  /*电能输出量 单位mWh*/
+    } ece_regulation;
+
+    struct {
+        uint8_t year; /* 年， 25表示2025年 */
+        uint8_t month; /* 月， 1-12 */
+        uint8_t day; /* 日， 1-31 */
+    }manufacture_date;
 };
 struct electronic_lock_stu {
     uint8_t init;

@@ -233,11 +233,14 @@ void imu_algo_thread(void *param)
         }
 		qmi8658_read_xyz(accl, gyro);	
 		if(memcmp(accl, last_accl, 3) == 0) {
-			if(++cent == 10) {
+			if(++cent == 15 && (iot_error_check(IOT_ERROR_TYPE, SENSOR_ERROR) == 0)) {
 				iot_error_set(IOT_ERROR_TYPE, SENSOR_ERROR);
 				cent = 0;
 			}
 		} else {
+            if(iot_error_check(IOT_ERROR_TYPE, SENSOR_ERROR)) {
+                iot_error_clean(IOT_ERROR_TYPE, SENSOR_ERROR);
+            }
 			cent = 0;
 		}
 		if(car_info.lock_sta == CAR_LOCK_STA) {

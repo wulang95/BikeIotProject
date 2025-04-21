@@ -524,7 +524,6 @@ static void net_cmd_power_on_off_L3_func(uint8_t send_flag, char (*ppr)[PARAM_LE
         net_cmd_package_send(data_str, lenth);
     } else {
         sys_set_var.car_power_en = atoi(ppr[0]);
-        sys_set_var.ble_bind_infoClean = atoi(ppr[1]);
         sys_set_var.iot_active = atoi(ppr[2]);
         sys_set_var.hid_lock_sw = atoi(ppr[3]);
     }

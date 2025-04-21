@@ -70,11 +70,12 @@ void rtc_event_register(RTC_EVENT event, uint32_t time, uint8_t cycle_en_t)
 {
     LOG_I("event:%d, time:%d", event, time);
     rtc_week_table[event].vaild = 1;
-    if(cycle_en_t == 0) {
-        rtc_week_table[event].week_time = time + (hal_drv_rtc_get_timestamp() - last_time);
-    } else {
-        rtc_week_table[event].week_time = time;
-    }
+    // if(cycle_en_t == 0) {
+    //     rtc_week_table[event].week_time = time + (hal_drv_rtc_get_timestamp() - last_time);
+    // } else {
+    //     rtc_week_table[event].week_time = time;
+    // }
+    rtc_week_table[event].week_time = time + (hal_drv_rtc_get_timestamp() - last_time);
     rtc_week_table[event].reload = time;
     rtc_week_table[event].cycle_en = cycle_en_t;
     def_rtos_smaphore_release(rtc_alarm_sem);

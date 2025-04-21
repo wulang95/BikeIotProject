@@ -434,9 +434,6 @@ void mcu_uart_recv_thread(void *param)
                         j = 0;
                         memset(&data, 0, sizeof(data));
                     }
-
-
-                    
                 break;
                 case 1:
                     if(c == HEADL) {
@@ -492,7 +489,6 @@ void mcu_uart_init()
 {
     def_rtos_queue_create(&mcu_cmd_que, sizeof(uint8_t), 12);
     def_rtos_queue_create(&can_rcv_que, sizeof(stc_can_rxframe_t), 12);
-    hal_drv_uart_init(MCU_UART, MCU_BAUD, MCU_PARITY);
     MCU_CMD_MARK(CMD_CAN_OTA_END_INDEX);
     MCU_CMD_MARK(CDM_MCU_VER_INDEX);
     GPS_Init();

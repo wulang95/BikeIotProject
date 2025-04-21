@@ -99,8 +99,9 @@ static void exit_lower_power()
     if(sys_info.iot_error != 0) {
         app_set_led_ind(LED_SYS_FAULT);
     }
+    ble_cmd_mark(BLE_GET_MAC_INDEX);
  //   net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
-    hal_drv_write_gpio_value(O_BLE_WEEK_SIG, HIGH_L);
+    hal_drv_write_gpio_value(O_BLE_WEEK_SIG, HIGH_L);  /*出现蓝牙无法从低功耗唤醒，使用*/
     ble_heart_time_t = def_rtos_get_system_tick();
     system_timer_start();   
 }
