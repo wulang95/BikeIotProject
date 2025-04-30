@@ -17,7 +17,7 @@ def_rtos_queue_t can_rcv_que;
 def_rtos_queue_t mcu_cmd_que;
 
 uint8_t mcu_cmd_table[CMD_INDEX_MAX] = {0X0C, 0X0E, 0X0D, 0x0f, 0x0b, 0x0a, 0x09, 0X08, 0X07, 0X06, 0X05, 0X04, 0x03, 0x10, 0x11, 0x12, 0X13,\
-0X14, 0X15, 0X16, 0x17};
+0X14, 0X15, 0X16, 0x17, 0x18, 0x19, 0x1a};
 struct mcu_cmd_order_stu {
     uint8_t need_ask;
     uint16_t rely_timeout;
@@ -42,10 +42,13 @@ struct mcu_cmd_order_stu mcu_cmd_order_table[CMD_INDEX_MAX] = {
     {true,      1000,       3},     //CMD_CAN_UNLOCK_CAR
     {false,     0,          0},     //CMD_CAN_CAR_CONTROL
     {true,      1000,       3},     //CMD_SHIP_MODE
-    {true,      2000,       3},    //CMD_MCU_OTA_START
-    {true,      2000,       3},    //CMD_MCU_OTA_DATA
+    {true,      2000,       3},     //CMD_MCU_OTA_START
+    {true,      2000,       3},     //CMD_MCU_OTA_DATA
     {true,      5000,       3},     //CMD_MCU_OTA_END
-    {true,      1000,       3},     //CDM_MCU_VER
+    {true,      1000,       3},     //CMD_MCU_VER
+    {true,      1000,       3},     //CMD_MCU_ADC_DATA
+    {true,      1000,       3},     //CMD_MCU_BAT_CHARGE_ON
+    {true,      1000,       3},     //CMD_MCU_BAT_CHARGE_OFF
 };
 
 
@@ -314,6 +317,14 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
     break;
     case CMD_CAN_UNLOCK_CAR:
     break;
+    case CMD_MCU_BAT_CHARGE_ON:
+        sys_info.bat_charge_state = BAT_CHARGE_ON;
+        LOG_I("CMD_MCU_BAT_CHARGE_ON");
+    break;
+    case CMD_MCU_BAT_CHARGE_OFF:
+        sys_info.bat_charge_state = BAT_CHARGE_OFF;
+        LOG_I("CMD_MCU_BAT_CHARGE_OFF");
+    break;
     case CMD_CAN_CAR_CONTROL:
         can_send_cmd.ask_flag = 1;
         LOG_I("CMD_CAN_CAR_CONTROL");
@@ -333,10 +344,21 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
         mcu_ota_ctrl.ota_res = data[0];
         def_rtos_smaphore_release(mcu_ota_ctrl.con_sem_t);
     break;
-    case CDM_MCU_VER:
+    case CMD_MCU_VER:
         sys_info.mcu_soft_ver = data[0] << 8 | data[1];
         sys_info.mcu_hw_ver = data[2] << 8 | data[3];
         LOG_I("mcu_soft_ver:%0x, mcu_hw_ver:%0x", sys_info.mcu_soft_ver, sys_info.mcu_hw_ver);
+    break;
+    case CMD_MCU_ADC_DATA:
+        sys_info.power_adc.sys_power_adc = data[0] << 8 | data[1];
+        sys_info.power_adc.bat_val_adc = data[2] << 8 | data[3];
+        sys_info.power_adc.temp_adc = data[4] << 8 | data[5];
+        LOG_I("bat_val_adc:%d", sys_info.power_adc.bat_val_adc);
+        LOG_I("sys_power_adc:%d", sys_info.power_adc.sys_power_adc);
+        LOG_I("temp_adc:%d", sys_info.power_adc.temp_adc);
+        sys_info.bat_val = app_get_bat_val();
+        sys_info.bat_soc = app_get_bat_soc(sys_info.bat_val);
+        LOG_I("bat_val:%d, bat_soc:%d", sys_info.bat_val, sys_info.bat_soc);
     break;
     default:
         break;
@@ -419,7 +441,7 @@ void mcu_uart_recv_thread(void *param)
         if(iot_error_check(IOT_ERROR_TYPE, MCU_CONN_ERROR) == 1) {
             iot_error_clean(IOT_ERROR_TYPE, MCU_CONN_ERROR);
         }
-        week_time("sys", 180); 
+        week_time("sys", 30); 
         debug_data_printf("mcurcv",rcv, len);
         for(i = 0; i < len; i++){
             c = rcv[i];
@@ -490,7 +512,8 @@ void mcu_uart_init()
     def_rtos_queue_create(&mcu_cmd_que, sizeof(uint8_t), 12);
     def_rtos_queue_create(&can_rcv_que, sizeof(stc_can_rxframe_t), 12);
     MCU_CMD_MARK(CMD_CAN_OTA_END_INDEX);
-    MCU_CMD_MARK(CDM_MCU_VER_INDEX);
+    MCU_CMD_MARK(CMD_MCU_VER_INDEX);
+    MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_OFF_INDEX);
     GPS_Init();
     LOG_I("mcu_uart_init is ok");
 }

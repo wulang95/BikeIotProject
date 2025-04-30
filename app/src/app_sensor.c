@@ -38,7 +38,7 @@ void imu_algo_timer()     // 10ms调用1次
     def_rtos_smaphore_release(imu_algo_sem);
 }
 
-void qmi8658_sensor_init()
+int qmi8658_sensor_init()
 {
     int64_t sensor_cali_time_t;
     qst_algo_inti();
@@ -46,7 +46,7 @@ void qmi8658_sensor_init()
     if(qmi8658_init() != 1) {
 		iot_error_set(IOT_ERROR_TYPE, SENSOR_ERROR);
 		LOG_I("qmi8658_init is fail");
-		return; 
+		return -1; 
 	}
 	iot_error_clean(IOT_ERROR_TYPE, SENSOR_ERROR);
     init_state_recognition(&qmi8658_read_reg);
@@ -64,6 +64,7 @@ void qmi8658_sensor_init()
         }
     }
 	LOG_I("qmi8658_sensor_init");
+    return 0;
 }
 
 /*   摔倒检测    */
@@ -221,9 +222,15 @@ void imu_algo_thread(void *param)
 	};
 	uint16_t cent = 0;
 	def_rtosStaus res;
-	qmi8658_sensor_init();
-    def_rtos_timer_start(algo_timer, 50, 1);
-    sys_info.algo_timer_run = 1;
+	res = qmi8658_sensor_init();
+    if(res != 0) {
+        iot_error_set(IOT_ERROR_TYPE, SENSOR_ERROR);
+        sys_info.sensor_init = 0;
+    } else {
+        def_rtos_timer_start(algo_timer, 50, 1);
+        sys_info.algo_timer_run = 1;
+        sys_info.sensor_init = 1;
+    }
     imu_algo_timer_stop();
 	while(1)
 	{

@@ -16,6 +16,7 @@ def_rtos_timer_t  key_timer;
 
 void key_timer_fun()
 {
+    hal_drv_write_gpio_value(O_KEY_HIGH, LOW_L);
     hal_drv_write_gpio_value(O_KEY_LOW, LOW_L);
     LOG_I("KEY TIMER KYE LOW");
 }
@@ -28,6 +29,7 @@ void car_heart_event()
 void car_open_lock()
 {
  //   uint8_t val = 0XA9;
+    hal_drv_write_gpio_value(O_KEY_HIGH, HIGH_L);
     hal_drv_write_gpio_value(O_KEY_LOW, HIGH_L);
     def_rtos_timer_start(key_timer, 4000, 0);
     MCU_CMD_MARK(CMD_CAN_UNLOCK_CAR_INDEX);
@@ -43,6 +45,7 @@ void car_open_lock()
 void car_close_lock()
 {
 //    uint8_t val = 0X56;
+    hal_drv_write_gpio_value(O_KEY_HIGH, LOW_L);
     hal_drv_write_gpio_value(O_KEY_LOW, LOW_L);
     MCU_CMD_MARK(CMD_CAN_LOCK_CAR_INDEX);
     

@@ -921,16 +921,16 @@ unsigned char qmi8658_get_id(void)
 }
 
 #if defined(QMI8658_USE_AMD)||defined(QMI8658_USE_NO_MOTION)||defined(QMI8658_USE_SIG_MOTION)
-void qmi8658_config_motion(void)
+void qmi8658_config_motion(void) 
 {
 	g_imu.cfg.ctrl8_value = 0xc0;	// &= (~QMI8658_CTRL8_ANYMOTION_EN);
 	qmi8658_write_reg(Qmi8658Register_Ctrl8, g_imu.cfg.ctrl8_value);
 	qmi8658_delay(2);
 	qmi8658_enableSensors(QMI8658_DISABLE_ALL);
 
-	qmi8658_write_reg(Qmi8658Register_Cal1_L, 0x03);		// any motion X threshold(uint 1/32 g)
-	qmi8658_write_reg(Qmi8658Register_Cal1_H, 0x03);		// any motion Y threshold(uint 1/32 g)
-	qmi8658_write_reg(Qmi8658Register_Cal2_L, 0x03);		// any motion Z threshold(uint 1/32 g)
+	qmi8658_write_reg(Qmi8658Register_Cal1_L, 0x01);		// any motion X threshold(uint 1/32 g)改震动检测灵敏度 改大不灵敏
+	qmi8658_write_reg(Qmi8658Register_Cal1_H, 0x01);		// any motion Y threshold(uint 1/32 g)改震动检测灵敏度 改大不灵敏
+	qmi8658_write_reg(Qmi8658Register_Cal2_L, 0x01);		// any motion Z threshold(uint 1/32 g)改震动检测灵敏度 改大不灵敏
 	qmi8658_write_reg(Qmi8658Register_Cal2_H, 0x02);		// no motion X threshold(uint 1/32 g)
 	qmi8658_write_reg(Qmi8658Register_Cal3_L, 0x02);		// no motion X threshold(uint 1/32 g)
 	qmi8658_write_reg(Qmi8658Register_Cal3_H, 0x02);		// no motion X threshold(uint 1/32 g)

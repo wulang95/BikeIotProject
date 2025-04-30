@@ -1490,6 +1490,15 @@ static void ble_cmd_q_bms_health_info()
     ble_send_data(buf, len);
 }
 
+
+static void ble_cmd_bat_charge_sw(uint8_t dat)
+{
+    if(dat == 0x01){
+        MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_ON_INDEX);
+    } else {
+        MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_OFF_INDEX);
+    }
+}
 void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 {
     uint16_t i = 0;
@@ -1573,6 +1582,7 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
             ble_cmd_en_power_on_password(data[0]);
         break;
         case BLE_CMD_S_POWER_SW:
+            ble_cmd_bat_charge_sw(data[0]);
         break;
         case BLE_CMD_S_LOCK_SW:
             ble_cmd_lock_control(data[0]);

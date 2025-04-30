@@ -47,12 +47,13 @@ void voice_play_mark(VOICE_TYPE type)
 
 void voice_play_off()
 {
-    AudioStatus_e audio_state;
+  //  AudioStatus_e audio_state;
     if(sys_info.audio_init == 0) return; 
-    audio_state = ql_aud_get_play_state();
-    if(audio_state != QL_AUDIO_STATUS_IDLE) {
-        ql_aud_player_stop();
-    }
+    ql_aud_player_stop();
+    // audio_state = ql_aud_get_play_state();
+    // if(audio_state != QL_AUDIO_STATUS_IDLE) {
+    //     ql_aud_player_stop();
+    // }
     play_flag = 1;
 }
 
@@ -150,6 +151,7 @@ void app_audio_thread(void *param)
         LOG_I("%s start, cnt:%d", audio_play.file_name, audio_play.play_cnt);
         play_flag = 0;
         for(;;) {
+            sys_info.voice_type_cur = type;
             LOG_I("audio_play.play_cnt:%d", audio_play.play_cnt);
             res = ql_aud_play_file_start(audio_play.file_name, QL_AUDIO_PLAY_TYPE_LOCAL, NULL);
             if(res) {
@@ -174,6 +176,7 @@ void app_audio_thread(void *param)
             if(play_flag == 1) break;
             LOG_I("audio play:%s", audio_play.file_name);
         }
+        sys_info.voice_type_cur = 0xff;
         LOG_I("play_flag:%d, audio_play.play_cnt:%d, res:%d, aud is quit", play_flag, audio_play.play_cnt, res);    
     }
     def_rtos_task_delete(NULL);

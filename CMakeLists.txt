@@ -25,6 +25,7 @@ set(APP_FILES
     app/src/low_power.c
     app/src/net_engwe_protocol.c
     app/src/app_error.c
+    app/src/app_adc_calac.c
  )
 
 set(COMMON_FILES 

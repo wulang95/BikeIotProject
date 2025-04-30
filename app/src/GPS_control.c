@@ -608,10 +608,9 @@ static void GPS_Composite_PosData()
 void GPS_fence_detection()
 {
     Point cur_p;
-    if(sys_param_set.total_fence_sw == 0 ||(sheepfang_data.shape_type == FENCE_NONE && forbidden_zone_data.shape_type == FENCE_NONE)) {
-        if(sys_info.fence_voice_flag == 1) {
+    if(car_info.lock_sta == CAR_LOCK_STA || sys_param_set.total_fence_sw == 0 ||(sheepfang_data.shape_type == FENCE_NONE && forbidden_zone_data.shape_type == FENCE_NONE)) {
+        if(sys_info.voice_type_cur == ELECTRONIC_FENCE_VOICE) {
             voice_play_off();
-            sys_info.fence_voice_flag = 0;
         }
         return;
     }
@@ -619,22 +618,15 @@ void GPS_fence_detection()
     cur_p.lat = GpsDataBuf.Latitude;
     cur_p.lon = GpsDataBuf.Longitude;
       /*羊圈检测*/   
-    if(sheepfang_data.shape_type == CIRCLE && sys_param_set.total_fence_sw) {
-        if(isInner_circle(sheepfang_data.circle.center, sheepfang_data.circle.radius, cur_p) == 0){  //在羊圈外 
+    if(sheepfang_data.shape_type == CIRCLE) {
+        if(isInner_circle(sheepfang_data.circle.center, sheepfang_data.circle.radius, cur_p) == 0) {  //在羊圈外 
             if(sys_set_var.sheepfang_flag == 0) {
                 sys_set_var.sheepfang_flag = 1;  
-              //    voice_play_mark(ELECTRONIC_FENCE_VOICE);   //关锁不响
                 sys_info.sheepfang_sta = SHEEPFANG_LEAVE;
                 LOG_I("SHEEPFANG_LEAVE");
                 net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
             } else {
                 sys_info.sheepfang_sta = SHEEPFANG_OUT;
-            }
-            if(car_info.lock_sta == CAR_UNLOCK_STA) {
-                if(sys_info.fence_voice_flag == 0) {
-                    voice_play_mark(ELECTRONIC_FENCE_VOICE);
-                    sys_info.fence_voice_flag = 1;
-                }
             }
         } else {
             if(sys_set_var.sheepfang_flag == 1) {
@@ -645,27 +637,16 @@ void GPS_fence_detection()
             } else {
                 sys_info.sheepfang_sta = SHEEPFANG_IN;
             }
-            if(sys_info.fence_voice_flag == 1) {
-                voice_play_off();
-                sys_info.fence_voice_flag = 0;
-            }
         }
-      } else if(sheepfang_data.shape_type == POLYGON && sys_param_set.total_fence_sw) {
+      } else if(sheepfang_data.shape_type == POLYGON) {
         if(isInner_polygon(cur_p, sheepfang_data.polygon.p, sheepfang_data.polygon.point_num) == 0){
             if(sys_set_var.sheepfang_flag == 0) {
                 sys_set_var.sheepfang_flag = 1;  
-             //     voice_play_mark(ELECTRONIC_FENCE_VOICE);
                 sys_info.sheepfang_sta = SHEEPFANG_LEAVE;
                 LOG_I("SHEEPFANG_LEAVE");
                 net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
             } else {
                 sys_info.sheepfang_sta = SHEEPFANG_OUT;
-            }
-            if(car_info.lock_sta == CAR_UNLOCK_STA) {
-                if(sys_info.fence_voice_flag == 0) {
-                    voice_play_mark(ELECTRONIC_FENCE_VOICE);
-                    sys_info.fence_voice_flag = 1;
-                }
             }
           } else {
               if(sys_set_var.sheepfang_flag == 1) {
@@ -676,17 +657,13 @@ void GPS_fence_detection()
               } else {
                   sys_info.sheepfang_sta = SHEEPFANG_IN;
               }
-              if(sys_info.fence_voice_flag == 1) {
-                  voice_play_off();
-                  sys_info.fence_voice_flag = 0;
-              }
           }
       } else {
           sys_info.sheepfang_sta = SHEEPFANG_INVALID;
       }
   
       /*禁区检测*/
-      if(forbidden_zone_data.shape_type == CIRCLE && sys_param_set.total_fence_sw) {
+      if(forbidden_zone_data.shape_type == CIRCLE) {
           if(isInner_circle(forbidden_zone_data.circle.center, forbidden_zone_data.circle.radius, cur_p) == 1){  //在禁区里
               if(sys_set_var.forbidden_flag == 0) {
                   sys_set_var.forbidden_flag = 1;  
@@ -696,12 +673,6 @@ void GPS_fence_detection()
               } else {
                   sys_info.fence_sta = FORBIDDEN_IN;
               }
-              if(car_info.lock_sta == CAR_UNLOCK_STA) {
-                  if(sys_info.fence_voice_flag == 0) {
-                      voice_play_mark(ELECTRONIC_FENCE_VOICE);
-                      sys_info.fence_voice_flag = 1;
-                  }
-              }
           } else {
               if(sys_set_var.forbidden_flag == 1) {
                   sys_set_var.forbidden_flag = 0;
@@ -711,28 +682,17 @@ void GPS_fence_detection()
               } else {
                   sys_info.fence_sta = FORBIDDEN_OUT;
               }
-              if(sys_info.fence_voice_flag == 1) {
-                  voice_play_off();
-                  sys_info.fence_voice_flag = 0;
-              }
           }
-      } else if(forbidden_zone_data.shape_type == POLYGON && sys_param_set.total_fence_sw) {
+      } else if(forbidden_zone_data.shape_type == POLYGON) {
           if(isInner_polygon(cur_p, forbidden_zone_data.polygon.p, forbidden_zone_data.polygon.point_num) == 1){
               if(sys_set_var.forbidden_flag == 0) {
                   sys_set_var.forbidden_flag = 1;  
-           //       voice_play_mark(ELECTRONIC_FENCE_VOICE);  
                   sys_info.fence_sta = FORBIDDEN_ENTER;
                   LOG_I("FORBIDDEN_ENTER");
                   net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
               } else {
                   sys_info.fence_sta = FORBIDDEN_IN;
               }
-              if(car_info.lock_sta == CAR_UNLOCK_STA) {
-                  if(sys_info.fence_voice_flag == 0) {
-                      voice_play_mark(ELECTRONIC_FENCE_VOICE);
-                      sys_info.fence_voice_flag = 1;
-                  }
-              }
           } else {
               if(sys_set_var.forbidden_flag == 1) {
                   sys_set_var.forbidden_flag = 0;
@@ -742,14 +702,20 @@ void GPS_fence_detection()
               } else {
                   sys_info.fence_sta = FORBIDDEN_OUT;
               }
-              if(sys_info.fence_voice_flag == 1) {
-                  voice_play_off();
-                  sys_info.fence_voice_flag = 0;
-              }
           }
       } else {
           sys_info.fence_sta = FORBIDDEN_INVALID;
       } 
+
+      if(sys_info.sheepfang_sta == SHEEPFANG_LEAVE || sys_info.sheepfang_sta == SHEEPFANG_OUT || sys_info.fence_sta == FORBIDDEN_ENTER || sys_info.fence_sta == FORBIDDEN_IN) {
+            if(sys_info.voice_type_cur != ELECTRONIC_FENCE_VOICE) {
+                voice_play_mark(ELECTRONIC_FENCE_VOICE);
+            }
+      } else {
+        if(sys_info.voice_type_cur == ELECTRONIC_FENCE_VOICE) {
+            voice_play_off();
+        }
+      }
 }
 
 int GPS_reinit()

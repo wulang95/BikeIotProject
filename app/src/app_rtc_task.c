@@ -61,6 +61,11 @@ void rtc_event_handler(RTC_EVENT rtc_e)
         case CAR_SET_EN_POWER_PASSWD:
             iot_en_power_on_passwd();
             break;
+        case BAT_MCU_ADC_GET_EVENT:
+            if(sys_info.ota_flag == 0){
+                MCU_CMD_MARK(CMD_MCU_ADC_DATA_INDEX);
+            }
+            break;
         default:
             break;
     }

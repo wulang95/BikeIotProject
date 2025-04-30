@@ -19,20 +19,18 @@
 #define TEMP_ADC_VAL       QL_ADC0_CHANNEL
 
 #define I_SENSOR_IN           GPIO_1     //传感器输入中断   OK
-#define O_RED_IND             GPIO_2     //红灯 OK
-#define O_WHITE_IND           GPIO_3     //白灯 OK
-//#define O_BAT_CHARGE_CON      GPIO_4     //备电充电控制 OK
+#define O_RED_IND             GPIO_3     //红灯 OK   0427交换红白灯
+#define O_WHITE_IND           GPIO_2     //白灯 OK
+#define O_KEY_LOW             GPIO_4     //低压驱动
 #define O_MCU_CONEC           GPIO_5     //cat1运行正常指示 OK
-#define I_DOG_WEEK            GPIO_8
-#define O_BLE_RST             GPIO_13
+#define SENSOR_POWER          GPIO_8
+#define O_AUDIO_SD            GPIO_25    //音频备用
 #define I_BLE_CON_SIG         GPIO_14    //蓝牙连接状态 OK
 #define O_BLE_POWER           GPIO_15   //蓝牙电源控制  OK
-#define O_KEY_HIGH            GPIO_18   //高压驱动
+#define O_KEY_HIGH            GPIO_18   //KEY输出
 #define O_BLE_WEEK_SIG        GPIO_19       //唤醒蓝牙 
 #define I_MCU_WEEK            GPIO_20       //MCU唤醒 ok
-#define I_36VPOWER_DET        GPIO_21       //36V电源检测 OK
-#define I_DOG_DONE            GPIO_22        
-#define O_KEY_LOW             GPIO_4      //低压驱动
+#define I_36VPOWER_DET        GPIO_21       //36V电源检测 OK    
 
 #define FLASH_SECTOR_SIZE  4096
 

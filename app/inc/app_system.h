@@ -23,6 +23,7 @@
 #include "hal_drv_net.h"
 #include "net_engwe_protocol.h"
 #include "app_error.h"
+#include "app_adc_calac.h"
 
 extern def_rtos_task_t app_system_task;
 void assert_handler(const char *ex_string, const char *func, size_t line);
@@ -215,13 +216,32 @@ enum {
     BATTERY_INNER,
 };
 
+struct power_adc_calc_stu
+{
+    float bat_val_rate;
+    float temp_rate;
+    float sys_power_rate;
+    uint16_t bat_val_adc;
+    uint16_t temp_adc;
+    uint16_t sys_power_adc;
+};
+enum {
+    BAT_CHARGE_ON,
+    BAT_CHARGE_OFF,
+};
+
 #pragma pack(1)
 struct sys_info_stu {
-    uint16_t battry_val;
-    uint16_t bat_val;
+    uint16_t battry_val;   //外部电池电压，单位0.1V
+    uint16_t bat_val;    //内部电池电压，单位mv
+    int bat_temp;
     uint8_t bat_soc;
     uint8_t bat_soh;
+    uint32_t adc_charge_get_interval;   /* 充电时60S*/
+    uint32_t adc_discharge_get_interval; /*   未充电下1小时获取一次  */
     uint8_t fault;
+    uint8_t bat_charge_state;   //1表示充电打开， 0表示充电关闭
+    uint8_t sensor_init: 1;
     uint8_t audio_init : 1;
     uint8_t pdp_reg :1;
     uint8_t paltform_connect :1;
@@ -254,7 +274,8 @@ struct sys_info_stu {
     unsigned last_iot_error;
     uint8_t mode_reinit_flag;
     uint8_t power_sta;
-    uint8_t fence_voice_flag;
+    uint8_t voice_type_cur;
+    struct power_adc_calc_stu power_adc;
 };
 
 struct sys_set_var_stu{
@@ -270,7 +291,7 @@ struct sys_set_var_stu{
 
 #pragma pack()
 
-#define SOFTVER "1.3"
+#define SOFTVER "1.1"
 #define HWVER   "1.0"
 #define DEFAULT_MANUFACTURER  "EG" 
 #define DEFAULT_DNS "114.114.114.114"

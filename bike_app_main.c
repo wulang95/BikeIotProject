@@ -51,7 +51,7 @@ void app_start_thread(void *param)
     // if(err != RTOS_SUCEESS){
     //     LOG_E("ble_protocol_send_thread is create fail!");
     // }
-    err = def_rtos_task_create(&app_rtc_event_task, 1024*2, TASK_PRIORITY_NORMAL, app_rtc_event_thread);
+    err = def_rtos_task_create(&app_rtc_event_task, 1024*4, TASK_PRIORITY_NORMAL, app_rtc_event_thread);
     if(err != RTOS_SUCEESS){
         LOG_E("app_rtc_event_thread is create fail!");
     }

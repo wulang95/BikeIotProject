@@ -193,3 +193,6 @@ ResetFlagMskWdt, MCU看门狗复位
 
 3/24
 1.音频这块，
+
+4/22
+修复围栏bug

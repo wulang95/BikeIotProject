@@ -28,6 +28,7 @@ NET_NW_INFO nw_info;
 int ota_fd;
 uint16_t shock_cent;
 uint64_t shock_time_out;
+
 void assert_handler(const char *ex_string, const char *func, size_t line)
 {
     LOG_E("(%s) assertion failed at function:%s, line number:%d \n", ex_string, func, line);
@@ -326,6 +327,7 @@ void sensor_input_handler()
     }
 }
 
+
 void ble_connect_handler()
 {
     LOG_I("ble connect");
@@ -345,13 +347,13 @@ static void hal_drv_init()
     hal_drv_gpio_init(O_WHITE_IND, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
   //  hal_drv_gpio_init(O_BAT_CHARGE_CON, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(O_MCU_CONEC, IO_OUTPUT, PULL_NONE_MODE, HIGH_L);
-
+    hal_drv_gpio_init(SENSOR_POWER, IO_OUTPUT, PULL_NONE_MODE, HIGH_L);
+    hal_drv_gpio_init(O_AUDIO_SD, IO_OUTPUT, PULL_NONE_MODE, HIGH_L);
     hal_drv_set_gpio_irq(I_BLE_CON_SIG, RISING_EDGE, DOWN_MODE, ble_connect_handler);
  //   hal_drv_gpio_init(I_BLE_CON_SIG, IO_INPUT, DOWN_MODE, LOW_L);
 
-    hal_drv_gpio_init(O_KEY_LOW, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(O_KEY_HIGH, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
-
+    hal_drv_gpio_init(O_KEY_LOW, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(O_BLE_WEEK_SIG, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
     hal_drv_gpio_init(I_MCU_WEEK, IO_INPUT, DOWN_MODE, L_NONE);
     hal_drv_gpio_init(I_36VPOWER_DET, IO_INPUT, UP_MODE, L_NONE);
@@ -365,6 +367,9 @@ static void hal_drv_init()
     hal_virt_at_init();
  //   hal_drv_write_gpio_value(O_BAT_CHARGE_CON, HIGH_L);
     hal_drv_write_gpio_value(O_BLE_WEEK_SIG, LOW_L);
+    hal_drv_write_gpio_value(SENSOR_POWER, HIGH_L);
+    hal_drv_write_gpio_value(O_AUDIO_SD, HIGH_L);
+
     LOG_I("hal_drv_init is ok");
 }
 
@@ -388,7 +393,7 @@ static void sys_param_set_default_init()
     sys_param_set.unlock_car_heart2_interval = 10;
     sys_param_set.net_engwe_report_time1_cmdId = 3;
     sys_param_set.net_engwe_report_time2_cmdId = 3;
-    sys_param_set.shock_sensitivity = 2;
+    sys_param_set.shock_sensitivity = 3;
     sys_param_set.bms_charge_current = 8;
     sys_param_set.shock_sw = 1;
     sys_param_set.hid_lock_sw = 1;
@@ -579,7 +584,6 @@ void app_system_thread(void *param)
     int64_t csq_time_t = def_rtos_get_system_tick();
     int64_t ble_info_up_time_t = 0;
     int64_t shock_time_t = 0;
-    uint16_t bat_val, temp_val;
     uint8_t TEMP = 0;
     int64_t sensor_shock_time_t = def_rtos_get_system_tick();
     uint8_t shock_continue_cnt = 0;
@@ -666,6 +670,7 @@ void app_system_thread(void *param)
             LOG_I("net_state:%d, act:%d, rsrp:%d, bit_error_rate:%d", nw_info.net_state, nw_info.act, nw_info.rsrp, nw_info.bit_error_rate);
             csq_time_t = def_rtos_get_system_tick();
             LOG_I("CSQ:%d", gsm_info.csq);
+            LOG_I("pack_series_number:%d, pack_parallel_number:%d", car_info.bms_info[0].pack_series_number, car_info.bms_info[0].pack_parallel_number);   
         //    LOG_I("ptich:%.2f,roll:%.2f,yaw:%.2f",euler_angle[0],euler_angle[1],euler_angle[2]);
             // LOG_I("car_info.speed_limit:%d, car_info.pedal_speed:%d", car_info.speed_limit, car_info.pedal_speed);
             // LOG_I("car_info.total_odo:%d, car_info.single_odo:%d", car_info.total_odo, car_info.single_odo);
@@ -680,11 +685,13 @@ void app_system_thread(void *param)
             // }
             if(TEMP == 0) {
           //      GPS_Start(GPS_MODE_CONT);
-          //      voice_play_mark(ELECTRONIC_FENCE_VOICE);
+            //    MCU_CMD_MARK(CMD_MCU_ADC_DATA_INDEX);
+             //   MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_OFF_INDEX);
                 // LOG_I("imu_algo_timer_stop");
             //     imu_algo_timer_stop();
                 TEMP = 1;
             } 
+            MCU_CMD_MARK(CMD_MCU_ADC_DATA_INDEX);
         }
         if(sys_set_var.car_power_en) {
             if(sys_set_var.car_power_en == 1) {
@@ -694,7 +701,7 @@ void app_system_thread(void *param)
             }
             sys_set_var.car_power_en = 0;
         }
-
+        
         // if(sys_info.paltform_connect == 1){
         //     iot_mqtt_public((uint8_t *)test_net, strlen(test_net));
         // }
@@ -705,8 +712,6 @@ void app_system_thread(void *param)
         GPS_fence_detection();
 
         if(hal_drv_read_gpio_value(I_BLE_CON_SIG)) {   //蓝牙连接状态检测
-            sys_log_out("ble log test out");
-            sys_log_out("ble log test:%s", "ble ok");
             if(car_info.lock_sta == CAR_UNLOCK_STA) {
                 ble_heart_event();
             } else {
@@ -765,7 +770,6 @@ void app_system_thread(void *param)
                 SETBIT(sys_param_set.net_engwe_report_time1_cmdId, BATTRY_INFO_CMD);
             } else {
                 GPS_stop();//关锁后关GPS
-                sys_info.fence_voice_flag = 0;
                 CLEARBIT(sys_param_set.net_engwe_report_time1_cmdId, RIDE_INFO_CMD);
                 CLEARBIT(sys_param_set.net_engwe_report_time1_cmdId, BATTRY_INFO_CMD);
             }
@@ -911,10 +915,6 @@ void app_system_thread(void *param)
         if(car_info.bms_info[0].chargefull_sta == 0){
             car_info.charger_full_flag = 0;
         }
-
-        hal_adc_value_get(TEMP_ADC_VAL, (int *)&temp_val);
-        hal_adc_value_get(BAT_ADC_VAL, (int *)&bat_val);
-        LOG_I("bat_val:%d, temp_val:%d", bat_val, temp_val);
     }
     def_rtos_task_delete(NULL);
 }
@@ -998,6 +998,10 @@ void sys_param_init()
     sheepfang_data_init();
     forbidden_zone_data_init();
     sensor_cali_param_init();
+    sys_info.power_adc.bat_val_rate = 2.0;
+    sys_info.bat_charge_state = BAT_CHARGE_OFF;
+    sys_info.adc_charge_get_interval = 60*60; 
+    sys_info.adc_discharge_get_interval = 60; 
     sys_info.shock_sw_state = sys_param_set.shock_sw;
     memcpy(sys_info.fota_packname, OTA_FILE, strlen(OTA_FILE));
     LOG_I("OTA_CNT:%d", sys_param_set.ota_cnt);   
@@ -1052,6 +1056,7 @@ void app_sys_init()
     
    // sys_info.static_cali_flag = 1;
   //   app_set_led_ind(LED_TEST);
+    rtc_event_register(BAT_MCU_ADC_GET_EVENT, sys_info.adc_discharge_get_interval, 1);
     rtc_event_register(NET_HEART_EVENT, sys_param_set.net_heart_interval, 1);
     def_rtos_semaphore_create(&system_task_sem, 0);
     def_rtos_timer_create(&system_timer, app_system_task, system_timer_fun, NULL);
