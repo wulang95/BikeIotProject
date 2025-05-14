@@ -358,6 +358,7 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
         LOG_I("temp_adc:%d", sys_info.power_adc.temp_adc);
         sys_info.bat_val = app_get_bat_val();
         sys_info.bat_soc = app_get_bat_soc(sys_info.bat_val);
+        app_get_bat_temp_info();
         LOG_I("bat_val:%d, bat_soc:%d", sys_info.bat_val, sys_info.bat_soc);
     break;
     default:

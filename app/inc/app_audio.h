@@ -24,6 +24,7 @@ typedef enum {
     ALARM_VOICE,
     LOOK_CAR_VOICE,
     ELECTRONIC_FENCE_VOICE,
+    VOICE_TEST,
 } VOICE_TYPE;
 
 

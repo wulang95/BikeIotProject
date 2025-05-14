@@ -298,7 +298,30 @@ void debug_data_printf(char *str_tag, const uint8_t *in_data, uint16_t data_len)
     LOG_I("%s", str);
     free(str);
 }
-
+void system_enter_ship_mode(CAR_CMD_Q car_cmd_q)
+{
+    uint8_t buf[256];
+    uint16_t buf_len;
+    LOG_I("enter ship mode");
+    if(car_info.lock_sta == CAR_LOCK_STA) {
+        if(car_cmd_q.src == NET_CAR_CMD_SER){
+            buf_len = net_engwe_cmdId_operate_respos(buf, car_cmd_q.net_car_control, 0x02, 0);
+            net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, buf, buf_len, car_cmd_q.net_car_control.seq); 
+            return;
+        } else if (car_cmd_q.src == BLUE_CAR_CMD_SER){
+            ble_cmd_ship_mode_ask(0x02);
+        }
+    }
+    hal_drv_write_gpio_value(O_BLE_POWER, LOW_L); //ble power off
+    hal_drv_write_gpio_value(SENSOR_POWER, LOW_L); //sensor power off
+    if(car_cmd_q.src == NET_CAR_CMD_SER){
+        buf_len = net_engwe_cmdId_operate_respos(buf, car_cmd_q.net_car_control, 0x01, 0);
+        net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, buf, buf_len, car_cmd_q.net_car_control.seq); 
+    } else if (car_cmd_q.src == BLUE_CAR_CMD_SER){
+        ble_cmd_ship_mode_ask(0x01);
+    }
+    MCU_CMD_MARK(CMD_SHIP_MODE_INDEX); 
+}
 
 int64_t systm_tick_diff(int64_t time)
 {
@@ -391,8 +414,8 @@ static void sys_param_set_default_init()
     sys_param_set.internal_battry_work_interval = 3600;
     sys_param_set.lock_car_heart2_interval = 100;
     sys_param_set.unlock_car_heart2_interval = 10;
-    sys_param_set.net_engwe_report_time1_cmdId = 3;
-    sys_param_set.net_engwe_report_time2_cmdId = 3;
+    sys_param_set.net_engwe_report_time1_cmdId = 7;
+    sys_param_set.net_engwe_report_time2_cmdId = 7;
     sys_param_set.shock_sensitivity = 3;
     sys_param_set.bms_charge_current = 8;
     sys_param_set.shock_sw = 1;
@@ -613,7 +636,7 @@ void app_system_thread(void *param)
                 SETBIT(sys_info.mode_reinit_flag, GPS_MODEL);
             }   
         }
-
+        app_bat_charge_check();
         if(def_rtos_get_system_tick() - ble_heart_time_t > 15*1000 && (iot_error_check(IOT_ERROR_TYPE, BLE_ERROR) == 0)) {
             iot_error_set(IOT_ERROR_TYPE, BLE_ERROR);
             net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
@@ -685,13 +708,13 @@ void app_system_thread(void *param)
             // }
             if(TEMP == 0) {
           //      GPS_Start(GPS_MODE_CONT);
-            //    MCU_CMD_MARK(CMD_MCU_ADC_DATA_INDEX);
+                MCU_CMD_MARK(CMD_MCU_ADC_DATA_INDEX);
              //   MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_OFF_INDEX);
                 // LOG_I("imu_algo_timer_stop");
             //     imu_algo_timer_stop();
                 TEMP = 1;
             } 
-            MCU_CMD_MARK(CMD_MCU_ADC_DATA_INDEX);
+      //      MCU_CMD_MARK(CMD_MCU_ADC_DATA_INDEX);
         }
         if(sys_set_var.car_power_en) {
             if(sys_set_var.car_power_en == 1) {
@@ -823,7 +846,9 @@ void app_system_thread(void *param)
                 shock_time_t = def_rtos_get_system_tick();
                 GPS_Start(GPS_MODE_TM);  //震动获取一次定位  
                 if(sys_param_set.shock_sw) {
+                    #if 1   /*关闭震动报警，测试用*/
                     voice_play_mark(ALARM_VOICE); 
+                    #endif
                     if(sys_info.iot_error != 0){
                         app_set_led_ind(LED_SYS_FAULT);
                     } else {
@@ -844,7 +869,7 @@ void app_system_thread(void *param)
             LOG_I("shock_continue_cnt:%d, sys_info.track_mode:%d", shock_continue_cnt, sys_info.track_mode);
             if(def_rtos_get_system_tick() - sensor_shock_time_t > 10000) {
                 shock_continue_cnt = 0; 
-                LOG_I("shock_continue_cnt = 0");
+                LOG_I("shock_continue_cnt");
             } else if(shock_continue_cnt > 5 && sys_info.track_mode == 0) {   /*触发GPS追踪模式，防盗模式*/
                 week_time("track", -1);
                 sys_info.track_mode = 1;
@@ -869,7 +894,6 @@ void app_system_thread(void *param)
             car_info.move_alarm = 0;
         }
         
-
         if(sys_info.shock_sw_state != sys_param_set.shock_sw){
             sys_info.shock_sw_state = sys_param_set.shock_sw;
             net_engwe_cmd_push(OPERATION_PUSH_UP, sys_param_set.net_engwe_offline_opearte_push_cmdId);
@@ -998,10 +1022,11 @@ void sys_param_init()
     sheepfang_data_init();
     forbidden_zone_data_init();
     sensor_cali_param_init();
+    sys_info.power_adc.sys_power_rate = 24.2556;
     sys_info.power_adc.bat_val_rate = 2.0;
     sys_info.bat_charge_state = BAT_CHARGE_OFF;
-    sys_info.adc_charge_get_interval = 60*60; 
-    sys_info.adc_discharge_get_interval = 60; 
+    sys_info.adc_charge_get_interval = 20; 
+    sys_info.adc_discharge_get_interval = 60*60; 
     sys_info.shock_sw_state = sys_param_set.shock_sw;
     memcpy(sys_info.fota_packname, OTA_FILE, strlen(OTA_FILE));
     LOG_I("OTA_CNT:%d", sys_param_set.ota_cnt);   

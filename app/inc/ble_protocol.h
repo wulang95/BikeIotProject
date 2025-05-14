@@ -15,7 +15,7 @@ void ble_heart_event();
 void ble_log_out(uint8_t *data, uint16_t data_len);
 void ble_cmd_can_trans_up(stc_can_rxframe_t can_dat);
 void ble_cmd_opearte_res_up(uint16_t cmd);
-
+void ble_cmd_ship_mode_ask(uint8_t ship_mode);
 
 
 #endif

@@ -338,4 +338,5 @@ void sys_log_out(const char *fmt, ...);
 void app_system_log_out_thread(void *param);
 void regular_heart_update();
 void flash_ota_close();
+void system_enter_ship_mode(CAR_CMD_Q car_cmd_q);
 #endif

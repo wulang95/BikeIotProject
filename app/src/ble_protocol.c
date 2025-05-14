@@ -1490,14 +1490,46 @@ static void ble_cmd_q_bms_health_info()
     ble_send_data(buf, len);
 }
 
+void ble_cmd_enter_ship_mode(uint8_t dat)
+{
+    CAR_CMD_Q car_cmd_q;
+    car_cmd_q.src = BLUE_CAR_CMD_SER;
+    if(dat == 0x01) 
+        system_enter_ship_mode(car_cmd_q);
+
+
+}
+
+void ble_cmd_ship_mode_ask(uint8_t ship_mode)
+{
+    uint8_t buf[64], data[64];
+    uint16_t len;
+    uint16_t lenth = 0;
+    data[lenth++] = ship_mode;
+    ble_protocol_data_pack(BLE_CMD_TRANSPORT_MODE_QES_ASK, &data[0], lenth, &buf[0], &len);
+    ble_send_data(buf, len);
+}
 
 static void ble_cmd_bat_charge_sw(uint8_t dat)
 {
+    #if 0
     if(dat == 0x01){
         MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_ON_INDEX);
     } else {
         MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_OFF_INDEX);
     }
+    #endif
+}
+
+static void ble_debug_voice_sw(uint8_t dat)
+{
+    #if 0
+    if(dat == 0x01){
+        voice_play_mark(VOICE_TEST); 
+    } else {
+        voice_play_off();
+    }    
+    #endif
 }
 void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 {
@@ -1668,6 +1700,14 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
         case BLE_CMD_Q_BMS_HEALTH_INFO:
             ble_cmd_q_bms_health_info();
         break;
+
+        case BLE_CMD_TRANSPORT_MODE_QES:
+            ble_cmd_enter_ship_mode(data[0]);
+        break;
+
+        case BLE_CMD_IOT_ACTIVE_REQ:
+            ble_debug_voice_sw(data[0]);
+        break;
         default:
         break;
     }
@@ -1753,10 +1793,14 @@ void ble_up_cycle_data_heart_service()
     free(buf);
 }
 
+
+
 void ble_heart_event()
 {
     ble_up_cycle_data_heart_service();
 }
+
+
 void ble_protocol_recv_thread(void *param)
 {
     uint8_t step = 0,res;

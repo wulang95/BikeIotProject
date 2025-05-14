@@ -400,10 +400,7 @@ static void net_engwe_cmdId_real_operate(uint8_t *data, uint16_t len, uint16_t s
         break;
         case 0x08:
             if(data[1] == 0x01){   //运输模式
-                MCU_CMD_MARK(CMD_SHIP_MODE_INDEX);  //发送进入MCU模式
-                car_lock_control(NET_CAR_CMD_SER, CAR_LOCK_STA);  //进入关锁模式
-                buf_len = net_engwe_cmdId_operate_respos(buf, car_cmd_q.net_car_control, 0x01, 0);
-                net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, buf, buf_len, car_cmd_q.net_car_control.seq); 
+                system_enter_ship_mode(car_cmd_q);
             } else if(data[1] == 0x02){   //激活模式
                 
             }

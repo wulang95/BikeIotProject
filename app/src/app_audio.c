@@ -28,6 +28,7 @@ struct audio_con_stu audio_con_table[] = {
     {1,    0,   ALARM_VOICE_FILE},
     {5,    1000,   LOOK_CAR_VOICE_FILE},
     {0Xff,     1000,   ENTER_PENALTY_AREA_VOICE_FILE},
+    {0Xff,     1000,   ALARM_VOICE_FILE},
 };
 
 uint8_t play_flag;
@@ -50,6 +51,7 @@ void voice_play_off()
   //  AudioStatus_e audio_state;
     if(sys_info.audio_init == 0) return; 
     ql_aud_player_stop();
+    LOG_I("voice_play_off");
     // audio_state = ql_aud_get_play_state();
     // if(audio_state != QL_AUDIO_STATUS_IDLE) {
     //     ql_aud_player_stop();
