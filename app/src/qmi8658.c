@@ -594,7 +594,6 @@ void qmi8658_read_sensor_data(float acc[3], float gyro[3])
 	acc[1] = (float)(raw_acc_xyz[1]*ONE_G)/g_imu.ssvt_a;
 	acc[2] = (float)(raw_acc_xyz[2]*ONE_G)/g_imu.ssvt_a;
 #endif
-
 #if defined(QMI8658_UINT_MG_DPS)
 	// dps
 	gyro[0] = (float)(raw_gyro_xyz[0]*1.0f)/g_imu.ssvt_g;

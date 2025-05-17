@@ -766,6 +766,7 @@ void app_system_thread(void *param)
             net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
             sys_info.power_sta = BATTERY_INNER;
             LOG_I("36V power off");
+            car_info.bms_info[0].connect = 0; 
             if(car_info.lock_sta == CAR_UNLOCK_STA) {   //防止直接拔电池
                 week_time("lock", 30);
                 voice_play_mark(LOCK_VOICE);   
@@ -837,7 +838,7 @@ void app_system_thread(void *param)
                 net_engwe_cmd_push(OPERATION_PUSH_UP, sys_param_set.net_engwe_offline_opearte_push_cmdId);
             }
             car_info.last_headlight_sta = car_info.headlight_sta;
-        } 
+        }  
         /*====================震动检测========================*/
         if(car_info.lock_sta == CAR_LOCK_STA) {
             if(car_info.move_alarm && car_info.car_lock_state != CAR_LOCK_TO_SHOCK) {
@@ -867,7 +868,7 @@ void app_system_thread(void *param)
                 sensor_shock_time_t = def_rtos_get_system_tick();
             }
             LOG_I("shock_continue_cnt:%d, sys_info.track_mode:%d", shock_continue_cnt, sys_info.track_mode);
-            if(def_rtos_get_system_tick() - sensor_shock_time_t > 10000) {
+            if(def_rtos_get_system_tick() - sensor_shock_time_t > 15000) {
                 shock_continue_cnt = 0; 
                 LOG_I("shock_continue_cnt");
             } else if(shock_continue_cnt > 5 && sys_info.track_mode == 0) {   /*触发GPS追踪模式，防盗模式*/
@@ -1025,7 +1026,7 @@ void sys_param_init()
     sys_info.power_adc.sys_power_rate = 24.2556;
     sys_info.power_adc.bat_val_rate = 2.0;
     sys_info.bat_charge_state = BAT_CHARGE_OFF;
-    sys_info.adc_charge_get_interval = 20; 
+    sys_info.adc_charge_get_interval = 5*60; 
     sys_info.adc_discharge_get_interval = 60*60; 
     sys_info.shock_sw_state = sys_param_set.shock_sw;
     memcpy(sys_info.fota_packname, OTA_FILE, strlen(OTA_FILE));
@@ -1047,12 +1048,16 @@ void ota_test()
         LOG_E("ota write is error");
     }
     if(flash_partition_read(DEV_APP_ADR, ota_s, 3, 6) < 0) {
+
+
+        
         LOG_E("ota read is error");
     } else {
         LOG_I("%s", ota_s);
     }
 }
 extern void electron_fence_test();
+
 void app_sys_init()
 {
     hal_drv_init();
@@ -1071,7 +1076,8 @@ void app_sys_init()
     register_module("sensor");
     register_module("track");
     register_module("ota");
-
+    register_module("mcu");
+    register_module("net");
 
     sys_log_buf = rt_ringbuffer_create(SYS_LOG_LEN);
  //   flash_partition_erase(DEV_APP_ADR);

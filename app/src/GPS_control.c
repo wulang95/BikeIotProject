@@ -546,6 +546,7 @@ uint8_t GPS_Data_Proces(char *data, uint16_t len)
          distance = get_distance(P1, P2);
          LOG_I("GPS distance:%.4f", distance);
          memcpy(&GpsDataBuf, &GData, sizeof(GPS_DATA)); 
+         
         // if(distance > 0.2) {
         //     memcpy(&GpsDataBuf, &GData, sizeof(GPS_DATA)); 
         // }

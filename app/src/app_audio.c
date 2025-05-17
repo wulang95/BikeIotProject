@@ -109,7 +109,7 @@ void app_audio_init()
     //配置本地播放模式下, 喇叭输出的1级音量对应的dac增益为 -13.5db, 算法增益为0db, 且实时生效
 	err = ql_aud_set_icvolume_level_gain(QL_AUDIO_PLAY_TYPE_LOCAL,
 								   QL_OUTPUT_SPEAKER,
-								   AUDIOHAL_SPK_VOL_11,
+								   AUDIOHAL_SPK_VOL_1,
 								   25,
 								   15);
     if(err != RTOS_SUCEESS) {
@@ -125,7 +125,7 @@ void app_audio_init()
         LOG_E("config side tone gain failed");
         return;
     }
-    ql_aud_set_volume(QL_AUDIO_PLAY_TYPE_LOCAL, AUDIOHAL_SPK_VOL_6);
+    ql_aud_set_volume(QL_AUDIO_PLAY_TYPE_LOCAL, AUDIOHAL_SPK_VOL_1);
     err = def_rtos_queue_create(&audio_que_t, sizeof(uint8_t), 1);
     if(err != RTOS_SUCEESS) {
         LOG_E("audio_que_t is create failed");

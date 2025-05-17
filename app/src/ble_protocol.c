@@ -1743,7 +1743,11 @@ void ble_up_cycle_data_heart_service()
     data[data_len++] = car_info.gear;
     data[data_len++] = ((car_info.motor_power/10) >> 8)&0xff;
     data[data_len++] = (car_info.motor_power/10)&0xff;
-    data[data_len++] = car_info.bms_info[0].soc;
+    if(car_info.bms_info[0].connect == 1) {
+        data[data_len++] = car_info.bms_info[0].soc;
+    } else {
+        data[data_len++] = 0;
+    }
     data[data_len++] = car_info.pedal_speed >> 8;
     data[data_len++] = car_info.pedal_speed & 0xff;   
     data[data_len++] = ((car_info.ebike_calorie/1000)>>8)&0xff;

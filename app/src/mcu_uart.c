@@ -442,7 +442,7 @@ void mcu_uart_recv_thread(void *param)
         if(iot_error_check(IOT_ERROR_TYPE, MCU_CONN_ERROR) == 1) {
             iot_error_clean(IOT_ERROR_TYPE, MCU_CONN_ERROR);
         }
-        week_time("sys", 30); 
+        week_time("mcu", 30); 
         debug_data_printf("mcurcv",rcv, len);
         for(i = 0; i < len; i++){
             c = rcv[i];

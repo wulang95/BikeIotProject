@@ -444,7 +444,7 @@ void iot_mqtt_public(const uint8_t *data, uint16_t len)
     }
     LOG_I("pub_topic:%s", mqtt_con_info.pub_topic);
     debug_data_printf("pub_data", data, len);
-    rtc_event_register(NET_HEART_EVENT, sys_param_set.net_heart_interval, 1);
+//    rtc_event_register(NET_HEART_EVENT, sys_param_set.net_heart_interval, 1);
     ql_mqtt_publish(&mqtt_con_info.mqtt_cli, mqtt_con_info.pub_topic, (void *)data, len, sys_config.mqtt_qos, 0, iot_mqtt_pub_result_cb, NULL);
 }
 
@@ -452,7 +452,7 @@ static void iot_mqtt_inpub_data_cb(mqtt_client_t *client, void *arg, int pkt_id,
 {
 	LOG_I("sub_topic: %s", topic);
 	LOG_I("payload: %s, payload_len:%d", payload, payload_len);
-    week_time("sys", 30); 
+    week_time("net", 30); 
     net_engwe_data_parse((uint8_t *)payload, payload_len);
 }
 

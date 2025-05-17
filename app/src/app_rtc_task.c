@@ -102,8 +102,10 @@ void app_rtc_init()
     hal_drv_rtc_set_time(1725504899);
     hal_drv_rtc_time_print();
     hal_rtc_cfg_init();
+    memset(rtc_week_table, 0, sizeof(rtc_week_table));
     def_rtos_semaphore_create(&rtc_alarm_sem, 0);
     hal_drv_set_alarm_call_fun(rtc_alarm_call_fun);
+    last_time = hal_drv_rtc_get_timestamp();
     LOG_I("app_rtc_init is ok");
 }
 
@@ -118,7 +120,7 @@ uint32_t app_rtc_event_query_remain_time(RTC_EVENT event)
 
 void app_rtc_event_thread(void *param)
 {
-    uint8_t i;
+    uint8_t i, min_i = 0;
     int64_t cur_time,difsec, min_sec = 0xfffffffffffffff;
     last_time = hal_drv_rtc_get_timestamp();
     while(1)
@@ -131,6 +133,7 @@ void app_rtc_event_thread(void *param)
             if(rtc_week_table[i].vaild){
                 if(rtc_week_table[i].week_time > difsec) {
                     rtc_week_table[i].week_time -= difsec;
+                    min_sec = rtc_week_table[i].week_time;
                 } else {
                     rtc_event_handler(i);
                     if(rtc_week_table[i].cycle_en){
@@ -141,15 +144,18 @@ void app_rtc_event_thread(void *param)
                     }
                 }
             }
+      //      LOG_I("i:%d, vaild:%d,week_time:%d", i, rtc_week_table[i].vaild, rtc_week_table[i].week_time);
         }
         for(i = 0; i < EVENT_MAX; i++) {
             if(rtc_week_table[i].vaild){
                 if(rtc_week_table[i].week_time < min_sec) {
                     min_sec = rtc_week_table[i].week_time;
+                    min_i = i;
                 }
             }
         }
-        LOG_I("hal_drv_set min_sec:%d", min_sec);
+        LOG_I("min_sec:%d", min_sec);
+        LOG_I("min_i:%d", min_i);
         hal_drv_rtc_set_alarm(min_sec);
         last_time = hal_drv_rtc_get_timestamp();
     }
