@@ -468,6 +468,7 @@ void iot_mqtt_state_machine()
     static uint64_t mqtt_sub_timeout = 0;
     static uint16_t mqtt_count = 0;
     static int ret = MQTTCLIENT_SUCCESS;
+    char will_msg[128] = {0};
     if(pdp_active_info.pdp_is_active == 1) {
         switch(mqtt_con_info.state) {
             case MQTT_BIND_SIM_AND_PROFILE:
@@ -505,6 +506,8 @@ void iot_mqtt_state_machine()
             break;
             case MQTT_CONNECT:
                 LOG_I("MQTT_CONNECT");
+                sprintf(will_msg, "{\"clientId\":\"%s/%s\",\"imei\":\"%s\"}",gsm_info.imei, ip4_adr_str, gsm_info.imei);
+                LOG_I("will_msg:%s", will_msg);
                 mqtt_con_info.mqtt_connected = 0;
                 mqtt_con_info.client_info.clean_session = 1;
                 mqtt_con_info.client_info.pkt_timeout = 5;
@@ -513,7 +516,7 @@ void iot_mqtt_state_machine()
                 mqtt_con_info.client_info.will_retain = 0;
                 if(sys_config.mqtt_will_en == 1) {
                     mqtt_con_info.client_info.will_topic = sys_config.mqtt_will_topic;
-                    mqtt_con_info.client_info.will_msg = sys_config.mqtt_will_msg;
+                    mqtt_con_info.client_info.will_msg = will_msg;
                     mqtt_con_info.client_info.will_qos = sys_config.mqtt_qos;
                 } else {
                     mqtt_con_info.client_info.will_topic = NULL;

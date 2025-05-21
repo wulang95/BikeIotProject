@@ -77,7 +77,7 @@ static struct can_cmd_order_s can_cmd_order[] = {
     {0X60,  true,   3,   1000},  /*参数设置*/
     {0X14,  true,   3,   1000},  /* 控制指令*/
     {0XEA,  true,   3,   1000}, /*  PNG请求*/
-    {0XEB,  true,   5,   2000},  /*进入OTA*/
+    {0XEB,  true,   15,   2000},  /*进入OTA*/
     {0XEE,  false,  0,   2000}, /*退出OTA*/
     {0XD3,  true,   3,   2000}, /*帧头指令*/
 };
@@ -704,7 +704,9 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
         } else if(can_pdu.pdu.pdu1 == 0XD3) {
             if(rx_can_frame.Data[0] == 0x69) {   //异常上报
                 LOG_E("FALUT RES:%02x", rx_can_frame.Data[1]);
-                can_ota_con.ota_step = OTA_QUIT_STEP;
+                if(rx_can_frame.Data[1] == 0XA5) {
+                    can_ota_con.ota_step = OTA_QUIT_STEP;
+                }
                 // if(rx_can_frame.Data[1] == 0xA5) {  
                 //     can_ota_con.ota_step = OTA_IDEL_STEP;//退出异常
                 // } else {
@@ -1342,7 +1344,7 @@ static int64_t can_ota_time_t;
 static void can_ota_enter()
 {
     if(can_ota_con.last_ota_step == can_ota_con.ota_step) {
-        if(def_rtos_get_system_tick() - can_ota_time_t > 10000) {
+        if(def_rtos_get_system_tick() - can_ota_time_t > 30000) {
             LOG_E("can_ota_enter is error");
             can_ota_con.ota_step = OTA_QUIT_STEP;
         }
@@ -1430,7 +1432,7 @@ static void can_ota_head(uint8_t retry)
     can_id_s.p = 1;
     can_id_s.res = 0;
     can_fram.ExtID = can_id_s.can_id;
-    can_fram.Cst.Control_f.DLC = 6;
+    can_fram.Cst.Control_f.DLC = 8;
     can_fram.Cst.Control_f.IDE = 1;
    can_fram.Cst.Control_f.RTR = 0;
     can_fram.Data[0] = 0x56;
@@ -1497,7 +1499,7 @@ static void can_ota_head(uint8_t retry)
 static void can_ota_mcu_data()
 {
 
-    if(def_rtos_semaphore_wait(can_ota_data_uart.data_sem, 10000) != RTOS_SUCEESS) {
+    if(def_rtos_semaphore_wait(can_ota_data_uart.data_sem, 15000) != RTOS_SUCEESS) {
         LOG_E("OTA MCU DATA IS FAIL");
         can_ota_con.ota_step = OTA_QUIT_STEP;
         return;
@@ -1522,7 +1524,7 @@ static void can_ota_mcu_data()
 static void can_ota_mcu_data_finish()
 {
     LOG_I("OTA_PACK_DATA_FINISH_STEP");
-    if(def_rtos_semaphore_wait(can_ota_data_uart.data_finish_sem, 10000) != RTOS_SUCEESS) {
+    if(def_rtos_semaphore_wait(can_ota_data_uart.data_finish_sem, 15000) != RTOS_SUCEESS) {
         LOG_E("OTA MCU DATA FINISH IS FAIL");
         can_ota_con.ota_step = OTA_QUIT_STEP;
         return;
@@ -1550,7 +1552,7 @@ static void can_ota_tail()
     can_id_s.p = 1;
     can_id_s.res = 0;
     can_fram.ExtID = can_id_s.can_id;
-    can_fram.Cst.Control_f.DLC = 6;
+    can_fram.Cst.Control_f.DLC = 8;
     can_fram.Cst.Control_f.IDE = 1;
     can_fram.Cst.Control_f.RTR = 0;
 
@@ -1572,8 +1574,6 @@ void can_ota_quit()
     stc_can_rxframe_t can_fram = {0};
     CAN_PDU_STU can_id_s;
   //  def_rtosStaus res;
-    uint8_t buf[56];
-    uint16_t lenth;
     can_id_s.src = IOT_ADR;
     can_id_s.pdu.da = can_ota_con.dev_id;
     can_id_s.pdu.pdu1 = 0XEE;
@@ -1597,9 +1597,7 @@ void can_ota_quit()
     can_fram.Data[7] = 0x54;
     LOG_I("OTA_QUIT_STEP");
 
-    mcu_data_pack(CMD_CAN_OTA_END, NULL, 0, buf, &lenth);
-    mcu_uart_send(buf, lenth);
-
+    MCU_CMD_MARK(CMD_CAN_OTA_END_INDEX);
     def_rtos_task_sleep_ms(100);
     can_data_send(can_fram);
 
@@ -1607,8 +1605,18 @@ void can_ota_quit()
     can_id_s.pdu.da = 0x00;
     can_fram.ExtID = can_id_s.can_id;
     can_data_send(can_fram);
-    can_data_send(can_fram);
     can_ota_con.last_ota_step = OTA_QUIT_STEP;
+}
+
+static void can_ota_step_print()
+{
+    char *step_str[] = {"OTA_IDEL_STEP", "OTA_CAR_UNLOCK", "OTA_CHECK_CAR_UNLOCK", "OTA_QUEST_STEP", "OTA_PACK_HEAD_STEP", "OTA_PACK_DATA_STEP", "OTA_PACK_DATA_FINISH_STEP", "OTA_PACK_TAIL_STEP", "OTA_QUIT_STEP"};
+    if(can_ota_con.last_ota_step == can_ota_con.ota_step){
+        return;
+    }
+    if(can_ota_con.ota_step != OTA_PACK_DATA_STEP){
+        LOG_I("can_ota_step:%s", step_str[can_ota_con.ota_step]);
+    }
 }
 
 int can_ota_task(DEV_ID dev_id)
@@ -1694,6 +1702,7 @@ int can_ota_task(DEV_ID dev_id)
             car_lock_control(IOT_CAR_CMD_SER, CAR_LOCK_STA);
             return FAIL;
         }
+        can_ota_step_print();
     }
     return OK;
 }

@@ -34,10 +34,10 @@ struct mcu_cmd_order_stu mcu_cmd_order_table[CMD_INDEX_MAX] = {
     {true,      1000,       3},     //CMD_GPS_HOST_START
     {true,      1000,       3},     //CMD_CAT_REPOWERON
     {false,      0,         0},     //CMD_CRC_ERROR
-    {true,      3000,       3},    //CMD_CAN_OTA_DATA
+    {true,      2000,       5},    //CMD_CAN_OTA_DATA
     {true,      1000,       3},     //CMD_CAN_OTA_START
     {true,      1000,       3},     //CMD_CAN_OTA_END
-    {true,      1000,       3},    //CMD_CAN_OTA_DATA_FINISH
+    {true,      6000,       2},    //CMD_CAN_OTA_DATA_FINISH
     {true,      1000,       3},     //CMD_CAN_LOCK_CAR
     {true,      1000,       3},     //CMD_CAN_UNLOCK_CAR
     {false,     0,          0},     //CMD_CAN_CAR_CONTROL
@@ -261,7 +261,7 @@ void can_data_send(stc_can_rxframe_t can_txframe)
     uint16_t len;
     CAN_PDU_STU can_pdu;
     can_pdu.can_id = can_txframe.ExtID;
-    if(can_pdu.pdu.pdu1 == 0x14 || can_pdu.pdu.pdu1 == 0x60) {
+    if(can_pdu.pdu.pdu1 == 0x14 || can_pdu.pdu.pdu1 == 0x60 || can_pdu.pdu.pdu1 == 0xee) {
         mcu_data_pack(CMD_CAN_CAR_CONTROL, (uint8_t *)&can_txframe, sizeof(stc_can_rxframe_t), buf, &len);
     } else {
         mcu_data_pack(CMD_CAN_TRANS, (uint8_t *)&can_txframe, sizeof(stc_can_rxframe_t), buf, &len);

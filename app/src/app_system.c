@@ -498,7 +498,8 @@ static void sys_config_default_init()
     sys_config.port = DEFAULT_PORT;
     sys_config.magic = IOT_MAGIC;
     sys_config.mqtt_qos = 1;
-    sys_config.mqtt_will_en = 0;
+    sys_config.mqtt_will_en = 1;
+    memcpy(sys_config.mqtt_will_topic, DEFAULT_MQTT_WILL_TOPIC, strlen(DEFAULT_MQTT_WILL_TOPIC));
     memcpy(sys_config.soft_ver, SOFTVER, strlen(SOFTVER));
     memcpy(sys_config.hw_ver, HWVER, strlen(HWVER));
     memcpy(sys_config.mqtt_client_user, DEFAULT_MQTT_USER, strlen(DEFAULT_MQTT_USER));
@@ -662,7 +663,7 @@ void app_system_thread(void *param)
             net_engwe_cmd_push(STATUS_PUSH_UP, 0x00000200);
         }
 
-        if(car_info.lock_sta == CAR_UNLOCK_STA) {
+        if(car_info.lock_sta == CAR_UNLOCK_STA && sys_info.ota_flag == 0) {
             iot_can_heart_fun();
         }   
         if(sys_set_var.sys_updata_falg != 0) {
@@ -1026,7 +1027,7 @@ void sys_param_init()
     sys_info.power_adc.sys_power_rate = 24.2556;
     sys_info.power_adc.bat_val_rate = 2.0;
     sys_info.bat_charge_state = BAT_CHARGE_OFF;
-    sys_info.adc_charge_get_interval = 5*60; 
+    sys_info.adc_charge_get_interval = 10*60; 
     sys_info.adc_discharge_get_interval = 60*60; 
     sys_info.shock_sw_state = sys_param_set.shock_sw;
     memcpy(sys_info.fota_packname, OTA_FILE, strlen(OTA_FILE));

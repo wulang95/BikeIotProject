@@ -230,6 +230,8 @@ enum {
     BAT_CHARGE_OFF,
 };
 
+#define DEFAULT_MQTT_WILL_TOPIC         "iot/engwe/offline"
+
 #pragma pack(1)
 struct sys_info_stu {
     uint16_t battry_val;   //外部电池电压，单位0.1V
@@ -291,7 +293,7 @@ struct sys_set_var_stu{
 
 #pragma pack()
 
-#define SOFTVER "3.2"
+#define SOFTVER "3.1"
 #define HWVER   "1.0"
 #define DEFAULT_MANUFACTURER  "EG" 
 #define DEFAULT_DNS "114.114.114.114"

@@ -196,3 +196,10 @@ ResetFlagMskWdt, MCU看门狗复位
 
 4/22
 修复围栏bug
+
+
+
+05/20
+CANOTA升级流程
+1.固件拉取到CAT1后
+2.发OTA升级信息到MCU(升级CANID， 升级文件大小)

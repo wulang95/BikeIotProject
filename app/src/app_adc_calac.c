@@ -68,13 +68,13 @@ uint16_t app_get_sys_power_val()
 
 void app_bat_charge_check()
 {
-    if(sys_info.bat_charge_state == BAT_CHARGE_ON && (sys_info.power_36v == 0 || sys_info.bat_temp > 65 || sys_info.bat_val >= 4100)) {
+    if(sys_info.bat_charge_state == BAT_CHARGE_ON && (sys_info.power_36v == 0 || sys_info.bat_temp > 65 )) {
         MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_OFF_INDEX);
         rtc_event_register(BAT_MCU_ADC_GET_EVENT, sys_info.adc_discharge_get_interval, 1);
         return;
     }
 
-    if(sys_info.bat_charge_state == BAT_CHARGE_OFF && sys_info.power_36v == 1 && sys_info.bat_temp < 60 && sys_info.bat_val < 3900){
+    if(sys_info.bat_charge_state == BAT_CHARGE_OFF && sys_info.power_36v == 1 && sys_info.bat_temp < 60 ) { 
         MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_ON_INDEX);
         rtc_event_register(BAT_MCU_ADC_GET_EVENT, sys_info.adc_charge_get_interval, 1);
         return;
