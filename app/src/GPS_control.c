@@ -431,10 +431,8 @@ uint16_t  GPS_FloatStr_To_Num(char *Data)
 
 uint8_t GPS_Data_Proces(char *data, uint16_t len)
 {
- //   uint16_t  Acc1 = 0, Acc2 = 0;
+    // uint16_t  Acc1 = 0, Acc2 = 0;
     GPS_DATA  GData, GDataTemp;
-    double distance;
-    Point P1, P2;
     char *start;
     memset(&GData, 0, sizeof(GData));
     start = strstr(data, "RMC");
@@ -463,14 +461,14 @@ uint8_t GPS_Data_Proces(char *data, uint16_t len)
             if(Convert_LonLat(&GData) == OK) {
                 GpsDataBuf.RefreshFlag = 1;
             }
-            LOG_I("\n**********RT_OK***********\n");
-            LOG_I("GPSValidFlag:%d", GDataTemp.GPSValidFlag);
-            LOG_I("Time1:%s", GDataTemp.Time1);
-            LOG_I("LatLongData:%s", GDataTemp.LatLongData);
-            LOG_I("Time2:%s", GDataTemp.Time2);
-            LOG_I("Mode:%s", GDataTemp.Mode);
-            LOG_I("Ground_speed:%s", GDataTemp.Ground_speed);
-            LOG_I("Yaw:%s", GDataTemp.Yaw);
+            // LOG_I("\n**********RT_OK***********\n");
+            // LOG_I("GPSValidFlag:%d", GDataTemp.GPSValidFlag);
+            // LOG_I("Time1:%s", GDataTemp.Time1);
+            // LOG_I("LatLongData:%s", GDataTemp.LatLongData);
+            // LOG_I("Time2:%s", GDataTemp.Time2);
+            // LOG_I("Mode:%s", GDataTemp.Mode);
+            // LOG_I("Ground_speed:%s", GDataTemp.Ground_speed);
+            // LOG_I("Yaw:%s", GDataTemp.Yaw);
 		}
     } 
     start = strstr(data, "GGA");
@@ -486,14 +484,14 @@ uint8_t GPS_Data_Proces(char *data, uint16_t len)
             memcpy(GData.HDOP, GDataTemp.HDOP, sizeof(GData.HDOP));
             memcpy(GData.SeaLevelH, GDataTemp.SeaLevelH, sizeof(GData.SeaLevelH));
 
-            LOG_I("**********RT_OK***********");
-            LOG_I("GPSValidFlag:%d", GDataTemp.GPSValidFlag);
-            LOG_I("Time1:%s", GDataTemp.Time1);
-            LOG_I("LatLongData:%s", GDataTemp.LatLongData);
-            LOG_I("Mode:%s", GDataTemp.Mode);
-            LOG_I("SateNumStr:%s", GDataTemp.SateNumStr);
-            LOG_I("HDOP:%s", GDataTemp.HDOP);
-            LOG_I("SeaLevelH:%s", GDataTemp.SeaLevelH);
+            // LOG_I("**********RT_OK***********");
+            // LOG_I("GPSValidFlag:%d", GDataTemp.GPSValidFlag);
+            // LOG_I("Time1:%s", GDataTemp.Time1);
+            // LOG_I("LatLongData:%s", GDataTemp.LatLongData);
+            // LOG_I("Mode:%s", GDataTemp.Mode);
+            // LOG_I("SateNumStr:%s", GDataTemp.SateNumStr);
+            // LOG_I("HDOP:%s", GDataTemp.HDOP);
+            // LOG_I("SeaLevelH:%s", GDataTemp.SeaLevelH);
         }
 	}
    
@@ -525,28 +523,22 @@ uint8_t GPS_Data_Proces(char *data, uint16_t len)
         if(strlen(GData.SateNumStr) == 0)  strcpy(GData.SateNumStr, GpsDataBuf.SateNumStr);
         if(strlen(GData.Ground_speed) == 0) strcpy(GData.Ground_speed, GpsDataBuf.Ground_speed);
         if(strlen(GData.Yaw) == 0) strcpy(GData.Yaw, GpsDataBuf.Yaw);
-        // if(Gps.GpsMode == GPS_MODE_TM) {
-        //      if((strlen(GData.HDOP) != 0) && (strlen(GpsDataBuf.HDOP) != 0)) {
-        //         Acc1 = GPS_FloatStr_To_Num(GData.HDOP);
-        //         Acc2 = GPS_FloatStr_To_Num(GpsDataBuf.HDOP);
-        //         if(Acc1 > Acc2)
-        //             strcpy(GData.LatLongData, GpsDataBuf.LatLongData);
-        //      }
-        // }
+        if(Gps.GpsMode == GPS_MODE_TM) {
+            //  if((strlen(GData.HDOP) != 0) && (strlen(GpsDataBuf.HDOP) != 0)) {
+            //     Acc1 = GPS_FloatStr_To_Num(GData.HDOP);
+            //     Acc2 = GPS_FloatStr_To_Num(GpsDataBuf.HDOP);
+            //     if(Acc1 > Acc2)
+            //         strcpy(GData.LatLongData, GpsDataBuf.LatLongData);
+            //  }
+        }
     } else {
         if(strlen(GData.Time1) == 0)  strcpy(GData.Time1, GpsDataBuf.Time1);
         if(strlen(GData.Time2) == 0)  strcpy(GData.Time2, GpsDataBuf.Time2);
         if(strlen(GData.SeaLevelH) == 0)  strcpy(GData.SeaLevelH, GpsDataBuf.SeaLevelH);
     }
     if(GData.GPSValidFlag == 1 && GpsDataBuf.GPSValidFlag == 1){
-         P1.lat = GData.Latitude;
-         P1.lon = GData.Longitude;
-         P2.lat = GpsDataBuf.Latitude;
-         P2.lon = GpsDataBuf.Longitude;
-         distance = get_distance(P1, P2);
-         LOG_I("GPS distance:%.4f", distance);
-         memcpy(&GpsDataBuf, &GData, sizeof(GPS_DATA)); 
-         
+        memcpy(&GpsDataBuf, &GData, sizeof(GPS_DATA));  
+        LOG_I("GPS UPDATE"); 
         // if(distance > 0.2) {
         //     memcpy(&GpsDataBuf, &GData, sizeof(GPS_DATA)); 
         // }
@@ -559,9 +551,9 @@ uint8_t GPS_Data_Proces(char *data, uint16_t len)
     }
     return OK;
 }
-
 static void GPS_Composite_PosData()
 {
+
     #ifndef OM_NET_PROTOCOL
     uint8_t Len;
     if(GpsDataBuf.GpsFlag == 0){
@@ -589,6 +581,7 @@ static void GPS_Composite_PosData()
         Gps.vaild = 0;
         return;
     }
+
     Gps.vaild = 1;
     Gps.ground_speed = (uint16_t)(strtod(GpsDataBuf.Ground_speed, NULL)*10.0);
     LOG_I("ground_speed:%d", Gps.ground_speed);
@@ -605,6 +598,7 @@ static void GPS_Composite_PosData()
     LOG_I("statenum:%d", Gps.SateNum);
     #endif
 }
+
 
 void GPS_fence_detection()
 {
@@ -793,10 +787,101 @@ void GPS_Start(uint8_t Mode)
     }
 }
 
+typedef struct {
+    double lat;     // 纬度
+    double lon;     // 经度
+    bool is_outlier;// 是否异常标记
+} GpsPoint;
+
+typedef struct {
+    GpsPoint* data;
+    int size;
+    int capacity;
+} GpsArray;
+
+void detect_zscore(GpsArray* points, double threshold) {
+    // 计算纬度/经度的均值和标准差
+    double lat_sum = 0.0, lon_sum = 0.0;
+    for (int i = 0; i < points->size; i++) {
+        lat_sum += points->data[i].lat;
+        lon_sum += points->data[i].lon;
+    }
+    double lat_mean = lat_sum / points->size;
+    double lon_mean = lon_sum / points->size;
+
+    double lat_std = 0.0, lon_std = 0.0;
+    for (int i = 0; i < points->size; i++) {
+        lat_std += pow(points->data[i].lat - lat_mean, 2);
+        lon_std += pow(points->data[i].lon - lon_mean, 2);
+    }
+    lat_std = sqrt(lat_std / points->size);
+    lon_std = sqrt(lon_std / points->size);
+
+    // 标记异常点
+    for (int i = 0; i < points->size; i++) {
+        double z_lat = fabs((points->data[i].lat - lat_mean) / lat_std);
+        double z_lon = fabs((points->data[i].lon - lon_mean) / lon_std);
+        points->data[i].is_outlier = (z_lat > threshold || z_lon > threshold);
+    }
+}
+
+#define GPS_CALC_CNT 20
+
+int GPS_calcu_position(double lat, double lon)
+{
+    GpsArray points;
+    static GpsPoint pos_table[GPS_CALC_CNT] = {0};
+    static uint8_t pos_num = 0;
+    double lat_sum = 0.0, lon_sum = 0.0;
+    uint8_t out_num = 0;
+    if(pos_num < GPS_CALC_CNT) {
+        pos_table[pos_num].lat = lat;
+        pos_table[pos_num].lon = lon;
+        pos_table[pos_num].is_outlier = false;
+        pos_num++;
+        out_num = 0;
+        lat_sum = 0.0;
+        lon_sum = 0.0;
+    } 
+
+    if(pos_num == GPS_CALC_CNT) {
+        points.data = pos_table;
+        points.size = GPS_CALC_CNT;    
+        points.capacity = GPS_CALC_CNT;
+        detect_zscore(&points, 1.2);
+        for (int i = 0; i < points.size; i++) {
+            if(points.data[i].is_outlier == true) {
+                LOG_I("gps position is false %d", i);
+                out_num++;
+            } else {
+                lat_sum += pos_table[i].lat;
+                lon_sum += pos_table[i].lon;
+            }
+        }
+        if(out_num <= 4) {
+            LOG_I("gps position is ok");
+            GpsDataBuf.Latitude = lat_sum/(GPS_CALC_CNT - out_num);
+            GpsDataBuf.Longitude = lon_sum/(GPS_CALC_CNT - out_num);
+            pos_num = 0;
+            return 0;
+        } else {
+            LOG_I("pos_table is move");
+            memcpy(pos_table, pos_table+1, (GPS_CALC_CNT-1)*sizeof(GpsPoint));
+            pos_num--;
+        }
+    }
+    return 1;
+}
+
 void gps_control_thread(void *param)
 {
     uint8 gps_buf[256];
     uint16_t len;
+    GPS_DATA last_GpsDataBuf= {0};
+    double gps_speed=0;
+    double distance =0;
+    Point P_last={0}, P_now={0};
+    uint8_t s_cent = 0, d_cent = 0;
     while(1){
   //      LOG_I("IS RUN");
         len = gps_data_block_recv(gps_buf, 256, RTOS_WAIT_FOREVER);
@@ -808,22 +893,53 @@ void gps_control_thread(void *param)
 		if(GPS_Data_Proces((char *)gps_buf, len) == OK) {
             Gps.GetGPSNum++;
         } 
+        gps_speed = strtod(GpsDataBuf.Ground_speed, NULL);
         if(Gps.GpsMode == GPS_MODE_TM) {
-            if(Gps.GetGPSNum >= GPS_POS_CNT || systm_tick_diff(Gps.Gps_Tm_timeout) > 180*1000) {
-                GPS_Composite_PosData();
-                if(sys_info.paltform_connect) {         /*上传一次定位*/
-                    NET_ENGWE_CMD_MARK(REGULARLY_REPORT_UP);
+            LOG_I("GetGPSNum:%d", Gps.GetGPSNum);
+            if(Gps.GetGPSNum >= GPS_POS_CNT && Gps.GetGPSNum%5 == 0 && gps_speed == 0) {
+                if(GPS_calcu_position(GpsDataBuf.Latitude, GpsDataBuf.Longitude) == 0) {
+                    LOG_I("GPS position is ok");
+                    GPS_Composite_PosData();
+                    if(sys_info.paltform_connect) {         /*上传一次定位*/
+                        NET_ENGWE_CMD_MARK(REGULARLY_REPORT_UP);
+                    }
+                    GPS_stop();
+                } 
+                else if (systm_tick_diff(Gps.Gps_Tm_timeout) > 600*1000) {
+                    LOG_I("GPS position is fail");
+                    GPS_Composite_PosData();
+                    if(sys_info.paltform_connect) {         /*上传一次定位*/
+                        NET_ENGWE_CMD_MARK(REGULARLY_REPORT_UP);
+                    }
+                    GPS_stop();
                 }
-                GPS_stop();
-                if(Gps.GetGPSNum >= GPS_POS_CNT) {
-                    LOG_I("**********GPS OK***********");
-                } else {
-                    LOG_E("**********GPS Time Out***********");
-                }
-                continue;
-            }
+            } 
         } else {
-            GPS_Composite_PosData(); 
+            if(GpsDataBuf.GPSValidFlag == 1 && last_GpsDataBuf.GPSValidFlag == 1) {
+                P_now.lat = GpsDataBuf.Latitude;
+                P_now.lon = GpsDataBuf.Longitude;
+                P_last.lat = last_GpsDataBuf.Latitude;
+                P_last.lon = last_GpsDataBuf.Longitude;
+                distance = get_distance(P_now, P_last);
+                if(distance > 0.2) {
+                    if(++d_cent >= 10){
+                        GPS_Composite_PosData();
+                        d_cent = 0;
+                    }
+                } else if(gps_speed > 2.0) {
+                    if (++s_cent > 5) {
+                        GPS_Composite_PosData();
+                        s_cent = 0;
+                    }    
+                } else {
+                    d_cent = 0;
+                    s_cent = 0;
+                }
+            } 
+            if(car_info.speed != 0){
+                GPS_Composite_PosData(); 
+            }
+            last_GpsDataBuf = GpsDataBuf;  
         }
     }
     def_rtos_task_delete(NULL);

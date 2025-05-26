@@ -595,6 +595,12 @@ int sys_mode_reinit(uint8_t mode)
                 return 0;
             }
         break;
+        case SENSOR_MODEL:
+            res = app_sensor_reinit();
+            if(res == 0) {
+                return 0;
+            }
+        break;
     }
     return 1;
 }
@@ -631,8 +637,7 @@ void app_system_thread(void *param)
         }
         if(Gps.GpsPower == GPS_POWER_ON) {
             if(def_rtos_get_system_tick() - gps_resh_time_t > 15*1000 && (iot_error_check(IOT_ERROR_TYPE, GPS_ERROR) == 0)) {
-                iot_error_set(IOT_ERROR_TYPE, GPS_ERROR);
-                net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
+                iot_error_set(IOT_ERROR_TYPE, GPS_ERROR);      
                 Gps.init = 0;  //触发错误处理
                 SETBIT(sys_info.mode_reinit_flag, GPS_MODEL);
             }   
@@ -640,7 +645,6 @@ void app_system_thread(void *param)
         app_bat_charge_check();
         if(def_rtos_get_system_tick() - ble_heart_time_t > 15*1000 && (iot_error_check(IOT_ERROR_TYPE, BLE_ERROR) == 0)) {
             iot_error_set(IOT_ERROR_TYPE, BLE_ERROR);
-            net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
             ble_info.init = 0;
             SETBIT(sys_info.mode_reinit_flag, BLE_MODEL);
         }
@@ -652,10 +656,17 @@ void app_system_thread(void *param)
         }
 
         if(CHECKBIT(sys_info.mode_reinit_flag, BLE_MODEL)) {
-            if(sys_mode_reinit(BLE_MODEL == 0)) {
+            if(sys_mode_reinit(BLE_MODEL) == 0) {
                 CLEARBIT(sys_info.mode_reinit_flag, BLE_MODEL);
             }
         }
+
+        // if(CHECKBIT(sys_info.mode_reinit_flag, SENSOR_MODEL)) {
+        //     if(sys_mode_reinit(SENSOR_MODEL) == 0) {
+        //         CLEARBIT(sys_info.mode_reinit_flag, SENSOR_MODEL);
+        //     }
+        // }
+
         /*报错推送*/
         if(sys_info.last_car_error != sys_info.car_error || sys_info.iot_error != sys_info.last_iot_error) {
             sys_info.last_car_error = sys_info.car_error;
@@ -708,6 +719,7 @@ void app_system_thread(void *param)
             //     TEMP = 0;
             // }
             if(TEMP == 0) {
+           //     voice_play_mark(VOICE_TEST); 
           //      GPS_Start(GPS_MODE_CONT);
                 MCU_CMD_MARK(CMD_MCU_ADC_DATA_INDEX);
              //   MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_OFF_INDEX);
@@ -774,6 +786,7 @@ void app_system_thread(void *param)
                 car_info.lock_sta = CAR_LOCK_STA;
             }
         } else if(hal_drv_read_gpio_value(I_36VPOWER_DET) == 0 && sys_info.power_36v == 0) {
+             can_png_quest(BMS_ADR, BMS_COMPREHENSIVE_DATA, 0);
              sys_info.power_36v = 1;
              sys_info.power_sta = BATTERY_IN;
              regular_heart_update();
@@ -920,6 +933,7 @@ void app_system_thread(void *param)
                 LOG_I("CHARGER_PLUG_IN");
                 net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
             }
+            rtc_event_register(BAT_MCU_ADC_GET_EVENT, BMS_CHARGE_RTC_CHECK_TIME, 1);
             car_info.charger_state = CHARGER_STATE;
         }
         if(car_info.bms_info[0].charge_det == 0 && car_info.charger_det_flag == 1){
@@ -928,6 +942,7 @@ void app_system_thread(void *param)
             car_info.quick_charger_flag = 0;
             car_info.charger_state = CHARGER_PUG_OUT;
             LOG_I("CHARGER_PUG_OUT");
+            rtc_event_register(BAT_MCU_ADC_GET_EVENT, BMS_DISCHARGE_RTC_CHECK_TIME, 1);
             net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
             car_info.charger_state = CHARGER_NONE_STA;
         }
@@ -1027,7 +1042,7 @@ void sys_param_init()
     sys_info.power_adc.sys_power_rate = 24.2556;
     sys_info.power_adc.bat_val_rate = 2.0;
     sys_info.bat_charge_state = BAT_CHARGE_OFF;
-    sys_info.adc_charge_get_interval = 10*60; 
+    sys_info.adc_charge_get_interval = 30*60; 
     sys_info.adc_discharge_get_interval = 60*60; 
     sys_info.shock_sw_state = sys_param_set.shock_sw;
     memcpy(sys_info.fota_packname, OTA_FILE, strlen(OTA_FILE));
@@ -1045,7 +1060,7 @@ void ota_test()
         LOG_E("ota erase is error");
     }
 
-    if(flash_partition_write(DEV_APP_ADR, ota_str, sizeof(ota_str), 0) < 0){
+    if(flash_partition_write(DEV_APP_ADR, ota_str, sizeof(ota_str), 0) < 0) {
         LOG_E("ota write is error");
     }
     if(flash_partition_read(DEV_APP_ADR, ota_s, 3, 6) < 0) {
@@ -1088,8 +1103,9 @@ void app_sys_init()
     
    // sys_info.static_cali_flag = 1;
   //   app_set_led_ind(LED_TEST);
-    rtc_event_register(BAT_MCU_ADC_GET_EVENT, sys_info.adc_discharge_get_interval, 1);
+    rtc_event_register(BAT_MCU_ADC_GET_EVENT, BMS_DISCHARGE_RTC_CHECK_TIME, 1);
     rtc_event_register(NET_HEART_EVENT, sys_param_set.net_heart_interval, 1);
+    rtc_event_register(SENSOR_CHECK_EVENT, SENSOR_FUNC_RTC_CHECK_TIME, 1);  /*2小时检测一次传感器*/
     def_rtos_semaphore_create(&system_task_sem, 0);
     def_rtos_timer_create(&system_timer, app_system_task, system_timer_fun, NULL);
     def_rtos_timer_start(system_timer, 1000, 1);

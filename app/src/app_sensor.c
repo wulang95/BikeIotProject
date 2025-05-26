@@ -48,6 +48,7 @@ int qmi8658_sensor_init()
 		LOG_I("qmi8658_init is fail");
 		return -1; 
 	}
+    LOG_I("qmi8658_init is succeeful");
 	iot_error_clean(IOT_ERROR_TYPE, SENSOR_ERROR);
     init_state_recognition(&qmi8658_read_reg);
     sensor_cali_time_t = def_rtos_get_system_tick();
@@ -242,10 +243,12 @@ void imu_algo_thread(void *param)
 		if(memcmp(accl, last_accl, 3) == 0) {
 			if(++cent == 15 && (iot_error_check(IOT_ERROR_TYPE, SENSOR_ERROR) == 0)) {
 				iot_error_set(IOT_ERROR_TYPE, SENSOR_ERROR);
+                SETBIT(sys_info.mode_reinit_flag, SENSOR_MODEL);
 				cent = 0;
 			}
+            LOG_I("cent:%d", cent);
 		} else {
-            if(iot_error_check(IOT_ERROR_TYPE, SENSOR_ERROR)) {
+            if(iot_error_check(IOT_ERROR_TYPE, SENSOR_ERROR) == 1) {
                 iot_error_clean(IOT_ERROR_TYPE, SENSOR_ERROR);
             }
 			cent = 0;
@@ -314,3 +317,34 @@ void app_sensor_init()
 }
 
 
+int app_sensor_reinit()
+{
+    static uint8_t step = 0;
+    int res;
+    switch(step){
+        case 0:
+            imu_algo_timer_stop();
+  //          hal_drv_iic_release();
+            hal_drv_write_gpio_value(SENSOR_POWER, LOW_L);
+            LOG_I("SENSOR_POWER OFF");
+            step = 1;
+        break;
+        case 1:
+            LOG_I("SENSOR_POWER ON");
+            hal_drv_write_gpio_value(SENSOR_POWER, HIGH_L);
+            step = 2;
+        break;
+        case 2:
+            if(qmi8658_init() == 1){
+                iot_error_clean(IOT_ERROR_TYPE, SENSOR_ERROR);
+                res = 0;
+            } else {
+                hal_drv_write_gpio_value(SENSOR_POWER, LOW_L);
+                res = 1;
+            }
+            step = 0;
+            return res;
+        break;
+    }
+    return 1;
+}

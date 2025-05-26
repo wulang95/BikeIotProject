@@ -113,8 +113,8 @@ void net_update_singal_csq()
 static void pdp_active_state_machine(void)
 {
     uint8_t c_fun;
-    uint8_t cpin;
-    uint8_t net_reg;
+    uint8_t cpin = 0;
+    uint8_t net_reg = 0;
     static int64_t check_csq_timeout = 0;
     static int64_t check_pdp_timeout = 0;
     static int64_t check_sync_timeout = 0;

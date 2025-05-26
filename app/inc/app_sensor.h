@@ -13,7 +13,7 @@ void app_sensor_init();
 void imu_algo_thread(void *param);
 void imu_algo_timer_stop();
 void imu_algo_timer_start();
-
+int app_sensor_reinit();
 
 
 

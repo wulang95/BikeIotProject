@@ -1442,7 +1442,7 @@ unsigned char qmi8658_init(void)
 	}
 	else
 	{
-		hal_drv_iic_release();
+	//	hal_drv_iic_release();
 		qmi8658_log("qmi8658_init fail\n");
 		return 0;
 	}

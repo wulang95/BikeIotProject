@@ -43,6 +43,9 @@ typedef enum {
 
 #define IOT_MAGIC   0XFAFA5858 
 
+#define BMS_CHARGE_RTC_CHECK_TIME  (60*5)
+#define BMS_DISCHARGE_RTC_CHECK_TIME  (60*60)
+#define SENSOR_FUNC_RTC_CHECK_TIME      (60*60*2)
 /*
     step1 app拉取升级文件后，置ota_res为OTA_NEED,写入boot配置。
     step2 在boot中读取boot配置, 为OTA_NEED时,校验app，成功更新ota_res为OTA_SUCCESS，更新origin_app为app_addr。失败ota_res更新为OTA_FAIL。为其它值时直接跳转到origin_app;
@@ -293,7 +296,7 @@ struct sys_set_var_stu{
 
 #pragma pack()
 
-#define SOFTVER "3.1"
+#define SOFTVER "3.5"
 #define HWVER   "1.0"
 #define DEFAULT_MANUFACTURER  "EG" 
 #define DEFAULT_DNS "114.114.114.114"

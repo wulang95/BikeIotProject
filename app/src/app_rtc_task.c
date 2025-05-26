@@ -62,9 +62,16 @@ void rtc_event_handler(RTC_EVENT rtc_e)
             iot_en_power_on_passwd();
             break;
         case BAT_MCU_ADC_GET_EVENT:
+            LOG_I("BAT_MCU_ADC_GET_EVENT");
             if(sys_info.ota_flag == 0){
                 MCU_CMD_MARK(CMD_MCU_ADC_DATA_INDEX);
+                can_png_quest(BMS_ADR, BMS_COMPREHENSIVE_DATA, 0);
             }
+            break;
+        case SENSOR_CHECK_EVENT:
+            LOG_I("SENSOR_CHECK_EVENT");
+            imu_algo_timer_start();  /*检测sensor功能*/
+            week_time("sensor", 15);
             break;
         default:
             break;
@@ -156,7 +163,10 @@ void app_rtc_event_thread(void *param)
         }
         LOG_I("min_sec:%d", min_sec);
         LOG_I("min_i:%d", min_i);
-        hal_drv_rtc_set_alarm(min_sec);
+        if(min_sec <= 2){
+            min_sec = 3;
+        }
+        hal_drv_rtc_set_alarm(min_sec);  /*1S会有异常*/
         last_time = hal_drv_rtc_get_timestamp();
     }
     def_rtos_task_delete(NULL);

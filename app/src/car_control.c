@@ -44,10 +44,11 @@ void car_open_lock()
 
 void car_close_lock()
 {
-//    uint8_t val = 0X56;
-    hal_drv_write_gpio_value(O_KEY_HIGH, LOW_L);
-    hal_drv_write_gpio_value(O_KEY_LOW, LOW_L);
-    MCU_CMD_MARK(CMD_CAN_LOCK_CAR_INDEX);
+//    uint8_t val = 0X56; 
+/*KEY拉低关机*/
+     hal_drv_write_gpio_value(O_KEY_HIGH, LOW_L);
+     hal_drv_write_gpio_value(O_KEY_LOW, LOW_L);
+     MCU_CMD_MARK(CMD_CAN_LOCK_CAR_INDEX);
     
     LOG_I("CAR_LOCK_STA");
     // iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
