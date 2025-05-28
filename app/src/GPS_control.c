@@ -825,7 +825,7 @@ void detect_zscore(GpsArray* points, double threshold) {
     }
 }
 
-#define GPS_CALC_CNT 20
+#define GPS_CALC_CNT 25
 
 int GPS_calcu_position(double lat, double lon)
 {
@@ -858,7 +858,7 @@ int GPS_calcu_position(double lat, double lon)
                 lon_sum += pos_table[i].lon;
             }
         }
-        if(out_num <= 4) {
+        if(out_num <= 1) {
             LOG_I("gps position is ok");
             GpsDataBuf.Latitude = lat_sum/(GPS_CALC_CNT - out_num);
             GpsDataBuf.Longitude = lon_sum/(GPS_CALC_CNT - out_num);
