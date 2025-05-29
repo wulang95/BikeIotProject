@@ -361,7 +361,8 @@ void ble_connect_handler()
 void power_36v_handler()
 {
     LOG_I("36V power on");
-    sys_info.power_36v = 1;
+//    sys_info.power_36v = 1;
+    week_time("sys", 30); 
 }
 static void hal_drv_init()
 {
@@ -614,9 +615,8 @@ void app_system_thread(void *param)
     int64_t csq_time_t = def_rtos_get_system_tick();
     int64_t ble_info_up_time_t = 0;
     int64_t shock_time_t = 0;
+    int64_t trace_time_t = 0;
     uint8_t TEMP = 0;
-    int64_t sensor_shock_time_t = def_rtos_get_system_tick();
-    uint8_t shock_continue_cnt = 0;
     ble_heart_time_t = def_rtos_get_system_tick();
     if(sys_param_set.alive_flag) {  //已激活
         sys_info.iot_mode = IOT_ACTIVE_MODE;
@@ -855,43 +855,45 @@ void app_system_thread(void *param)
         }  
         /*====================震动检测========================*/
         if(car_info.lock_sta == CAR_LOCK_STA) {
-            if(car_info.move_alarm && car_info.car_lock_state != CAR_LOCK_TO_SHOCK) {
+            if(car_info.move_alarm && car_info.car_lock_state == CAR_LOCK_STILL) {
                 car_info.move_alarm = 0;
                 car_info.car_lock_state = CAR_LOCK_TO_SHOCK;
                 shock_time_t = def_rtos_get_system_tick();
+                trace_time_t = def_rtos_get_system_tick();
                 GPS_Start(GPS_MODE_TM);  //震动获取一次定位  
                 if(sys_param_set.shock_sw) {
-                    #if 1   /*关闭震动报警，测试用*/
                     voice_play_mark(ALARM_VOICE); 
-                    #endif
-                    if(sys_info.iot_error != 0){
-                        app_set_led_ind(LED_SYS_FAULT);
-                    } else {
+                    if(sys_info.iot_error == 0){
                         app_set_led_ind(LED_ARARM);
                     }
                     LOG_I("CAR_LOCK_TO_SHOCK"); 
                     net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
                 }
                 imu_algo_timer_start();
-                shock_continue_cnt++;
-            } else if(car_info.car_lock_state == CAR_LOCK_TO_SHOCK) {
                 car_info.car_lock_state = CAR_LOCK_SHOCK;
-            } else if(def_rtos_get_system_tick() - shock_time_t > 2000 && car_info.car_lock_state != CAR_LOCK_STILL) {
+            } else if(car_info.car_lock_state == CAR_LOCK_SHOCK && car_info.move_alarm) {
+                if(sys_param_set.shock_sw) {
+                    if(sys_info.iot_error == 0 && sys_info.led_type_cur != LED_ARARM){
+                        app_set_led_ind(LED_ARARM);
+                    } 
+                    if(sys_info.voice_type_cur != ALARM_VOICE) {
+                        voice_play_mark(ALARM_VOICE); 
+                    }
+                }
+                car_info.move_alarm = 0;
+                shock_time_t = def_rtos_get_system_tick();
+            } else if(def_rtos_get_system_tick() - shock_time_t > 5000 && car_info.car_lock_state != CAR_LOCK_STILL) {
                 car_info.car_lock_state = CAR_LOCK_STILL;
                 imu_algo_timer_stop();
-                sensor_shock_time_t = def_rtos_get_system_tick();
-            }
-            LOG_I("shock_continue_cnt:%d, sys_info.track_mode:%d", shock_continue_cnt, sys_info.track_mode);
-            if(def_rtos_get_system_tick() - sensor_shock_time_t > 15000) {
-                shock_continue_cnt = 0; 
-                LOG_I("shock_continue_cnt");
-            } else if(shock_continue_cnt > 5 && sys_info.track_mode == 0) {   /*触发GPS追踪模式，防盗模式*/
+                trace_time_t = def_rtos_get_system_tick();
+            } 
+            if(def_rtos_get_system_tick() - trace_time_t > 30000 && sys_info.track_mode == 0 && car_info.car_lock_state != CAR_LOCK_STILL) {   /*触发GPS追踪模式，防盗模式*/
                 week_time("track", -1);
                 sys_info.track_mode = 1;
                 GPS_Start(GPS_MODE_CONT);
                 rtc_event_register(GPS_TRACK_EVENT, 10, 1);
             }
-            if(sys_info.track_mode == 1 && def_rtos_get_system_tick() - sensor_shock_time_t > 180000) {/*3分钟后解除*/
+            if(sys_info.track_mode == 1 && def_rtos_get_system_tick() - trace_time_t > 180000) {/*3分钟后解除*/
                 week_time("track", 30);
                 GPS_stop();
                 sys_info.track_mode = 0;
@@ -900,7 +902,6 @@ void app_system_thread(void *param)
         } else {
             if(sys_info.track_mode == 1) {
                 sys_info.track_mode = 0;
-                shock_continue_cnt = 0;
                 rtc_event_unregister(GPS_TRACK_EVENT);
                 week_time("track", 30);
             }
@@ -1105,7 +1106,7 @@ void app_sys_init()
   //   app_set_led_ind(LED_TEST);
     rtc_event_register(BAT_MCU_ADC_GET_EVENT, BMS_DISCHARGE_RTC_CHECK_TIME, 1);
     rtc_event_register(NET_HEART_EVENT, sys_param_set.net_heart_interval, 1);
-    rtc_event_register(SENSOR_CHECK_EVENT, SENSOR_FUNC_RTC_CHECK_TIME, 1);  /*2小时检测一次传感器*/
+  //  rtc_event_register(SENSOR_CHECK_EVENT, SENSOR_FUNC_RTC_CHECK_TIME, 1);  /*2小时检测一次传感器*/
     def_rtos_semaphore_create(&system_task_sem, 0);
     def_rtos_timer_create(&system_timer, app_system_task, system_timer_fun, NULL);
     def_rtos_timer_start(system_timer, 1000, 1);

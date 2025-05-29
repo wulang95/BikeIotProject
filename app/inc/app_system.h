@@ -280,6 +280,7 @@ struct sys_info_stu {
     uint8_t mode_reinit_flag;
     uint8_t power_sta;
     uint8_t voice_type_cur;
+    uint8_t led_type_cur;
     struct power_adc_calc_stu power_adc;
 };
 
@@ -296,7 +297,7 @@ struct sys_set_var_stu{
 
 #pragma pack()
 
-#define SOFTVER "3.4"
+#define SOFTVER "3.2"
 #define HWVER   "1.0"
 #define DEFAULT_MANUFACTURER  "EG" 
 #define DEFAULT_DNS "114.114.114.114"

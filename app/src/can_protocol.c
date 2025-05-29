@@ -774,9 +774,13 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                 can_png_quest(BMS_ADR, BMS_HW_VER_B, 0);
                 can_png_quest(BMS_ADR, BMS_BATTRY_PACK_RECORDDATA, 0);
             } 
-            car_info.bms_info[0].connect= 1;
+            
             check_bms_timeout = def_rtos_get_system_tick();
             bms_info_handle(0, can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
+            if(car_info.bms_info[0].connect == 0){
+                net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
+            }
+            car_info.bms_info[0].connect= 1;
         break;
         case SECOND_BMS_ADR:
             if(car_info.bms_info[1].init == 0 && can_ota_con.ota_step == OTA_IDEL_STEP) {

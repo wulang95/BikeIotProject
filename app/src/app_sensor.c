@@ -212,6 +212,114 @@ void process_state(DetectionContext *ctx) {
 }
 
 
+
+// 震动检测状态结构体
+typedef struct {
+    // 配置参数
+    float acc_threshold;   // 加速度阈值 (m/s²)
+    float gyro_threshold;  // 陀螺仪阈值 (rad/s)
+    float mag_threshold;   // 合加速度阈值 (m/s²)
+    int window_size;       // 滑动窗口大小
+    
+    // 内部状态
+    float *acc_buffer;     // 加速度历史缓冲区
+    float *gyro_buffer;    // 陀螺仪历史缓冲区
+    int buffer_index;      // 缓冲区索引
+    float prev_magnitude;  // 前一个合加速度值
+} VibrationDetector;
+
+// 初始化震动检测器
+VibrationDetector* init_vibration_detector(float acc_thresh, float gyro_thresh, 
+                                          float mag_thresh, int window_size) {
+    VibrationDetector* detector = malloc(sizeof(VibrationDetector));
+    detector->acc_threshold = acc_thresh;
+    detector->gyro_threshold = gyro_thresh;
+    detector->mag_threshold = mag_thresh;
+    detector->window_size = window_size;
+    
+    // 分配缓冲区
+    detector->acc_buffer = malloc(window_size * sizeof(float));
+    detector->gyro_buffer = malloc(window_size * sizeof(float));
+    detector->buffer_index = 0;
+    detector->prev_magnitude = 0.0f;
+    
+    // 初始化缓冲区
+    for (int i = 0; i < window_size; i++) {
+        detector->acc_buffer[i] = 0.0f;
+        detector->gyro_buffer[i] = 0.0f;
+    }
+    
+    return detector;
+}
+
+// 释放震动检测器
+void free_vibration_detector(VibrationDetector* detector) {
+    free(detector->acc_buffer);
+    free(detector->gyro_buffer);
+    free(detector);
+}
+
+
+// 计算加速度计合量
+float acceleration_magnitude(float ax, float ay, float az) {
+    return sqrtf(ax*ax + ay*ay + az*az);
+}
+
+// 计算陀螺仪合量
+float gyro_magnitude(float gx, float gy, float gz) {
+    return sqrtf(gx*gx + gy*gy + gz*gz);
+}
+
+// 高通滤波器 (去除重力影响)
+void high_pass_filter(float *ax, float *ay, float *az, float alpha) {
+    static float prev_ax = 0, prev_ay = 0, prev_az = 0;
+    
+    *ax = alpha * (*ax + prev_ax);
+    *ay = alpha * (*ay + prev_ay);
+    *az = alpha * (*az + prev_az);
+    
+    prev_ax = *ax;
+    prev_ay = *ay;
+    prev_az = *az;
+}
+
+// 检测震动事件
+bool detect_vibration(VibrationDetector* detector, float *acc, float *gyro) {
+    // 1. 应用高通滤波器去除重力影响
+    high_pass_filter(&acc[0], &acc[1], &acc[2], 0.8f);
+    
+    // 2. 计算当前合加速度
+    float current_magnitude = acceleration_magnitude(acc[0], acc[1], acc[2]);
+    
+    // 3. 计算加速度变化率
+    float delta_acc = fabsf(current_magnitude - detector->prev_magnitude);
+    detector->prev_magnitude = current_magnitude;
+    
+    // 4. 更新缓冲区
+    detector->acc_buffer[detector->buffer_index] = current_magnitude;
+    detector->gyro_buffer[detector->buffer_index] = gyro_magnitude(gyro[0], gyro[1], gyro[2]);
+    detector->buffer_index = (detector->buffer_index + 1) % detector->window_size;
+    
+    // 5. 计算滑动窗口平均值
+    float avg_acc = 0.0f;
+    float avg_gyro = 0.0f;
+    for (int i = 0; i < detector->window_size; i++) {
+        avg_acc += detector->acc_buffer[i];
+        avg_gyro += detector->gyro_buffer[i];
+    }
+    avg_acc /= detector->window_size;
+    avg_gyro /= detector->window_size;
+    
+    // 6. 检测震动条件
+    bool condition1 = (current_magnitude > detector->mag_threshold);        // 合加速度超过阈值
+    bool condition2 = (delta_acc > detector->acc_threshold);                // 加速度变化率超过阈值
+    bool condition3 = (avg_gyro > detector->gyro_threshold);               // 平均角速度超过阈值
+    bool condition4 = (fabsf(avg_acc - current_magnitude) > 0.5f);         // 当前值与平均值差异大
+    
+    // 震动事件需要满足多个条件
+    return (condition1 && condition2) || (condition1 && condition3) || (condition2 && condition4);
+}
+
 void imu_algo_thread(void *param)
 {
 	float last_accl[3];
@@ -232,6 +340,12 @@ void imu_algo_thread(void *param)
         sys_info.algo_timer_run = 1;
         sys_info.sensor_init = 1;
     }
+    VibrationDetector* detector = init_vibration_detector(
+        0.8f,   // 加速度阈值 (m/s²)
+        0.2f,   // 陀螺仪阈值 (rad/s)
+        0.8f,   // 合加速度阈值 (m/s²)
+        5       // 滑动窗口大小
+    );
     imu_algo_timer_stop();
 	while(1)
 	{
@@ -260,6 +374,8 @@ void imu_algo_thread(void *param)
 		} else {
             car_info.filp_state = CAR_NORMAL_STATE;
         }
+        car_info.move_alarm = detect_vibration(detector, accl, gyro);
+        LOG_I("car_info.move_alarm:%d", car_info.move_alarm);
 		LOG_I("accl[0]:%0.2f, accl[1]:%0.2f, accl[2]:%0.2f", accl[0], accl[1], accl[2]);
 		LOG_I("gyro[0]:%0.2f, gyro[1]:%0.2f, gyro[2]:%0.2f", gyro[0], gyro[1], gyro[2]);	
 		accel_correct[0] = Filter_Apply(accl[0],&accel_buf[0],&accel_filter);

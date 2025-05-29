@@ -825,13 +825,14 @@ void detect_zscore(GpsArray* points, double threshold) {
     }
 }
 
-#define GPS_CALC_CNT 25
+#define GPS_CALC_CNT 30
 
 int GPS_calcu_position(double lat, double lon)
 {
     GpsArray points;
     static GpsPoint pos_table[GPS_CALC_CNT] = {0};
     static uint8_t pos_num = 0;
+    static uint8_t min_out_num = GPS_CALC_CNT;
     double lat_sum = 0.0, lon_sum = 0.0;
     uint8_t out_num = 0;
     if(pos_num < GPS_CALC_CNT) {
@@ -839,6 +840,9 @@ int GPS_calcu_position(double lat, double lon)
         pos_table[pos_num].lon = lon;
         pos_table[pos_num].is_outlier = false;
         pos_num++;
+        if(pos_num == 1) {
+            min_out_num = GPS_CALC_CNT;
+        }
         out_num = 0;
         lat_sum = 0.0;
         lon_sum = 0.0;
@@ -858,17 +862,25 @@ int GPS_calcu_position(double lat, double lon)
                 lon_sum += pos_table[i].lon;
             }
         }
-        if(out_num <= 1) {
+        if(out_num <= 2) {
             LOG_I("gps position is ok");
             GpsDataBuf.Latitude = lat_sum/(GPS_CALC_CNT - out_num);
             GpsDataBuf.Longitude = lon_sum/(GPS_CALC_CNT - out_num);
             pos_num = 0;
             return 0;
         } else {
+            if(min_out_num > out_num) {
+                min_out_num = out_num;
+                LOG_I("min_out_num:%d", min_out_num);
+                GpsDataBuf.Latitude = lat_sum/(GPS_CALC_CNT - out_num);
+                GpsDataBuf.Longitude = lon_sum/(GPS_CALC_CNT - out_num);
+            }
             LOG_I("pos_table is move");
             memcpy(pos_table, pos_table+1, (GPS_CALC_CNT-1)*sizeof(GpsPoint));
             pos_num--;
         }
+        LOG_I("min_out_num:%d", min_out_num);
+        LOG_I("lat:%0.6f, lon:%0.6f", GpsDataBuf.Latitude, GpsDataBuf.Longitude);
     }
     return 1;
 }

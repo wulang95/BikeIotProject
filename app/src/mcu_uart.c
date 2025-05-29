@@ -17,7 +17,7 @@ def_rtos_queue_t can_rcv_que;
 def_rtos_queue_t mcu_cmd_que;
 
 uint8_t mcu_cmd_table[CMD_INDEX_MAX] = {0X0C, 0X0E, 0X0D, 0x0f, 0x0b, 0x0a, 0x09, 0X08, 0X07, 0X06, 0X05, 0X04, 0x03, 0x10, 0x11, 0x12, 0X13,\
-0X14, 0X15, 0X16, 0x17, 0x18, 0x19, 0x1a};
+0X14, 0X15, 0X16, 0x17, 0x18, 0x19, 0x1a, 0x1B};
 struct mcu_cmd_order_stu {
     uint8_t need_ask;
     uint16_t rely_timeout;
@@ -25,30 +25,31 @@ struct mcu_cmd_order_stu {
 };
 
 struct mcu_cmd_order_stu mcu_cmd_order_table[CMD_INDEX_MAX] = {
-    {false,     0,          0},     //CMD_CAN_TRANS
-    {true,      1000,       3},     //CMD_GPS_POWERON
-    {true,      1000,       3},     //CMD_GPS_POWEROFF
-    {false,     0,          0},     //CMD_GPS_DATA
-    {false,     0,          0},     //CMD_GPS_TRANS
-    {true,      1000,       3},     //CMD_GPS_DEEPSLEEP
-    {true,      1000,       3},     //CMD_GPS_HOST_START
-    {true,      1000,       3},     //CMD_CAT_REPOWERON
-    {false,      0,         0},     //CMD_CRC_ERROR
-    {true,      2000,       5},    //CMD_CAN_OTA_DATA
-    {true,      1000,       3},     //CMD_CAN_OTA_START
-    {true,      1000,       3},     //CMD_CAN_OTA_END
-    {true,      6000,       2},    //CMD_CAN_OTA_DATA_FINISH
-    {true,      1000,       3},     //CMD_CAN_LOCK_CAR
-    {true,      1000,       3},     //CMD_CAN_UNLOCK_CAR
-    {false,     0,          0},     //CMD_CAN_CAR_CONTROL
-    {true,      1000,       3},     //CMD_SHIP_MODE
-    {true,      2000,       3},     //CMD_MCU_OTA_START
-    {true,      2000,       3},     //CMD_MCU_OTA_DATA
-    {true,      5000,       3},     //CMD_MCU_OTA_END
-    {true,      1000,       3},     //CMD_MCU_VER
-    {true,      1000,       3},     //CMD_MCU_ADC_DATA
-    {true,      1000,       3},     //CMD_MCU_BAT_CHARGE_ON
-    {true,      1000,       3},     //CMD_MCU_BAT_CHARGE_OFF
+    {false,     0,          0},     //CMD_CAN_TRANS  0x0C
+    {true,      1000,       3},     //CMD_GPS_POWERON  0X0E
+    {true,      1000,       3},     //CMD_GPS_POWEROFF  0X0D
+    {false,     0,          0},     //CMD_GPS_DATA  0X0F
+    {false,     0,          0},     //CMD_GPS_TRANS 0X0B
+    {true,      1000,       3},     //CMD_GPS_DEEPSLEEP 0X0A
+    {true,      1000,       3},     //CMD_GPS_HOST_START 0X09
+    {true,      1000,       3},     //CMD_CAT_REPOWERON 0X08
+    {false,      0,         0},     //CMD_CRC_ERROR 0X07
+    {true,      2000,       5},    //CMD_CAN_OTA_DATA 0X06
+    {true,      1000,       3},     //CMD_CAN_OTA_START 0X05
+    {true,      1000,       3},     //CMD_CAN_OTA_END 0X04
+    {true,      6000,       2},    //CMD_CAN_OTA_DATA_FINISH  0X03
+    {true,      1000,       3},     //CMD_CAN_LOCK_CAR  0X10
+    {true,      1000,       3},     //CMD_CAN_UNLOCK_CAR 0X11
+    {false,     0,          0},     //CMD_CAN_CAR_CONTROL 0X12
+    {true,      1000,       3},     //CMD_SHIP_MODE 0X13
+    {true,      2000,       3},     //CMD_MCU_OTA_START  0X14
+    {true,      2000,       3},     //CMD_MCU_OTA_DATA  0X15
+    {true,      5000,       3},     //CMD_MCU_OTA_END  0X16
+    {true,      1000,       3},     //CMD_MCU_VER  0X17
+    {true,      1000,       3},     //CMD_MCU_ADC_DATA  0X18
+    {true,      1000,       3},     //CMD_MCU_BAT_CHARGE_ON  0X19
+    {true,      1000,       3},     //CMD_MCU_BAT_CHARGE_OFF  0X1A
+    {false,     0,          0},     //CMD_MCU_WEEK  0X1B
 };
 
 
@@ -361,6 +362,8 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
         app_get_bat_temp_info();
         LOG_I("bat_val:%d, bat_soc:%d", sys_info.bat_val, sys_info.bat_soc);
     break;
+    case CMD_MCU_WEEK:
+        MCU_CMD_MARK(CMD_MCU_WEEK_INDEX);
     default:
         break;
     }

@@ -2,7 +2,7 @@
 #include "hal_drv_gpio.h"
 #include "rtos_port_def.h"
 #include "bike_app_config.h"
-
+#include    "app_system.h"
 
 #define DBG_TAG         "app_led_ind"
 
@@ -36,7 +36,7 @@ LED_CONTROL_STU sys_fault_ind[] = {
 LED_CONTROL_STU sys_alarm_ind[] = {
     {O_RED_IND, 1,  300},
     {O_RED_IND, 0,  200},
-    {O_RED_IND, 4,  LED_LOOP},
+    {O_RED_IND, 10,  LED_LOOP},
 };
 
 LED_CONTROL_STU sys_ota_ind[] = {
@@ -107,6 +107,8 @@ void app_set_led_ind(LED_IND led_ind_sta)
     led_set_value(O_RED_IND, 0);
     led_cur_ind = led_control_que[led_ind_sta];
     def_rtos_timer_start(led_timer, 10, 0);
+    sys_info.led_type_cur = led_ind_sta;
+    LOG_I("led_type_cur:%d",led_ind_sta);
 }
 
 
@@ -118,6 +120,7 @@ void app_led_timer_func(void *param)
             if(led_cur_ind[led_step].value != 0) {
                 led_cent++;
                 if(led_cent == led_cur_ind[led_step].value) {
+                    sys_info.led_type_cur = 0xff;
                     return;
                 }
             }
@@ -126,6 +129,7 @@ void app_led_timer_func(void *param)
         break;
         case LED_STOP:
             led_set_value(led_cur_ind[led_step].led, led_cur_ind[led_step].value);
+            sys_info.led_type_cur = 0xff;
         break;
         default:
             led_set_value(led_cur_ind[led_step].led, led_cur_ind[led_step].value);
@@ -138,6 +142,7 @@ void app_led_timer_func(void *param)
 
 void app_led_init()
 {
+    sys_info.led_type_cur = 0xff;
     def_rtos_timer_create(&led_timer, NULL, app_led_timer_func, NULL);
     LOG_I("app_led_init is ok");
 }
