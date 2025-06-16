@@ -254,6 +254,7 @@ struct sys_info_stu {
     uint8_t power_36v :1;
     uint8_t move_alarm :1;
     uint8_t ble_connect :1;
+    uint8_t hmi_auto_power_off_sw :1;
     uint8_t exits_bat:1;
     uint8_t iot_power_state:1;
     uint8_t algo_timer_run:1;
@@ -297,8 +298,8 @@ struct sys_set_var_stu{
 
 #pragma pack()
 
-#define SOFTVER "3.2"
-#define HWVER   "1.0"
+#define SOFTVER "SW_3.0.4"
+#define HWVER   "HW_3.0.0"
 #define DEFAULT_MANUFACTURER  "EG" 
 #define DEFAULT_DNS "114.114.114.114"
 #define DEFAULT_SN      "123456789" 

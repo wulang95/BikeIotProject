@@ -422,6 +422,9 @@ int car_lock_control(uint8_t src, uint8_t lock_operate)
     if(def_rtos_get_system_tick() - lock_time_t < 5000 && car_info.lock_sta == CAR_LOCK_STA) {
         return FAIL;
     }
+    if(lock_operate == CAR_LOCK_STA && car_info.speed != 0) {
+        return FAIL;
+    }
     LOG_I("%d, %d", src, lock_operate);
     if(lock_operate == CAR_LOCK_STA) {
         lock_time_t = def_rtos_get_system_tick();

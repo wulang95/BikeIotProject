@@ -357,12 +357,19 @@ void socket_data_process()
 //     }
 // }
 
-static void socket_disconnect_handle()
+static void socket_disconnect_handle(uint8_t disconnect_type) 
 {
     static uint16_t socket_disconnect_delay = 1;
-    def_rtos_task_sleep_s(socket_disconnect_delay);
-    socket_disconnect_delay = socket_disconnect_delay << 1;
-    if(socket_disconnect_delay > 512) socket_disconnect_delay = 1;
+    if(disconnect_type == 1){
+        def_rtos_task_sleep_s(socket_disconnect_delay);
+        socket_disconnect_delay = socket_disconnect_delay << 1;
+        if(socket_disconnect_delay > 512) {
+            sys_reset();
+        }
+    } else {
+        socket_disconnect_delay = 1;
+    }
+    
 }
 /*
 static void iot_server_socket_state_machine(void)
@@ -466,7 +473,7 @@ void iot_mqtt_state_machine()
     static uint64_t mqtt_connect_timeout = 0;
     static uint64_t mqtt_disconnect_timeout = 0;
     static uint64_t mqtt_sub_timeout = 0;
-    static uint16_t mqtt_count = 0;
+//    static uint16_t mqtt_count = 0;
     static int ret = MQTTCLIENT_SUCCESS;
     char will_msg[128] = {0};
     if(pdp_active_info.pdp_is_active == 1) {
@@ -530,10 +537,11 @@ void iot_mqtt_state_machine()
                 mqtt_con_info.client_info.ssl_cfg = NULL;
                 sprintf(mqtt_con_info.pub_topic, "%s%s", sys_config.mqtt_pub_topic, gsm_info.imei);
                 if(mqtt_con_info.url == NULL) {
-                    mqtt_con_info.url = malloc(128);
-                    memset(mqtt_con_info.url, 0, 128);
+                    mqtt_con_info.url = malloc(256);
+                    memset(mqtt_con_info.url, 0, 256);
+                    sprintf(mqtt_con_info.url, "%s:%lu", sys_config.ip, sys_config.port);
                 }
-                sprintf(mqtt_con_info.url, "%s:%ld", sys_config.ip, sys_config.port);
+               
                 LOG_I("MQTT USER:%s", mqtt_con_info.client_info.client_user);
                 LOG_I("MQTT PASS:%s", mqtt_con_info.client_info.client_pass);
                 LOG_I("MQTT URL:%s", mqtt_con_info.url);
@@ -549,7 +557,7 @@ void iot_mqtt_state_machine()
                     //     free(mqtt_con_info.url);
                     // }
                     mqtt_con_info.state = MQTT_SET_INPUB;
-                    mqtt_count= 0;
+                //    mqtt_count= 0;
                     mqtt_connect_ret_time = 1;
                     LOG_I("MQTT_CONNECT SUCCESS");
                 } else if(def_rtos_get_system_tick() - mqtt_connect_timeout > 12000) {
@@ -559,9 +567,9 @@ void iot_mqtt_state_machine()
                     mqtt_connect_ret_time = mqtt_connect_ret_time << 1;
                     if(mqtt_connect_ret_time > 512) {
                         mqtt_connect_ret_time = 1;
-                        if(mqtt_count++ == 100) {
+                    //    if(mqtt_count++ == 3) {
                             sys_reset();
-                        }
+                    //    }
                     } 
                 }
             break;
@@ -615,9 +623,9 @@ void iot_mqtt_state_machine()
                     mqtt_con_info.state = MQTT_BIND_SIM_AND_PROFILE;
                     if(mqtt_client_sub_time > 512) {
                         mqtt_client_sub_time = 0;
-                        if(mqtt_count++ > 100) {
+                    //    if(mqtt_count++ > 3) {
                             sys_reset();
-                        }
+                    //    }
                     }
                 }
             break;
@@ -626,7 +634,9 @@ void iot_mqtt_state_machine()
                 week_time("net", 30); 
                 ql_rtos_semaphore_wait(mqtt_con_info.mqtt_disconnet_sem_t, QL_WAIT_FOREVER);
                 if(def_rtos_get_system_tick() - mqtt_disconnect_timeout < 60000) {      /*防止掉线频繁连接*/
-                    socket_disconnect_handle();
+                    socket_disconnect_handle(1);
+                } else {
+                    socket_disconnect_handle(0);
                 }
                 LOG_E("mqtt connect is fail");
                 mqtt_con_info.state = MQTT_BIND_SIM_AND_PROFILE;

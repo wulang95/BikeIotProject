@@ -20,7 +20,7 @@ uint16_t  HexSrt_To_Value(uint8_t *Hex,  char *HexSrt, uint16_t HexSrtLen);
 uint16_t drv_modbus_crc16(uint8_t *puchMsg, uint16_t usDataLen);
 uint8_t String_Para_Intercept(char *StrData, char *pPara[], uint8_t PaprNum, uint8_t *EndFlag, char InterChar, char EndChar);
 unsigned int GetCrc32_cum(const unsigned char* pData, unsigned int Len, unsigned int CRC32);
-
+uint32_t Crc32CalByByte(int crc,uint8_t* ptr, int len);
 
 
 #endif

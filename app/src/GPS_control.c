@@ -16,7 +16,7 @@ struct rt_ringbuffer *GPS_Ringbuf;
 #define GPS_DATA_LEN       512
 int64_t gps_resh_time_t;
 def_rtos_sem_t gps_sem;
-GPS_DATA GpsDataBuf; 
+GPS_DATA GpsDataBuf, GpsDataBuf_update; 
 GPS_INFO  Gps;
 
 
@@ -551,7 +551,7 @@ uint8_t GPS_Data_Proces(char *data, uint16_t len)
     }
     return OK;
 }
-static void GPS_Composite_PosData()
+static void GPS_Composite_PosData(uint8_t gps_updateflag)
 {
 
     #ifndef OM_NET_PROTOCOL
@@ -581,21 +581,39 @@ static void GPS_Composite_PosData()
         Gps.vaild = 0;
         return;
     }
-
     Gps.vaild = 1;
-    Gps.ground_speed = (uint16_t)(strtod(GpsDataBuf.Ground_speed, NULL)*10.0);
-    LOG_I("ground_speed:%d", Gps.ground_speed);
-    if(strtod(GpsDataBuf.HDOP, NULL)*10.0 > 255.0){
-        Gps.hdop = 25;
+    if(gps_updateflag == 1 || GpsDataBuf_update.GPSValidFlag == 0) {
+        Gps.ground_speed = (uint16_t)(strtod(GpsDataBuf.Ground_speed, NULL)*10.0);
+        LOG_I("ground_speed:%d", Gps.ground_speed);
+        if(strtod(GpsDataBuf.HDOP, NULL)*10.0 > 255.0){
+            Gps.hdop = 25;
+        } else {
+            Gps.hdop = strtod(GpsDataBuf.HDOP, NULL)*10.0;
+        }
+        Gps.direction = (uint16_t)(strtod(GpsDataBuf.Yaw, NULL)*10.0);
+        LOG_I("direction:%d", Gps.direction);
+        Gps.high = (uint16_t)GpsDataBuf.high;
+        Gps.Lat = GpsDataBuf.Latitude*1000000;
+        Gps.Long = GpsDataBuf.Longitude*1000000;
+        LOG_I("statenum:%d", Gps.SateNum);
+        GpsDataBuf_update = GpsDataBuf;
     } else {
-        Gps.hdop = strtod(GpsDataBuf.HDOP, NULL)*10.0;
+        Gps.ground_speed = (uint16_t)(strtod(GpsDataBuf_update.Ground_speed, NULL)*10.0);
+        LOG_I("ground_speed:%d", Gps.ground_speed);
+        if(strtod(GpsDataBuf_update.HDOP, NULL)*10.0 > 255.0){
+            Gps.hdop = 25;
+        } else {
+            Gps.hdop = strtod(GpsDataBuf_update.HDOP, NULL)*10.0;
+        }
+        Gps.direction = (uint16_t)(strtod(GpsDataBuf_update.Yaw, NULL)*10.0);
+        LOG_I("direction:%d", Gps.direction);
+        Gps.high = (uint16_t)GpsDataBuf_update.high;
+        Gps.Lat = GpsDataBuf_update.Latitude*1000000;
+        Gps.Long = GpsDataBuf_update.Longitude*1000000;
+        LOG_I("statenum:%d", Gps.SateNum);
     }
-    Gps.direction = (uint16_t)(strtod(GpsDataBuf.Yaw, NULL)*10.0);
-    LOG_I("direction:%d", Gps.direction);
-    Gps.high = (uint16_t)GpsDataBuf.high;
-    Gps.Lat = GpsDataBuf.Latitude*1000000;
-    Gps.Long = GpsDataBuf.Longitude*1000000;
-    LOG_I("statenum:%d", Gps.SateNum);
+    
+    
     #endif
 }
 
@@ -609,9 +627,9 @@ void GPS_fence_detection()
         }
         return;
     }
-    if(GpsDataBuf.GPSValidFlag == 0) return;    /*定位无效时不进行围栏检测*/
-    cur_p.lat = GpsDataBuf.Latitude;
-    cur_p.lon = GpsDataBuf.Longitude;
+    if(Gps.vaild == 0) return;    /*定位无效时不进行围栏检测*/
+    cur_p.lat = GpsDataBuf_update.Latitude;
+    cur_p.lon = GpsDataBuf_update.Longitude;
       /*羊圈检测*/   
     if(sheepfang_data.shape_type == CIRCLE) {
         if(isInner_circle(sheepfang_data.circle.center, sheepfang_data.circle.radius, cur_p) == 0) {  //在羊圈外 
@@ -736,7 +754,7 @@ int GPS_reinit()
         case 2:
             if(def_rtos_get_system_tick() -  gps_time_t > 5000) {
                 step = 3;
-                GPS_Start(GPS_MODE_CONT);
+                GPS_Start(GPS_MODE_TM);
                 gps_time_t = def_rtos_get_system_tick();
             }
         break;
@@ -770,6 +788,7 @@ void GPS_Start(uint8_t Mode)
         MCU_CMD_MARK(CMD_GPS_POWERON_INDEX);
         Gps.GpsMode = Mode;
         Gps.GetGPSNum = 0; 
+        Gps.vaild = 0;
         memset(&GpsDataBuf, 0, sizeof(GpsDataBuf)); 
     //    strcpy(Gps.PosData, ",V,,,,,,,,,,N");  
         if(Mode == GPS_MODE_TM) {
@@ -894,6 +913,7 @@ void gps_control_thread(void *param)
     double distance =0;
     Point P_last={0}, P_now={0};
     uint8_t s_cent = 0, d_cent = 0;
+    uint8_t GPS_update_flag = 0;
     while(1){
   //      LOG_I("IS RUN");
         len = gps_data_block_recv(gps_buf, 256, RTOS_WAIT_FOREVER);
@@ -908,25 +928,25 @@ void gps_control_thread(void *param)
         gps_speed = strtod(GpsDataBuf.Ground_speed, NULL);
         if(Gps.GpsMode == GPS_MODE_TM) {
             LOG_I("GetGPSNum:%d", Gps.GetGPSNum);
-            if(Gps.GetGPSNum >= GPS_POS_CNT && Gps.GetGPSNum%5 == 0 && gps_speed == 0) {
+            if (systm_tick_diff(Gps.Gps_Tm_timeout) > 600*1000) {
+                LOG_I("GPS position is fail");
+                GPS_Composite_PosData(1);
+                if(sys_info.paltform_connect) {         /*上传一次定位*/
+                    NET_ENGWE_CMD_MARK(REGULARLY_REPORT_UP);
+                }
+                GPS_stop();
+            } else if(Gps.GetGPSNum >= GPS_POS_CNT && Gps.GetGPSNum%5 == 0 && gps_speed == 0) {
                 if(GPS_calcu_position(GpsDataBuf.Latitude, GpsDataBuf.Longitude) == 0) {
                     LOG_I("GPS position is ok");
-                    GPS_Composite_PosData();
+                    GPS_Composite_PosData(1);
                     if(sys_info.paltform_connect) {         /*上传一次定位*/
                         NET_ENGWE_CMD_MARK(REGULARLY_REPORT_UP);
                     }
                     GPS_stop();
                 } 
-                else if (systm_tick_diff(Gps.Gps_Tm_timeout) > 600*1000) {
-                    LOG_I("GPS position is fail");
-                    GPS_Composite_PosData();
-                    if(sys_info.paltform_connect) {         /*上传一次定位*/
-                        NET_ENGWE_CMD_MARK(REGULARLY_REPORT_UP);
-                    }
-                    GPS_stop();
-                }
             } 
         } else {
+            GPS_update_flag = 0;
             if(GpsDataBuf.GPSValidFlag == 1 && last_GpsDataBuf.GPSValidFlag == 1) {
                 P_now.lat = GpsDataBuf.Latitude;
                 P_now.lon = GpsDataBuf.Longitude;
@@ -935,12 +955,12 @@ void gps_control_thread(void *param)
                 distance = get_distance(P_now, P_last);
                 if(distance > 0.2) {
                     if(++d_cent >= 10){
-                        GPS_Composite_PosData();
+                        GPS_update_flag = 1;
                         d_cent = 0;
                     }
                 } else if(gps_speed > 2.0) {
                     if (++s_cent > 5) {
-                        GPS_Composite_PosData();
+                         GPS_update_flag = 1;
                         s_cent = 0;
                     }    
                 } else {
@@ -948,9 +968,11 @@ void gps_control_thread(void *param)
                     s_cent = 0;
                 }
             } 
-            if(car_info.speed != 0){
-                GPS_Composite_PosData(); 
+            /*追踪模式，位置持续更新*/
+            if(car_info.speed != 0 || sys_info.track_mode == 1){
+                 GPS_update_flag = 1;
             }
+            GPS_Composite_PosData(GPS_update_flag);
             last_GpsDataBuf = GpsDataBuf;  
         }
     }

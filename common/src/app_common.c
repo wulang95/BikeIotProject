@@ -61,7 +61,19 @@ unsigned int GetCrc32_cum(const unsigned char* pData, unsigned int Len, unsigned
     return CRC32 ^ 0xFFFFFFFF;
 }
 
-
+uint32_t Crc32CalByByte(int crc,uint8_t* ptr, int len)
+{
+    int i = 0;
+    while(len-- != 0)
+    {
+        int high = crc/256;
+        crc <<= 8;
+        crc ^= CRC32Table[(high^ptr[i])&0xff];
+        crc &= 0xFFFFFFFF;
+        i++;
+    }
+    return crc&0xFFFFFFFF;
+}
 
 
 

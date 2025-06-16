@@ -736,13 +736,13 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
             if(car_info.hmi_info.init == 0 && can_ota_con.ota_step == OTA_IDEL_STEP){
                 car_info.hmi_info.init = 1;
                 can_png_quest(HMI_ADR, HMI_HW_VER1, 0);
-             //   can_png_quest(HMI_ADR, HMI_HW_VER2, 0);
-            //    can_png_quest(HMI_ADR, HMI_SOFT_VER1, 0);
-           //     can_png_quest(HMI_ADR, HMI_SOFT_VER2, 0);
-            //    can_png_quest(HMI_ADR, HMI_SN1, 0);
-            //    can_png_quest(HMI_ADR, HMI_SN2, 0);
-           //     can_png_quest(HMI_ADR, HMI_SN3, 0);
-           //     can_png_quest(HMI_ADR, HMI_SN4, 0);
+               can_png_quest(HMI_ADR, HMI_HW_VER2, 0);
+               can_png_quest(HMI_ADR, HMI_SOFT_VER1, 0);
+               can_png_quest(HMI_ADR, HMI_SOFT_VER2, 0);
+               can_png_quest(HMI_ADR, HMI_SN1, 0);
+               can_png_quest(HMI_ADR, HMI_SN2, 0);
+               can_png_quest(HMI_ADR, HMI_SN3, 0);
+               can_png_quest(HMI_ADR, HMI_SN4, 0);
             }
             check_hmi_timeout = def_rtos_get_system_tick();
             hmi_info_handle(can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
@@ -1263,6 +1263,7 @@ static void iot_can_match_fun()
     }
 }*/
 
+
 static void iot_can_state_fun()
 {
     CAN_PDU_STU can_pdu;
@@ -1284,8 +1285,9 @@ static void iot_can_state_fun()
     data[3] |= sys_info.gps_state << 5;
     data[3] |= sys_info.ble_connect << 4;
     data[3] |= sys_info.exits_bat << 3;
-    if(sys_info.ble_connect == 1) {
+    if(sys_info.hmi_auto_power_off_sw == 1) {
         data[3] |= 1 << 2;
+        sys_info.hmi_auto_power_off_sw = 0;
     } else {
         data[3] &= ~(1 << 2);
     }

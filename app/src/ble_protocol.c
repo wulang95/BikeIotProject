@@ -1536,6 +1536,7 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
     uint16_t i = 0;
     uint16_t cmd_sub;
     LOG_I("cmd:0x%04x", cmd);
+    sys_info.hmi_auto_power_off_sw = 1;
     switch(cmd)
     {
         case BLE_CMD_LARGE_QUERY:

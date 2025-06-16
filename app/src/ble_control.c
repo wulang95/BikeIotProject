@@ -98,7 +98,7 @@ static struct ble_ota_config_stu ble_ota_config;
 static struct ble_ota_ctrl_stu ble_ota_ctrl;
 static void ble_ota_start()
 {
-    unsigned int CRC32 = 0xFFFFFFFF;
+    unsigned int CRC32 = 0;
     uint32_t read_len, offset = 0, total_len;
     ble_ota_config.firm_ver = 0x01010101;
     ble_ota_config.total = flash_partition_size(DEV_APP_ADR);
@@ -109,7 +109,8 @@ static void ble_ota_start()
     while(total_len > 0) {
         read_len = MIN(total_len, 128);
         flash_partition_read(DEV_APP_ADR, ble_ota_ctrl.data, read_len, offset);
-        CRC32 = GetCrc32_cum(ble_ota_ctrl.data, read_len, CRC32);
+        CRC32 = Crc32CalByByte(CRC32,ble_ota_ctrl.data, read_len);
+     //   CRC32 = GetCrc32_cum(ble_ota_ctrl.data, read_len, CRC32);
         offset += read_len;
         total_len -= read_len; 
     }
@@ -497,6 +498,7 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
                 LOG_I("ble reset");
                 sys_set_ble_adv_start();
             }
+            LOG_I("init:%d, adv_sta:%d", ble_info.init, ble_info.adv_sta);
         break;
         case CMD_BLE_HID_UNLOCK:   //持续检测到蓝牙信号，无关远离和靠近
             if(sys_param_set.hid_lock_sw) {
@@ -539,6 +541,16 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
             }
             break;
         case CMD_BLE_GET_MAC:
+            ble_info.mac[0] = data[5];
+            ble_info.mac[1] = data[4];
+            ble_info.mac[2] = data[3];
+            ble_info.mac[3] = data[2];
+            ble_info.mac[4] = data[1];
+            ble_info.mac[5] = data[0];
+            sprintf(ble_info.mac_str, "%02X:%02X:%02X:%02X:%02X:%02X", ble_info.mac[0], ble_info.mac[1], ble_info.mac[2], ble_info.mac[3], ble_info.mac[4], ble_info.mac[5]);
+            sprintf(ble_info.ble_name, "%s-%02X", BLE_NAME, ble_info.mac[5]);
+            LOG_I("BLE_MAC_STR:%s", ble_info.mac_str);
+            LOG_I("BLE_NAME:%s", ble_info.ble_name);
         //    memcpy(ble_info.mac, data, 6);
             break;
         case CMD_BLE_VIRT_AT:
@@ -676,10 +688,11 @@ static void ble_power_init()
         } else {
             hal_drv_write_gpio_value(O_BLE_POWER, LOW_L);
             LOG_E("ble init recv fail count:%d", i);
-            def_rtos_task_sleep_ms(8000);
+            def_rtos_task_sleep_ms(2000);
         }
         hal_drv_write_gpio_value(O_BLE_POWER, HIGH_L);
-        def_rtos_task_sleep_ms(80);
+        def_rtos_task_sleep_ms(15000);
+        ble_heart_time_t = def_rtos_get_system_tick();
     }
     if(ble_info.init != 1) {
         iot_error_set(IOT_ERROR_TYPE, BLE_ERROR);
@@ -712,10 +725,14 @@ int ble_reinit()
             } 
         break;
         case 2:
-            if(def_rtos_get_system_tick() - ble_time_t > 2000){
-                LOG_I("ble is error");
+            if(def_rtos_get_system_tick() - ble_time_t > 15000){
                 ble_info.adv_sta = 0;
-                sys_set_ble_adv_start();
+                if(ble_info.mac_str == NULL){
+                    ble_cmd_mark(BLE_GET_MAC_INDEX);
+                    ble_cmd_mark(BLE_GET_VER_INDEX);
+                } else {
+                    sys_set_ble_adv_start();
+                }
                 step = 0;
                 ble_info.init = 1;
                 return 0;

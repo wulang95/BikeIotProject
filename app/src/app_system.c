@@ -303,14 +303,15 @@ void system_enter_ship_mode(CAR_CMD_Q car_cmd_q)
     uint8_t buf[256];
     uint16_t buf_len;
     LOG_I("enter ship mode");
-    if(car_info.lock_sta == CAR_LOCK_STA) {
+    /*开锁状态不进入船运模式*/
+    if(car_info.lock_sta == CAR_UNLOCK_STA) {
         if(car_cmd_q.src == NET_CAR_CMD_SER){
             buf_len = net_engwe_cmdId_operate_respos(buf, car_cmd_q.net_car_control, 0x02, 0);
             net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, buf, buf_len, car_cmd_q.net_car_control.seq); 
-            return;
         } else if (car_cmd_q.src == BLUE_CAR_CMD_SER){
             ble_cmd_ship_mode_ask(0x02);
         }
+        return;
     }
     hal_drv_write_gpio_value(O_BLE_POWER, LOW_L); //ble power off
     hal_drv_write_gpio_value(SENSOR_POWER, LOW_L); //sensor power off
@@ -643,7 +644,7 @@ void app_system_thread(void *param)
             }   
         }
         app_bat_charge_check();
-        if(def_rtos_get_system_tick() - ble_heart_time_t > 15*1000 && (iot_error_check(IOT_ERROR_TYPE, BLE_ERROR) == 0)) {
+        if(def_rtos_get_system_tick() - ble_heart_time_t > 20*1000 && (iot_error_check(IOT_ERROR_TYPE, BLE_ERROR) == 0)) {
             iot_error_set(IOT_ERROR_TYPE, BLE_ERROR);
             ble_info.init = 0;
             SETBIT(sys_info.mode_reinit_flag, BLE_MODEL);
@@ -705,7 +706,7 @@ void app_system_thread(void *param)
             LOG_I("net_state:%d, act:%d, rsrp:%d, bit_error_rate:%d", nw_info.net_state, nw_info.act, nw_info.rsrp, nw_info.bit_error_rate);
             csq_time_t = def_rtos_get_system_tick();
             LOG_I("CSQ:%d", gsm_info.csq);
-            LOG_I("pack_series_number:%d, pack_parallel_number:%d", car_info.bms_info[0].pack_series_number, car_info.bms_info[0].pack_parallel_number);   
+      //      LOG_I("pack_series_number:%d, pack_parallel_number:%d", car_info.bms_info[0].pack_series_number, car_info.bms_info[0].pack_parallel_number);   
         //    LOG_I("ptich:%.2f,roll:%.2f,yaw:%.2f",euler_angle[0],euler_angle[1],euler_angle[2]);
             // LOG_I("car_info.speed_limit:%d, car_info.pedal_speed:%d", car_info.speed_limit, car_info.pedal_speed);
             // LOG_I("car_info.total_odo:%d, car_info.single_odo:%d", car_info.total_odo, car_info.single_odo);
@@ -719,7 +720,10 @@ void app_system_thread(void *param)
             //     TEMP = 0;
             // }
             if(TEMP == 0) {
-           //     voice_play_mark(VOICE_TEST); 
+                net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
+                #if 0
+                voice_play_mark(VOICE_TEST); 
+                #endif
           //      GPS_Start(GPS_MODE_CONT);
                 MCU_CMD_MARK(CMD_MCU_ADC_DATA_INDEX);
              //   MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_OFF_INDEX);
@@ -817,7 +821,7 @@ void app_system_thread(void *param)
 
    //     LOG_I("total_fence_sw:%d, sheepfang_sta:%d, fence_sta:%d", sys_param_set.total_fence_sw, sys_info.sheepfang_sta, sys_info.fence_sta);
         /*开锁运动状态检测*/
-        if(car_info.lock_sta == CAR_UNLOCK_STA) {
+        if(car_info.lock_sta == CAR_UNLOCK_STA && (sys_info.ota_flag == 0)) {
             if(car_info.speed == 0 && car_info.last_speed) {  //运动到静止
                 car_info.car_unlock_state = CAR_UNLOCK_TO_STILL;  //需要推送
                 LOG_I("CAR_UNLOCK_TO_STILL");
@@ -854,7 +858,7 @@ void app_system_thread(void *param)
             car_info.last_headlight_sta = car_info.headlight_sta;
         }  
         /*====================震动检测========================*/
-        if(car_info.lock_sta == CAR_LOCK_STA) {
+        if(car_info.lock_sta == CAR_LOCK_STA && (sys_info.ota_flag == 0)) {
             if(car_info.move_alarm && car_info.car_lock_state == CAR_LOCK_STILL) {
                 car_info.move_alarm = 0;
                 car_info.car_lock_state = CAR_LOCK_TO_SHOCK;
@@ -862,7 +866,9 @@ void app_system_thread(void *param)
                 trace_time_t = def_rtos_get_system_tick();
                 GPS_Start(GPS_MODE_TM);  //震动获取一次定位  
                 if(sys_param_set.shock_sw) {
+                    #if 1
                     voice_play_mark(ALARM_VOICE); 
+                    #endif
                     if(sys_info.iot_error == 0){
                         app_set_led_ind(LED_ARARM);
                     }
@@ -877,7 +883,9 @@ void app_system_thread(void *param)
                         app_set_led_ind(LED_ARARM);
                     } 
                     if(sys_info.voice_type_cur != ALARM_VOICE) {
+                        #if 1
                         voice_play_mark(ALARM_VOICE); 
+                        #endif
                     }
                 }
                 car_info.move_alarm = 0;
@@ -910,7 +918,7 @@ void app_system_thread(void *param)
             car_info.move_alarm = 0;
         }
         
-        if(sys_info.shock_sw_state != sys_param_set.shock_sw){
+        if(sys_info.shock_sw_state != sys_param_set.shock_sw) {
             sys_info.shock_sw_state = sys_param_set.shock_sw;
             net_engwe_cmd_push(OPERATION_PUSH_UP, sys_param_set.net_engwe_offline_opearte_push_cmdId);
         }
