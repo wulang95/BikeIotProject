@@ -72,9 +72,9 @@ int flash_partition_erase(FLASH_PARTITION flash_part)
     switch(flash_part) {
         case DEV_APP_ADR:
             if(ota_fd > 0) ql_fclose(ota_fd);
-            ql_remove(sys_info.fota_packname);
+            ql_remove(OTA_FILE);
         //    hal_drv_flash_erase(DEV_APP_ADDR, DEV_APP_SIZE);
-            ota_fd = ql_fopen(sys_info.fota_packname, "wb+");
+            ota_fd = ql_fopen(OTA_FILE, "wb+");
             if(ota_fd < 0) return FAIL;
             break;
         case SYS_CONFIG_ADR:
@@ -110,9 +110,9 @@ int flash_partition_write(FLASH_PARTITION flash_part, void *data, size_t lenth, 
         case DEV_APP_ADR:
       //      hal_drv_flash_write(DEV_APP_ADDR + shift, data, lenth);
             if(ota_fd < 0) {
-                ota_fd = ql_fopen(sys_info.fota_packname, "rb+");
+                ota_fd = ql_fopen(OTA_FILE, "rb+");
                 if(ota_fd < 0) {
-                    LOG_E("%s open fail", sys_info.fota_packname);
+                    LOG_E("%s open fail", OTA_FILE);
                     return  FAIL;
                 }
             } 
@@ -159,9 +159,9 @@ int flash_partition_read(FLASH_PARTITION flash_part, void *data, size_t lenth, i
     switch(flash_part) {
         case DEV_APP_ADR:
             if(ota_fd  < 0) {
-                ota_fd = ql_fopen(sys_info.fota_packname, "rb+");
+                ota_fd = ql_fopen(OTA_FILE, "rb+");
                 if(ota_fd < 0) {
-                    LOG_E("%s open fail", sys_info.fota_packname);
+                    LOG_E("%s open fail", OTA_FILE);
                     return  FAIL;
                 }
             } 
@@ -208,9 +208,9 @@ int flash_partition_size(FLASH_PARTITION flash_part)
             if(ota_fd > 0) {
                 return ql_fsize(ota_fd);
             } else {
-                ota_fd = ql_fopen(sys_info.fota_packname, "rb+");
+                ota_fd = ql_fopen(OTA_FILE, "rb+");
                 if(ota_fd < 0) {
-                    LOG_E("%s open fail", sys_info.fota_packname);
+                    LOG_E("%s open fail", OTA_FILE);
                     return  FAIL;
                 }
                 return ql_fsize(ota_fd);
@@ -1054,7 +1054,6 @@ void sys_param_init()
     sys_info.adc_charge_get_interval = 30*60; 
     sys_info.adc_discharge_get_interval = 60*60; 
     sys_info.shock_sw_state = sys_param_set.shock_sw;
-    memcpy(sys_info.fota_packname, OTA_FILE, strlen(OTA_FILE));
     LOG_I("OTA_CNT:%d", sys_param_set.ota_cnt);   
 }
 
@@ -1103,9 +1102,7 @@ void app_sys_init()
     register_module("ota");
     register_module("mcu");
     register_module("net");
-
     sys_log_buf = rt_ringbuffer_create(SYS_LOG_LEN);
- //   flash_partition_erase(DEV_APP_ADR);
     week_time("sys", 30); 
     shock_cent = 0;
     def_rtos_semaphore_create(&log_sem_t, 0);

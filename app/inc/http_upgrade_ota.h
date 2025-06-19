@@ -7,6 +7,10 @@ extern "C" {
 #include <string.h>
 #include <stdlib.h>
 #include    "rtos_port_def.h"
+
+#define AES128_EN
+#define AES128_KEY  "1234567890123456"
+#define HTTP_OTA_RAW_FILE_NAME "ota_raw.bin"
 /*升级状态*/
 enum {
     HTTP_OTA_WAIT = 0,
@@ -15,6 +19,7 @@ enum {
     HTTP_OTA_INIT,  //初始化
     HTTP_OTA_DOWN,
     HTTP_OTA_SUM_CHECK,
+    HTTP_OTA_AES128_CHECK,
     HTTP_OTA_UPDATA,
 
 };

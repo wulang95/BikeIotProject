@@ -30,7 +30,8 @@ set(APP_FILES
 
 set(COMMON_FILES 
     common/src/app_common.c
-    common/src/ringbuffer.c)
+    common/src/ringbuffer.c
+    common/src/aes.c)
 
 
 set(HAL_DRV_FILES 

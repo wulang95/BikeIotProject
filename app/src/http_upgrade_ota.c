@@ -5,6 +5,7 @@
 #include "ql_api_dev.h"
 #include "hal_drv_net.h"
 #include "ql_api_fota.h"
+#include "aes.h"
 #define DBG_TAG         "http_upgrade"
 
 #ifdef HTTP_UPGRADE_DEBUG
@@ -51,7 +52,7 @@ struct fota_http_client_stu {
     bool b_is_have_space;
     int chunk_encode;
 };
-
+struct fota_http_client_stu  fota_http_cli_p;
 static int ota_http_get_filesize(char *filename)
 {
     int file_size = 0;
@@ -79,6 +80,8 @@ int ota_http_init(struct fota_http_client_stu *fota_http_cli_p)
     fota_http_cli_p->http_progress.is_show = true;
     fota_http_cli_p->last_precent = 0;
     fota_http_cli_p->chunk_encode = 0;
+    memset(sys_info.fota_packname, 0x00, sizeof(sys_info.fota_packname));
+    memset(fota_http_cli_p->fota_packname, 0x00, sizeof(fota_http_cli_p->fota_packname));
     switch(sys_param_set.farme_type)
     {
         case IOT_FIRMWARE_TYPE:
@@ -89,24 +92,25 @@ int ota_http_init(struct fota_http_client_stu *fota_http_cli_p)
         case HMI_FIRMWARE_TYPE:
         case LOCK_FIRMWARE_TYPE:
         case MCU_FIRMWARE_TYPE:
-            memcpy(fota_http_cli_p->fota_packname, sys_info.fota_packname, strlen(sys_info.fota_packname));
+            memcpy(sys_info.fota_packname, OTA_FILE, strlen(OTA_FILE));
         break;
         case VOICE_PACK_TYPE1:
-            memcpy(fota_http_cli_p->fota_packname, UNLOCK_VOICE_FILE, strlen(UNLOCK_VOICE_FILE));
+            memcpy(sys_info.fota_packname, UNLOCK_VOICE_FILE, strlen(UNLOCK_VOICE_FILE));
         break;
         case VOICE_PACK_TYPE2:
-            memcpy(fota_http_cli_p->fota_packname, LOCK_VOICE_FILE, strlen(LOCK_VOICE_FILE));
+            memcpy(sys_info.fota_packname, LOCK_VOICE_FILE, strlen(LOCK_VOICE_FILE));
         break;
         case VOICE_PACK_TYPE3:
-            memcpy(fota_http_cli_p->fota_packname, ALARM_VOICE_FILE, strlen(ALARM_VOICE_FILE));
+            memcpy(sys_info.fota_packname, ALARM_VOICE_FILE, strlen(ALARM_VOICE_FILE));
         break;
         case VOICE_PACK_TYPE4:
-            memcpy(fota_http_cli_p->fota_packname, LOOK_CAR_VOICE_FILE, strlen(LOOK_CAR_VOICE_FILE)); 
+            memcpy(sys_info.fota_packname, LOOK_CAR_VOICE_FILE, strlen(LOOK_CAR_VOICE_FILE)); 
         break;
         case VOICE_PACK_TYPE5:
-            memcpy(fota_http_cli_p->fota_packname, DEFINE_VOICE_FILE, strlen(DEFINE_VOICE_FILE)); 
+            memcpy(sys_info.fota_packname, DEFINE_VOICE_FILE, strlen(DEFINE_VOICE_FILE)); 
         break;
     }
+    memcpy(fota_http_cli_p->fota_packname, HTTP_OTA_RAW_FILE_NAME, strlen(HTTP_OTA_RAW_FILE_NAME));
     
     fd = ql_fopen(fota_http_cli_p->fota_packname, "wb+");
     if(fd < 0) {
@@ -555,6 +559,35 @@ uint32_t fw_check_sum()
     uint32_t check_sum = 0;
     uint8_t *data;
     int ota_size, offset = 0, real_size;
+    int ota_fd = ql_fopen(fota_http_cli_p.fota_packname, "rb+");
+    if(ota_fd < 0) {
+        LOG_E("open file %s fail", fota_http_cli_p.fota_packname);
+        return -1;
+    }
+    ota_size = ql_fsize(ota_fd);
+    data = malloc(4096);
+    if(data == NULL) {
+        LOG_E("malloc is fail");
+        return -1;
+    }
+    while(ota_size > 0){
+        real_size = MIN(4096, ota_size);
+        ql_fseek(ota_fd, offset, 0);
+        ql_fread(data, real_size, 1, ota_fd);
+        for(int i = 0; i < real_size; i++) {
+            check_sum += data[i];
+        }
+        def_rtos_get_system_tick(5);
+        offset += real_size;
+        ota_size -= real_size;
+    }
+    ql_fclose(ota_fd);
+    free(data);
+    return check_sum;
+    #if 0
+    uint32_t check_sum = 0;
+    uint8_t *data;
+    int ota_size, offset = 0, real_size;
     ota_size = flash_partition_size(DEV_APP_ADR);
     LOG_I("ota_size:%d", ota_size);
     data = malloc(4096);
@@ -573,7 +606,8 @@ uint32_t fw_check_sum()
         ota_size -= real_size;
     }
     free(data);
-    return check_sum;
+    return check_sum; 
+    #endif
 }
 
 void http_ota_fw_update()
@@ -700,6 +734,167 @@ int http_pdp_active()
     }
     return 1;
 }
+
+int aes128_ota_check()
+{
+    struct AES_ctx ctx;
+    uint8_t aes_buf[6] = {0};
+    uint8_t aes_iv[16] = {0};
+    uint8_t filesize_buf[8] = {0};
+    int enc_fd = -1, denc_fd = -1;
+    uint8_t decry_buf[128] ={0};
+    uint8_t read_len;
+    int r_offset = 0,w_offet = 0;
+    int file_size = 0;
+    uint64_t original_size = 0;
+
+    enc_fd = ql_fopen(fota_http_cli_p.fota_packname, "rb+");
+    if(enc_fd < 0){
+        LOG_E("open encrypfile failed");
+        return -1;
+    }
+    file_size = ql_fsize(enc_fd);
+    LOG_I("file_size:%d", file_size);
+    ql_fseek(enc_fd, r_offset, 0);
+    if(ql_fread(aes_buf, 6, 1, enc_fd)!= 6) {
+        LOG_E("read encrypfile failed");
+        ql_fclose(enc_fd);
+        return -1;
+    }
+    if(strcmp((char *)aes_buf, "AES128")!= 0){
+        LOG_E("not aes128 encrypfile:%s", aes_buf);
+        ql_fclose(enc_fd);
+        return -1;
+    }
+    r_offset += 6;
+    ql_fseek(enc_fd, r_offset, 0);
+    if(ql_fread(filesize_buf, 8, 1, enc_fd)!= 8) {
+        LOG_E("read encrypfile failed");
+        ql_fclose(enc_fd);
+        return -1;
+    }
+    for(int i = 0; i < 8; i++){
+        original_size = (original_size << 8) | filesize_buf[i];
+    }
+    LOG_I("original_size:%d", original_size);
+    r_offset += 8;
+    ql_fseek(enc_fd, r_offset, 0);
+    if(ql_fread(aes_iv, 16, 1, enc_fd) != 16) {
+        LOG_E("read encrypfile failed");
+        ql_fclose(enc_fd);
+        return -1;
+    }
+    denc_fd = ql_fopen(sys_info.fota_packname, "wb+");
+    if(denc_fd < 0){
+        LOG_E("open encrypfile failed");
+        ql_fclose(denc_fd);
+        return -1;
+    }
+
+    r_offset += 16;
+    AES_init_ctx_iv(&ctx, (uint8_t *)AES128_KEY, aes_iv);
+
+    while(file_size > r_offset) {
+        read_len = MIN(file_size - r_offset, 128);
+        ql_fseek(enc_fd, r_offset, 0);
+        if(ql_fread(decry_buf, read_len, 1, enc_fd)!= read_len) {
+            ql_fclose(enc_fd);
+            ql_fclose(denc_fd);
+            LOG_E("read encryptout failed");
+            return -1;
+        }
+        AES_CBC_decrypt_buffer(&ctx, decry_buf, read_len);
+        ql_fseek(denc_fd, w_offet, 0);
+        w_offet += read_len;
+        r_offset += read_len;
+        if(r_offset == file_size) {
+            if(ql_fwrite(decry_buf, original_size % 128, 1, denc_fd) < 0) {
+                LOG_E("ql_fwrite is fail!");
+                ql_fclose(enc_fd);
+                ql_fclose(denc_fd);
+                return -1;
+            }
+        } else {
+            if(ql_fwrite(decry_buf, read_len, 1, denc_fd) < 0) {
+                LOG_E("ql_fwrite is fail!");
+                ql_fclose(enc_fd);
+                ql_fclose(denc_fd);
+                return -1;
+            }
+        }
+    }
+    ql_remove(fota_http_cli_p.fota_packname);
+    ql_fclose(denc_fd);
+    ql_fclose(enc_fd);
+    return 0;
+}
+int app_ota_no_ase128()
+{
+    int raw_fd = -1, ota_fd = -1;
+    int r_offset = 0,w_offet = 0;
+    int file_size = 0;
+    uint8_t *data;
+    uint8_t aes_buf[6] = {0};
+    data = malloc(4096);
+    if(data == NULL) {
+        LOG_E("malloc is fail");
+        return -1;
+    }
+    raw_fd = ql_fopen(fota_http_cli_p.fota_packname, "rb+");
+    if(raw_fd < 0){
+        LOG_E("open rawfile failed");
+        free(data);
+        return -1;
+    }
+    ql_fseek(raw_fd, 0, 0);
+    if(ql_fread(aes_buf, 6, 1, raw_fd)!= 6) {
+        LOG_E("read encrypfile failed");
+        free(data);
+        ql_fclose(raw_fd);
+        return -1;
+    }
+    if(strcmp((char *)aes_buf, "AES128") == 0){
+        LOG_E("is aes128 encrypfile:%s", aes_buf);
+        free(data);
+        ql_fclose(raw_fd);
+        return -1;
+    }
+    file_size = ql_fsize(raw_fd);
+    LOG_I("file_size:%d", file_size);
+    ota_fd = ql_fopen(sys_info.fota_packname, "wb+");
+    if(ota_fd < 0){
+        LOG_E("open fotafile failed");
+        ql_fclose(raw_fd);
+        free(data);
+        return -1;
+    }
+    while(file_size > r_offset) {
+        int read_len = MIN(file_size - r_offset, 4096);
+        ql_fseek(raw_fd, r_offset, 0);
+        if(ql_fread(data, read_len, 1, raw_fd)!= read_len) {
+            ql_fclose(raw_fd);
+            ql_fclose(ota_fd);
+            LOG_E("read encryptout failed");
+            free(data);
+            return -1;
+        }
+        ql_fseek(ota_fd, w_offet, 0);
+        w_offet += read_len;
+        r_offset += read_len;
+        if(ql_fwrite(data, read_len, 1, ota_fd) < 0) {
+            LOG_E("ql_fwrite is fail!");
+            ql_fclose(raw_fd);
+            ql_fclose(ota_fd);
+            free(data);
+            return -1;
+        }
+    }
+    ql_fclose(raw_fd);
+    ql_fclose(ota_fd);
+    ql_remove(fota_http_cli_p.fota_packname);
+    free(data);
+    return 0;
+}
 void app_http_ota_thread(void *param)
 {
  //   int64_t http_start_time_t;
@@ -708,7 +903,6 @@ void app_http_ota_thread(void *param)
     uint32_t check_sum;
 //    uint8_t down_times;
     uint8_t temp = 0;
-    struct fota_http_client_stu  fota_http_cli_p;
     char version_buf[256] = {0};
     ql_dev_get_firmware_version(version_buf, sizeof(version_buf));
     LOG_I("current version:  %s", version_buf);
@@ -776,18 +970,33 @@ void app_http_ota_thread(void *param)
             break;
             case HTTP_OTA_SUM_CHECK:
                 LOG_I("HTTP_OTA_SUM_CHECK");
-                memset(sys_info.fota_packname, 0, sizeof(sys_info.fota_packname));
-                memcpy(sys_info.fota_packname, fota_http_cli_p.fota_packname, strlen(fota_http_cli_p.fota_packname));
                 check_sum = fw_check_sum();
                 if(http_upgrade_info.crc_sum == check_sum){
                     LOG_I("HTTP_OTA_SUM_CHECK IS SUCCESS");
                     net_engwe_fota_state_push(FOTA_DOWN_SUCCESS);
-                    http_upgrade_info.ota_stage = HTTP_OTA_UPDATA;
+                    #ifdef AES128_EN
+                        http_upgrade_info.ota_stage = HTTP_OTA_AES128_CHECK;
+                    #else
+                        if(app_ota_no_ase128() == 0) {
+                            http_upgrade_info.ota_stage = HTTP_OTA_UPDATA;
+                        } else {
+                            net_engwe_fota_state_push(FOTA_DOWN_FAIL);
+                            http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
+                        }
+                    #endif
                 } else {
                     LOG_E("HTTP_OTA_SUM_CHECK IS FAULT");
                     LOG_E("crc_sum:%08x, check_sum:%08x", http_upgrade_info.crc_sum, check_sum);
                     net_engwe_fota_state_push(FOTA_DOWN_FAIL);
-                    flash_ota_close();
+                    http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
+                }
+            break;
+            case HTTP_OTA_AES128_CHECK:
+                LOG_I("HTTP_OTA_AES128_CHECK");
+                if(aes128_ota_check() == 0) {
+                    http_upgrade_info.ota_stage = HTTP_OTA_UPDATA;
+                } else {
+                    net_engwe_fota_state_push(FOTA_DOWN_FAIL);
                     http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
                 }
             break;

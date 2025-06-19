@@ -298,7 +298,7 @@ struct sys_set_var_stu{
 
 #pragma pack()
 
-#define SOFTVER "SW_3.0.4"
+#define SOFTVER "SW_3.0.1"
 #define HWVER   "HW_3.0.0"
 #define DEFAULT_MANUFACTURER  "EG" 
 #define DEFAULT_DNS "114.114.114.114"
