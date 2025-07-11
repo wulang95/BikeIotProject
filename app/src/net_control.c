@@ -451,7 +451,6 @@ void iot_mqtt_public(const uint8_t *data, uint16_t len)
     }
     LOG_I("pub_topic:%s", mqtt_con_info.pub_topic);
     debug_data_printf("pub_data", data, len);
-//    rtc_event_register(NET_HEART_EVENT, sys_param_set.net_heart_interval, 1);
     ql_mqtt_publish(&mqtt_con_info.mqtt_cli, mqtt_con_info.pub_topic, (void *)data, len, sys_config.mqtt_qos, 0, iot_mqtt_pub_result_cb, NULL);
 }
 
@@ -519,7 +518,7 @@ void iot_mqtt_state_machine()
                 mqtt_con_info.client_info.clean_session = 1;
                 mqtt_con_info.client_info.pkt_timeout = 5;
                 mqtt_con_info.client_info.retry_times = 3;
-                mqtt_con_info.client_info.keep_alive = 60;
+                mqtt_con_info.client_info.keep_alive = 60*5;
                 mqtt_con_info.client_info.will_retain = 0;
                 if(sys_config.mqtt_will_en == 1) {
                     mqtt_con_info.client_info.will_topic = sys_config.mqtt_will_topic;

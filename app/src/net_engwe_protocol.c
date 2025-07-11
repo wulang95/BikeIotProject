@@ -288,6 +288,10 @@ void net_engwe_pack_seq_up(uint8_t cmd_type, uint8_t *cmd_data, uint16_t cmd_len
     
     puf[puf_len++] = seq_num>>8;
     puf[puf_len++] = seq_num&0xff;
+    if(cmd_type != HEART_UP){
+        rtc_event_register(NET_HEART_EVENT, sys_param_set.net_heart_interval, 1);
+    }
+        
     iot_mqtt_public(puf, puf_len);
     free(puf);
 }
@@ -321,6 +325,9 @@ static void net_engwe_pack_up(uint8_t cmd_type, uint8_t *cmd_data, uint16_t cmd_
     puf[puf_len++] = (timesp&0XFF);
     puf[puf_len++] = (seq >> 8)&0xff;
     puf[puf_len++] = seq&0xff;
+    if(cmd_type != HEART_UP){
+        rtc_event_register(NET_HEART_EVENT, sys_param_set.net_heart_interval, 1);
+    }
     iot_mqtt_public(puf, puf_len);
     free(puf);
     seq++;
@@ -840,11 +847,16 @@ static void net_engwe_cmdId_iot_post_inv_set(uint8_t *data, uint16_t len, uint16
     uint32_t time_interval32;
     uint8_t buf[64];
     uint16_t lenth;
-    if(len != 19) {
+    if(len != 24) {
         net_engwe_pack_seq_up(NACK_UP, NULL, 0, seq);
     }
     net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
-    sys_param_set.net_heart_interval = u16_big_to_litel_end(&data[data_offset]);
+    time_interval = u16_big_to_litel_end(&data[data_offset]);
+    data_offset += 2;
+    if(time_interval != 0){
+        sys_param_set.net_heart_interval = time_interval;
+        rtc_event_register(NET_HEART_EVENT, sys_param_set.net_heart_interval, 1); 
+    }
     data_offset += 2;
     if(data[data_offset] == 0x01){
         sys_param_set.net_heart_sw |= 1<<LOCK_HEART_SW;

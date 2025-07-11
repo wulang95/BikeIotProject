@@ -899,10 +899,8 @@ void app_http_ota_thread(void *param)
 {
  //   int64_t http_start_time_t;
     def_rtosStaus res;
-    int pdp_res;
     uint32_t check_sum;
 //    uint8_t down_times;
-    uint8_t temp = 0;
     char version_buf[256] = {0};
     ql_dev_get_firmware_version(version_buf, sizeof(version_buf));
     LOG_I("current version:  %s", version_buf);
@@ -931,20 +929,22 @@ void app_http_ota_thread(void *param)
                     net_engwe_fota_state_push(FOTA_NOT_BAT);
                     http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
                 } else {
-                    http_upgrade_info.ota_stage = HTTP_PDP_ACTIVE;
+                //    http_upgrade_info.ota_stage = HTTP_PDP_ACTIVE;
+                    http_upgrade_info.ota_stage = HTTP_OTA_INIT;
+                    http_upgrade_info.profile_idx = 1;
                 }
                 LOG_I("HTTP_OTA_CHECK");
             break;
-            case HTTP_PDP_ACTIVE:
-                pdp_res = http_pdp_active();
-                if(pdp_res == 0) {
-                    http_upgrade_info.ota_stage = HTTP_OTA_INIT;
-                } else if(pdp_res == -1) {
-                    net_engwe_fota_state_push(FOTA_SERVE_STOP);  
-                    http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
-                }
-                LOG_I("HTTP_PDP_ACTIVE");
-            break;
+            // case HTTP_PDP_ACTIVE:
+            //     pdp_res = http_pdp_active();
+            //     if(pdp_res == 0) {
+            //         http_upgrade_info.ota_stage = HTTP_OTA_INIT;
+            //     } else if(pdp_res == -1) {
+            //         net_engwe_fota_state_push(FOTA_SERVE_STOP);  
+            //         http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
+            //     }
+            //     LOG_I("HTTP_PDP_ACTIVE");
+            // break;
             case HTTP_OTA_INIT:
                 LOG_I("HTTP_OTA_INIT");
                 ota_http_init(&fota_http_cli_p);
@@ -956,9 +956,7 @@ void app_http_ota_thread(void *param)
                 net_engwe_fota_state_push(FOTA_START_DOWN);   
                 if(ota_http_download_pacfile(&fota_http_cli_p) == 0) {
                     http_upgrade_info.ota_stage = HTTP_OTA_SUM_CHECK;
-              //     hal_drv_stop_data_call(http_upgrade_info.profile_idx);
                 } else {
-               //     hal_drv_stop_data_call(http_upgrade_info.profile_idx);   //取消拨号
                     if(http_upgrade_info.stop_flag == 1) {
                         
                     } else {
@@ -1007,66 +1005,6 @@ void app_http_ota_thread(void *param)
                 http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
             break;
         }
-  //      def_rtos_task_sleep_ms(100);
-            // for(;;){
-            //     LOG_I("enter can_ota_task");
-            //     if(can_ota_task(HMI_ADR) == OK){
-            //         sys_param_set.ota_cnt++;
-            //         sys_param_save(SYS_SET_ADR);
-            //         LOG_I("ota_cnt:%d", sys_param_set.ota_cnt);
-            //     }
-            //     def_rtos_task_sleep_s(10);
-            // }
-        if(temp == 0) {
-            temp = 1;
-          // LOG_I("enter ble_ota_task");
-        //   ble_ota_task();
-        //    can_ota_task(HMI_ADR);
-    //        mcu_ota_task();
-        }    
-
-    //    LOG_I("IS RUN");
-   /*     res = def_rtos_semaphore_wait(http_upgrade_info.http_ota_sem, RTOS_WAIT_FOREVER);
-        if(res != RTOS_SUCEESS) {
-            continue;
-        } 
-        http_upgrade_info.download_fail_cent = 0;
-        http_upgrade_info.download_start_byte = 0;
-        http_start_time_t = def_rtos_get_system_tick();
-        if(sys_info.power_36v == 0 &&  sys_info.bat_soc < 80) {
-            http_upgrade_info.ota_sta = IOT_BAT_LOW;
-            NET_CMD_MARK(NET_CMD_HTTP_UPGRADE_STATE_U6);
-            continue;
-        }
-    
-        http_upgrade_info.ota_sta = IOT_RECV_OTA_REQ;
-        NET_CMD_MARK(NET_CMD_HTTP_UPGRADE_STATE_U6);
-        down_times = 10;
-        def_rtos_task_sleep_s(5);
-        sys_info.ota_flag = 1;
-        net_socket_close();
-        def_rtos_task_sleep_s(2);
-        ota_http_init(&fota_http_cli_p);
-        while(down_times--) {
-            if(def_rtos_get_system_tick() - http_start_time_t > http_upgrade_info.timeout * 60*1000) {
-                http_upgrade_info.ota_sta = IOT_DOWNLOAD_FAIL;
-                 NET_CMD_MARK(NET_CMD_HTTP_UPGRADE_STATE_U6);
-                 break;
-            }
-            if(ota_http_download_pacfile(&fota_http_cli_p) == 0)
-            {
-                LOG_I("http upgrade ota is ok");
-                break;
-            }
-            if(fota_http_cli_p.b_is_have_space != true)
-            {
-                ql_remove(fota_http_cli_p.fota_packname);
-			    LOG_E("have no space");
-			    break;
-            }
-            def_rtos_task_sleep_s(40);
-        }
-        sys_info.ota_flag = 0;  */
     }
     def_rtos_task_delete(NULL);
 }

@@ -9,7 +9,7 @@
 
 void hal_virt_at_init();
 uint16_t hal_virt_at_read(char *buf, uint16_t len, uint32_t timeout);
-void hal_virt_at_write(char *buf);
+int hal_virt_at_write(char *buf);
 
 
 

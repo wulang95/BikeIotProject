@@ -945,6 +945,9 @@ void gps_control_thread(void *param)
                     GPS_stop();
                 } 
             } 
+            #if 0  //0707 调试低功耗
+            GPS_stop();
+            #endif
         } else {
             GPS_update_flag = 0;
             if(GpsDataBuf.GPSValidFlag == 1 && last_GpsDataBuf.GPSValidFlag == 1) {

@@ -40,7 +40,7 @@ static void hal_virt_at_noticy_cb(unsigned int ind_type, unsigned int size)
             real_size= MIN(size, 64);
             ql_virt_at_read(QL_VIRT_AT_PORT_0, buf, real_size);
             rt_ringbuffer_put(virtAt_Ringbuf, buf, real_size);
-            LOG_D("%s]", (char *)buf);
+            LOG_I("[%s]", (char *)buf);
             flag = 1;
             size -= real_size;
         }  
@@ -62,16 +62,17 @@ void hal_virt_at_init()
     LOG_I("ql_virt_at_open is success");
 }
 
-void hal_virt_at_write(char *buf)
+int hal_virt_at_write(char *buf)
 {
     def_rtosStaus res = RTOS_SUCEESS;
     LOG_I("[%d]:%s", strlen(buf), buf);
     res = ql_virt_at_write(QL_VIRT_AT_PORT_0, (unsigned char*)buf, strlen(buf));    
     if(res != RTOS_SUCEESS) {
         LOG_E("ql_virt_at_write is fail, res:%d", res);
-        return;
+        return -1;
     }
     LOG_D("ql_virt_at_write is success");
+    return 0;
 }
 
 

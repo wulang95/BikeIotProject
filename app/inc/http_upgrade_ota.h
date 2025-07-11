@@ -8,7 +8,7 @@ extern "C" {
 #include <stdlib.h>
 #include    "rtos_port_def.h"
 
-#define AES128_EN
+//#define AES128_EN
 #define AES128_KEY  "1234567890123456"
 #define HTTP_OTA_RAW_FILE_NAME "ota_raw.bin"
 /*升级状态*/

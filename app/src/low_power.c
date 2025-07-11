@@ -55,6 +55,7 @@ int week_time(char *module_str, int time)
     }
     if(i == 10) return FAIL;
     if(low_power_flag == 1){  //进入了休眠
+        low_power_flag = 0;        //防止多次释放信号量
         def_rtos_smaphore_release(exit_power_sem);  //释放退出休眠信号量
     }
     if(def_rtos_timer_is_running(low_power_timer) != 1) {
@@ -82,6 +83,15 @@ static void enter_low_power()
     app_set_led_ind(LED_ALL_OFF);
     voice_play_off();
     imu_algo_timer_stop();
+
+    hal_drv_gpio_init(O_RED_IND, IO_INPUT, PULL_NONE_MODE, L_NONE);
+    hal_drv_gpio_init(O_WHITE_IND, IO_INPUT, PULL_NONE_MODE, L_NONE);
+    hal_drv_gpio_init(O_MCU_CONEC, IO_INPUT, PULL_NONE_MODE, L_NONE);
+    hal_drv_gpio_init(O_AUDIO_SD, IO_INPUT, PULL_NONE_MODE, L_NONE);
+    hal_drv_gpio_init(O_KEY_HIGH, IO_INPUT, PULL_NONE_MODE, L_NONE);
+    hal_drv_gpio_init(O_KEY_LOW, IO_INPUT, PULL_NONE_MODE, L_NONE);
+    hal_drv_gpio_init(O_BLE_WEEK_SIG, IO_INPUT, PULL_NONE_MODE, L_NONE);
+
 }
 
 static void exit_lower_power()
@@ -100,6 +110,15 @@ static void exit_lower_power()
         app_set_led_ind(LED_SYS_FAULT);
     }
     ble_cmd_mark(BLE_GET_MAC_INDEX);
+
+    hal_drv_gpio_init(O_RED_IND, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+    hal_drv_gpio_init(O_WHITE_IND, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+    hal_drv_gpio_init(O_MCU_CONEC, IO_OUTPUT, PULL_NONE_MODE, HIGH_L);
+    hal_drv_gpio_init(O_AUDIO_SD, IO_OUTPUT, PULL_NONE_MODE, HIGH_L);
+    hal_drv_gpio_init(O_KEY_HIGH, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+    hal_drv_gpio_init(O_KEY_LOW, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+    hal_drv_gpio_init(O_BLE_WEEK_SIG, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
+
  //   net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
     hal_drv_write_gpio_value(O_BLE_WEEK_SIG, HIGH_L);  /*出现蓝牙无法从低功耗唤醒，使用*/
     ble_heart_time_t = def_rtos_get_system_tick();
@@ -115,7 +134,6 @@ void low_power_thread(void *param)
         low_power_flag = 1;
         def_rtos_semaphore_wait(exit_power_sem, RTOS_WAIT_FOREVER);
         exit_lower_power();
-        low_power_flag = 0;
     }
     def_rtos_task_delete(NULL);
 }

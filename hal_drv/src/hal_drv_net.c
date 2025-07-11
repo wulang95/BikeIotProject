@@ -190,13 +190,12 @@ NET_NW_INFO hal_drv_get_operator_info()
     ql_nw_operator_info_s oper_i;
     ql_nw_reg_status_info_s reg_info;
     ql_nw_signal_strength_info_s pt_info;
-    ql_nw_mode_type_e nw_mode;
     uint8_t csq;
     char at_buf[64] = {0};
+    static uint8_t last_band = 0xff;
     ql_nw_get_operator_name(0, &oper_i);
     ql_nw_get_reg_status(0, &reg_info);
     ql_nw_get_signal_strength(0, &pt_info);
-    ql_nw_get_mode(0, &nw_mode);
     ql_nw_get_csq(0, &csq);
     nw_info.mcc = atoi(oper_i.mcc);
     nw_info.mnc = atoi(oper_i.mnc);
@@ -207,28 +206,44 @@ NET_NW_INFO hal_drv_get_operator_info()
     nw_info.rsrp = pt_info.rsrp;
     LOG_I("rsrp:%d", pt_info.rsrp);
     nw_info.bit_error_rate = pt_info.bitErrorRate;
-    hal_virt_at_write("AT+QNWINFO\r\n");
-    hal_virt_at_read(at_buf, 64, 500);
+    for(int i = 0; i < 5; i++) {
+        hal_virt_at_write("AT+QNWINFO\r\n");
+  //      hal_virt_at_write("AT+QENG=\"SERVINGCELL\"\r\n");
+        hal_virt_at_read(at_buf, 64, 100);
+        if(strstr(at_buf, "LTE BAND") != NULL){
+            break;
+        }
+    }
+    
     if(strstr(at_buf, "LTE BAND 3") != NULL){
         nw_info.fre_band = 0x02;
     } else if(strstr(at_buf, "LTE BAND 1") != NULL) {
         nw_info.fre_band = 0x00;
-    } else if(strstr(at_buf, "LTE BAND 2") != NULL) {
-        nw_info.fre_band = 0x01;
+    } else if(strstr(at_buf, "LTE BAND 20") != NULL) {
+        nw_info.fre_band = 0x0C;
     } else if(strstr(at_buf, "LTE BAND 5") != NULL) {
         nw_info.fre_band = 0x04;
     } else if(strstr(at_buf, "LTE BAND 7") != NULL) {
         nw_info.fre_band = 0x06;
     } else if(strstr(at_buf, "LTE BAND 8") != NULL) {
         nw_info.fre_band = 0x07;
-    } else if(strstr(at_buf, "LTE BAND 20") != NULL) {
-        nw_info.fre_band = 0x0C;
     } else if(strstr(at_buf, "LTE BAND 28") != NULL) {
         nw_info.fre_band = 0x0F;
+    } else if(strstr(at_buf, "LTE BAND 2") != NULL) {
+        nw_info.fre_band = 0x01;
+    } else if(strstr(at_buf, "GSM 850") != NULL) {
+        nw_info.fre_band = 0x17;
+    } else if(strstr(at_buf, "GSM 900") != NULL) {
+        nw_info.fre_band = 0x18;
+    } else if(strstr(at_buf, "GSM 1800") != NULL) {
+        nw_info.fre_band = 0x19;
+    } else if(strstr(at_buf, "GSM 1900") != NULL) {
+        nw_info.fre_band = 0x1A;
     } else {
-        nw_info.fre_band = 0xFF;
+        nw_info.fre_band = last_band;
     }
     LOG_I("at:%s", at_buf);
+    last_band = nw_info.fre_band;
     // LOG_I("MCC:%s, MNC:%s", oper_i.mcc, oper_i.mnc);
     // LOG_I("lac:%d,cid:%d", reg_info.data_reg.lac, reg_info.data_reg.cid);
     // LOG_I("CSQ:%d, bitErrorRate:%d", pt_info.rssi, pt_info.bitErrorRate);

@@ -40,6 +40,7 @@ typedef struct  {
 } CAN_SEND_CMD_STU;
 
 typedef enum {
+   DFT_DEV_ID = 0X22,
    HMI_ADR =  0X28,
    CONTROL_ADR = 0XEF,
    BMS_ADR = 0XF4,
@@ -47,6 +48,7 @@ typedef enum {
    IOT_ADR = 0X21,
    CHARGER_ADR = 0X56,
    LOCK_ADR = 0X60,
+   TRANS_ADR = 0X63
 } DEV_ID;
 
 /*IOT指令*/
@@ -152,6 +154,11 @@ enum{
 /*充电器指令*/
 enum{
     CHARGER_STATE_INFO = 0XFA02,
+};
+
+/*变速器指令*/
+enum{
+    TRANS_GENERAL_STA = 0XF501,
 };
 
 enum {

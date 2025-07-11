@@ -517,6 +517,7 @@ static void sys_config_default_init()
 
 void sys_config_init()
 {
+//    sys_config_default_init();
     flash_partition_read(SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
     if(sys_config.magic != IOT_MAGIC || sys_config.crc32 != GetCrc32((uint8_t *)&sys_config, sizeof(sys_config) - 4)) {
         flash_partition_read(BACK_SYS_CONFIG_ADR, (void *)&sys_config_back, sizeof(sys_config_back), 0);
@@ -637,14 +638,14 @@ void app_system_thread(void *param)
             continue;
         }
         if(Gps.GpsPower == GPS_POWER_ON) {
-            if(def_rtos_get_system_tick() - gps_resh_time_t > 15*1000 && (iot_error_check(IOT_ERROR_TYPE, GPS_ERROR) == 0)) {
+            if(def_rtos_get_system_tick() - gps_resh_time_t > 10*1000 && (iot_error_check(IOT_ERROR_TYPE, GPS_ERROR) == 0)) {
                 iot_error_set(IOT_ERROR_TYPE, GPS_ERROR);      
                 Gps.init = 0;  //触发错误处理
                 SETBIT(sys_info.mode_reinit_flag, GPS_MODEL);
             }   
         }
         app_bat_charge_check();
-        if(def_rtos_get_system_tick() - ble_heart_time_t > 20*1000 && (iot_error_check(IOT_ERROR_TYPE, BLE_ERROR) == 0)) {
+        if(def_rtos_get_system_tick() - ble_heart_time_t > 12*1000 && (iot_error_check(IOT_ERROR_TYPE, BLE_ERROR) == 0)) {
             iot_error_set(IOT_ERROR_TYPE, BLE_ERROR);
             ble_info.init = 0;
             SETBIT(sys_info.mode_reinit_flag, BLE_MODEL);
@@ -706,6 +707,10 @@ void app_system_thread(void *param)
             LOG_I("net_state:%d, act:%d, rsrp:%d, bit_error_rate:%d", nw_info.net_state, nw_info.act, nw_info.rsrp, nw_info.bit_error_rate);
             csq_time_t = def_rtos_get_system_tick();
             LOG_I("CSQ:%d", gsm_info.csq);
+            LOG_I("car_info.avg_speed :%d", car_info.avg_speed);
+            LOG_I("car_info.pedal_speed:%d", car_info.pedal_speed);
+            LOG_I("car_info.total_agv_pedal_speed:%d",car_info.total_agv_pedal_speed);
+            LOG_I("car_info.m_agv_pedal_speed:%d", car_info.m_agv_pedal_speed);
       //      LOG_I("pack_series_number:%d, pack_parallel_number:%d", car_info.bms_info[0].pack_series_number, car_info.bms_info[0].pack_parallel_number);   
         //    LOG_I("ptich:%.2f,roll:%.2f,yaw:%.2f",euler_angle[0],euler_angle[1],euler_angle[2]);
             // LOG_I("car_info.speed_limit:%d, car_info.pedal_speed:%d", car_info.speed_limit, car_info.pedal_speed);
@@ -1115,5 +1120,6 @@ void app_sys_init()
     def_rtos_semaphore_create(&system_task_sem, 0);
     def_rtos_timer_create(&system_timer, app_system_task, system_timer_fun, NULL);
     def_rtos_timer_start(system_timer, 1000, 1);
+    sys_info.sys_start_time_t = def_rtos_get_system_tick();
     LOG_I("app_sys_init is ok");
 }

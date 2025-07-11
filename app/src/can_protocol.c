@@ -143,6 +143,8 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
                         week_time("lock", -1); 
                         voice_play_mark(UNLOCK_VOICE);
                         car_info.lock_sta = CAR_UNLOCK_STA;
+                        car_info.m_agv_pedal_speed = 0;
+                        car_info.total_agv_pedal_speed = 0;
                         LOG_I("HMI_CMD_LOCK_SRC CAR_UNLOCK_STA");
                     }
                 }
@@ -295,7 +297,7 @@ static void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
             break;
             case CONTROL_DATA2:
                 car_info.current = data[0];
-                car_info.pedal_speed = data[1];
+            //    car_info.pedal_speed = data[1];
                 car_info.pedal_torque = data[2];
                 car_info.motor_power = data[4] <<8 | data[3];
                 car_info.control_torque = data[5];
@@ -312,9 +314,10 @@ static void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
              //   debug_data_printf("CONTROL_DATA3", data, data_len);
             break;
             case CONTROL_DATA4:
-                car_info.avg_speed = data[1] << 8| data[0];
+            //    car_info.avg_speed = data[1] << 8| data[0];
                 car_info.max_speed = data[3] << 8| data[2];
                 car_info.current_limit = data[7];
+                car_info.avg_speed = car_info.single_odo /((float)car_info.cycle_time_s/3600);
             //    debug_data_printf("CONTROL_DATA4", data, data_len);
             break;
             case CONTROL_DATA5:
@@ -345,8 +348,8 @@ static void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
             break;
             case CONTROL_DATA9:
                 car_info.cycle_total_time = data[4] << 16|data[3] << 8|data[2];  //返回分钟
-                car_info.m_agv_pedal_speed = data[1];
-                car_info.total_agv_pedal_speed = data[5];
+            //    car_info.m_agv_pedal_speed = data[1];
+            //    car_info.total_agv_pedal_speed = data[5];
             break;
             case CONTROL_HWVER1:
                 memcpy(&car_info.control_hw_ver[0], (char *)&data[0], 8);
@@ -687,6 +690,202 @@ static void charger_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
     }
 }
 
+static void trans_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
+{
+    static uint16_t re_padel;
+    static uint16_t m_padel[120] ={0}, m_count = 0, i = 0;
+    uint16_t m_total_padel = 0;
+    if(pdu.pdu1 >= 240) {
+        switch(pdu.pdu2) {
+            case TRANS_GENERAL_STA:
+                car_info.pedal_speed = data[4] << 8 | data[3];
+                if(car_info.total_agv_pedal_speed == 0) {
+                    if(car_info.pedal_speed != 0){
+                        car_info.total_agv_pedal_speed = car_info.pedal_speed;
+                    } else {
+                        car_info.total_agv_pedal_speed = 1;
+                    }
+                    re_padel = 0;
+                    memset(m_padel, 0, sizeof(m_padel));
+                    m_count = 0;
+                    i = 0;
+                } else {
+                    m_padel[i++] = car_info.pedal_speed;
+                    if(car_info.pedal_speed != 0){
+                        if(car_info.total_agv_pedal_speed == 1) {
+                            car_info.total_agv_pedal_speed = car_info.pedal_speed;
+                        } else {
+                            re_padel += (car_info.total_agv_pedal_speed + car_info.pedal_speed) % 2;
+                            car_info.total_agv_pedal_speed = (car_info.total_agv_pedal_speed + car_info.pedal_speed)/2;
+                            if(re_padel == 2) {
+                                car_info.total_agv_pedal_speed += 1;
+                                re_padel = 0;
+                            }
+                        }
+                        
+                        m_count++;
+                    } 
+                    if(i == 120) {
+                        for(uint8_t j = 0; j < i; j++) {
+                            m_total_padel += m_padel[j];  
+                        }
+                        if(m_count > 0) {
+                            car_info.m_agv_pedal_speed = m_total_padel/m_count;
+                        } else {
+                            car_info.m_agv_pedal_speed = 0;
+                        }
+                        if(m_padel[0] > 0){
+                            m_count--;
+                        }
+                        memcpy(&m_padel[0], &m_padel[1], 119*sizeof(uint16_t));
+                        i--;
+                    }
+
+                }
+            break;
+        }
+    }
+}
+/*开机延时一段时间再握手，待数据获取完成*/
+static void engwe_mache_dft(PDU_STU pdu, uint8_t *data, uint8_t data_len)
+{
+    stc_can_rxframe_t can_dat = {0};
+    CAN_PDU_STU can_pdu;
+    can_pdu.src = IOT_ADR;
+    can_pdu.p = 6;
+    can_pdu.r = 0;
+    can_pdu.dp = 0;
+    can_pdu.res = 0;
+    switch(pdu.pdu2){
+        case 0xffff:   
+        //握手信号
+            LOG_I("DATA:%s", (char *)data);
+            if(strstr((char *)data, "shake") != NULL && sys_info.mache_dft_flag == 0) {
+                can_pdu.pdu.pdu2 = 0xffff;
+                memcpy(can_dat.Data, "shake", strlen("shake"));
+                can_dat.ExtID = can_pdu.can_id;
+                can_dat.Cst.Control_f.DLC = strlen("shake");
+                can_dat.Cst.Control_f.IDE = 1;
+                can_dat.Cst.Control_f.RTR = 0;
+                
+            }
+        break;
+        case 0xfffe:
+        //上位机sn1
+            sys_info.mache_dft_flag = 1;
+            memcpy(&sys_config.sn[0], data, 8);
+            can_pdu.pdu.pdu2 = 0xfffe;
+            can_dat.ExtID = can_pdu.can_id;
+            can_dat.Cst.Control_f.DLC = 0;
+            can_dat.Cst.Control_f.IDE = 1;
+            can_dat.Cst.Control_f.RTR = 0;
+        break;
+        case 0xfffd:
+        //上位机sn2
+            memcpy(&sys_config.sn[8], data, 7);
+            can_pdu.pdu.pdu2 = 0xfffd;
+            can_dat.ExtID = can_pdu.can_id;
+            can_dat.Cst.Control_f.DLC = 0;
+            can_dat.Cst.Control_f.IDE = 1;
+            can_dat.Cst.Control_f.RTR = 0;
+            LOG_I("SN:%s", sys_config.sn);
+            sys_param_save(SYS_CONFIG_ADR);
+            sys_param_save(BACK_SYS_CONFIG_ADR);
+        break;
+        case 0xfffc:
+        //上位机获取iccid1
+            can_pdu.pdu.pdu2 = 0xfffc;
+            can_dat.ExtID = can_pdu.can_id;
+            can_dat.Cst.Control_f.IDE = 1;
+            can_dat.Cst.Control_f.RTR = 0;
+            if(strlen(gsm_info.iccid) == 0) {
+                can_dat.Cst.Control_f.DLC = 0;
+            } else {
+                memcpy(&can_dat.Data[0], &gsm_info.iccid[0], 8);
+                can_dat.Cst.Control_f.DLC = 8;
+            }
+        break;
+        case 0xfffb:
+        //上位机获取iccid2
+            can_pdu.pdu.pdu2 = 0xfffb;
+            can_dat.ExtID = can_pdu.can_id;
+            can_dat.Cst.Control_f.IDE = 1;
+            can_dat.Cst.Control_f.RTR = 0;
+            if(strlen(gsm_info.iccid) == 0) {
+                can_dat.Cst.Control_f.DLC = 0;
+            } else {
+                memcpy(&can_dat.Data[0], &gsm_info.iccid[8], 8);
+                can_dat.Cst.Control_f.DLC = 8;
+            }
+        break;
+        case 0xfffa:
+        //上位机获取iccid3
+            can_pdu.pdu.pdu2 = 0xfffa;
+            can_dat.ExtID = can_pdu.can_id;
+            can_dat.Cst.Control_f.IDE = 1;
+            can_dat.Cst.Control_f.RTR = 0;
+            if(strlen(gsm_info.iccid) == 0) {
+                can_dat.Cst.Control_f.DLC = 0;
+            } else {
+                memcpy(&can_dat.Data[0], &gsm_info.iccid[16], 4);
+                can_dat.Cst.Control_f.DLC = 4;
+            }
+        break;
+        case 0xfff9:
+        //上位机获取imei1
+            can_pdu.pdu.pdu2 = 0xfff9;
+            can_dat.ExtID = can_pdu.can_id;
+            can_dat.Cst.Control_f.IDE = 1;
+            can_dat.Cst.Control_f.RTR = 0;
+            if(strlen(gsm_info.imei) == 0) {
+                can_dat.Cst.Control_f.DLC = 0;
+            } else {
+                memcpy(&can_dat.Data[0], &gsm_info.imei[0], 8);
+                can_dat.Cst.Control_f.DLC = 8;
+            }
+        break;
+        case 0xfff8:
+        //上位机获取imei2
+            can_pdu.pdu.pdu2 = 0xfff8;
+            can_dat.ExtID = can_pdu.can_id;
+            can_dat.Cst.Control_f.IDE = 1;
+            can_dat.Cst.Control_f.RTR = 0;
+            if(strlen(gsm_info.imei) == 0) {
+                can_dat.Cst.Control_f.DLC = 0;
+            } else {
+                memcpy(&can_dat.Data[0], &gsm_info.imei[8], 7);
+                can_dat.Cst.Control_f.DLC = 7;
+            }
+        break;
+        case 0xfff7:
+        //上位机获取mac
+            can_pdu.pdu.pdu2 = 0xfff7;
+            can_dat.ExtID = can_pdu.can_id;
+            can_dat.Cst.Control_f.IDE = 1;
+            can_dat.Cst.Control_f.RTR = 0;
+            if(strlen(ble_info.mac_str) == 0) {
+                can_dat.Cst.Control_f.DLC = 0;
+            } else {
+                memcpy(&can_dat.Data[0], &ble_info.mac, 6);
+                can_dat.Cst.Control_f.DLC = 6;
+            }
+        break;
+        case 0xfff0:
+        //压测can休眠唤醒
+            LOG_I("DATA:%s", (char *)data);
+            if(strstr((char *)data, "week") != NULL) {
+                can_pdu.pdu.pdu2 = 0xfff0;
+                memcpy(can_dat.Data, "week", strlen("week"));
+                can_dat.ExtID = can_pdu.can_id;
+                can_dat.Cst.Control_f.DLC = strlen("week");
+                can_dat.Cst.Control_f.IDE = 1;
+                can_dat.Cst.Control_f.RTR = 0;
+                
+            }
+    }
+    can_data_send(can_dat);
+}
+
 static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
 {
     CAN_PDU_STU can_pdu;
@@ -731,6 +930,11 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
         }
     }
     switch(can_pdu.src) {
+        case DFT_DEV_ID:
+            if(def_rtos_get_system_tick() - sys_info.sys_start_time_t >= 20*1000) {
+                engwe_mache_dft(can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
+            }
+        break;
         case HMI_ADR:
             car_info.hmi_connnect = 1;
             if(car_info.hmi_info.init == 0 && can_ota_con.ota_step == OTA_IDEL_STEP){
@@ -810,6 +1014,9 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
         break;
         case CHARGER_ADR:
             charger_info_handle(can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
+        break;
+        case TRANS_ADR:
+            trans_info_handle(can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
         break;
     }
     LOG_I("SEND_ID:%08X, CAN_ID:%08x", can_send_cmd.can_tx_frame.ExtID, rx_can_frame.RBUF32_0);

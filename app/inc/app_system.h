@@ -235,6 +235,7 @@ enum {
 
 #define DEFAULT_MQTT_WILL_TOPIC         "iot/engwe/offline"
 
+
 #pragma pack(1)
 struct sys_info_stu {
     uint16_t battry_val;   //外部电池电压，单位0.1V
@@ -283,6 +284,8 @@ struct sys_info_stu {
     uint8_t voice_type_cur;
     uint8_t led_type_cur;
     struct power_adc_calc_stu power_adc;
+    uint8_t mache_dft_flag;
+    int64_t sys_start_time_t;
 };
 
 struct sys_set_var_stu{
@@ -298,13 +301,13 @@ struct sys_set_var_stu{
 
 #pragma pack()
 
-#define SOFTVER "SW_3.0.1"
+#define SOFTVER "SW_3.0.2"
 #define HWVER   "HW_3.0.0"
 #define DEFAULT_MANUFACTURER  "EG" 
 #define DEFAULT_DNS "114.114.114.114"
 #define DEFAULT_SN      "123456789" 
 #define DEFAULT_DEV_TYPE    "1102EU" 
-#define DEFAULT_APN     "asia.bics"
+#define DEFAULT_APN     "linksnet"
 /*"linksnet"*/
 /*"asia.bics"*/
 #define DEFAULT_IP  "mqtt://dev-mqtt.engweapp.cn"

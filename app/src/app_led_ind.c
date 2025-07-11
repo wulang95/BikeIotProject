@@ -101,6 +101,7 @@ void led_set_value(uint8_t led, uint8_t value)
 
 void app_set_led_ind(LED_IND led_ind_sta)
 {
+    def_rtos_timer_stop(led_timer);
     led_step = 0;
     led_cent = 0;
     led_set_value(O_WHITE_IND, 0);
@@ -119,7 +120,7 @@ void app_led_timer_func(void *param)
         case LED_LOOP:
             if(led_cur_ind[led_step].value != 0) {
                 led_cent++;
-                if(led_cent == led_cur_ind[led_step].value) {
+                if(led_cur_ind[led_step].value != 0 && led_cent == led_cur_ind[led_step].value) {
                     sys_info.led_type_cur = 0xff;
                     return;
                 }
@@ -129,7 +130,6 @@ void app_led_timer_func(void *param)
         break;
         case LED_STOP:
             led_set_value(led_cur_ind[led_step].led, led_cur_ind[led_step].value);
-            sys_info.led_type_cur = 0xff;
         break;
         default:
             led_set_value(led_cur_ind[led_step].led, led_cur_ind[led_step].value);

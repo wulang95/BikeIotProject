@@ -359,8 +359,9 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
         LOG_I("temp_adc:%d", sys_info.power_adc.temp_adc);
         sys_info.bat_val = app_get_bat_val();
         sys_info.bat_soc = app_get_bat_soc(sys_info.bat_val);
+        sys_info.battry_val = app_get_sys_power_val();
         app_get_bat_temp_info();
-        LOG_I("bat_val:%d, bat_soc:%d", sys_info.bat_val, sys_info.bat_soc);
+        LOG_I("bat_val:%d, bat_soc:%d, battry_val:%d", sys_info.bat_val, sys_info.bat_soc, sys_info.battry_val);
     break;
     case CMD_MCU_WEEK:
         MCU_CMD_MARK(CMD_MCU_WEEK_INDEX);
@@ -445,7 +446,7 @@ void mcu_uart_recv_thread(void *param)
         if(iot_error_check(IOT_ERROR_TYPE, MCU_CONN_ERROR) == 1) {
             iot_error_clean(IOT_ERROR_TYPE, MCU_CONN_ERROR);
         }
-        week_time("mcu", 30); 
+        week_time("mcu", 15); 
         debug_data_printf("mcurcv",rcv, len);
         for(i = 0; i < len; i++){
             c = rcv[i];
