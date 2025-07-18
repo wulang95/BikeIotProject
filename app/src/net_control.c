@@ -27,6 +27,8 @@
 struct gsm_info_stu gsm_info;
 static char ip4_adr_str[16];
 
+#define HAND_SELECT_PLMN_ENABLE    1
+
 typedef enum
 {
     PDP_NOT_ACTIVATED = 0,
@@ -34,8 +36,11 @@ typedef enum
     PDP_START_ACTIVATION ,
     PDP_ACTIVATION_SUCCESS ,
     PDP_NTP_SYNC,
-    PDP_ACTIVATION_FAILURE ,
-    PDP_ACTIVE_DETECT ,
+    PDP_ACTIVATION_FAILURE,
+    PDP_GET_OPERT_INFO,
+    PDP_HAND_SELELCT_OPERT,
+    PDP_HAND_SW_PLMN,
+    PDP_ACTIVE_DETECT,
 } pdp_active_state_type;
 
 
@@ -79,6 +84,14 @@ typedef struct {
 
 MQTT_CON_INFO mqtt_con_info;
 
+struct black_plmn_info_s {
+    uint8_t plmn_num;
+    char plmn[7][9];
+};
+
+static struct black_plmn_info_s black_plmn_info;
+static char s_plmn[9];
+
 enum {
     MQTT_BIND_SIM_AND_PROFILE = 1,
     MQTT_CLIENT_INIT,
@@ -92,11 +105,14 @@ enum {
     MQTT_DISCONNECT,
 };
 
+
+
 void net_control_init()
 {
     memset(&gsm_info, 0, sizeof(gsm_info));
     memset(&pdp_active_info, 0, sizeof(pdp_active_info));
     memset(&socket_con_info, 0, sizeof(socket_con_info));
+    memset(&black_plmn_info, 0, sizeof(black_plmn_info));
     pdp_active_info.pdp_is_active = 0;
     pdp_active_info.profile_idx = 1;
     pdp_active_info.pdp_state = PDP_NOT_ACTIVATED;
@@ -110,11 +126,67 @@ void net_update_singal_csq()
     hal_drv_get_signal(&gsm_info.csq);
 }
 
+
+
+static int add_plmn_to_black_table(char *plmn)
+{
+    if(plmn != NULL && strlen(plmn) <= 9) {
+        LOG_I("plmn:%s", plmn);
+    } else {
+        LOG_E("plmn is error");
+        return -1;
+    }
+    if(black_plmn_info.plmn_num == 7) {
+        LOG_E("back plmn is full");
+        return -1;
+    }
+    for(int i = 0; i < 7; i++) {
+        if(strlen(black_plmn_info.plmn[i]) != 0) {
+            if(strcmp(black_plmn_info.plmn[i], plmn) == 0){
+                return 1;
+            }
+        } else {
+            LOG_I("add plmn:%s", plmn);
+            memcpy(black_plmn_info.plmn[i], plmn, strlen(plmn));
+            black_plmn_info.plmn_num++;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+void plmn_black_print()
+{
+    LOG_I("plmn_num:%d", black_plmn_info.plmn_num);
+    for(int i = 0; i < black_plmn_info.plmn_num; i++){
+        LOG_I("black plmn:%s", black_plmn_info.plmn[i]);
+    }
+}
+
+
+static int select_plmn(char *plmn){
+    if(plmn == NULL) {
+        LOG_E("plmn is error");
+        return -1;
+    }
+    for(int i = 0; i < black_plmn_info.plmn_num; i++) {
+        if(strcmp(black_plmn_info.plmn[i], plmn) == 0) {
+            LOG_I("plmn is in");
+            return 1;
+        }
+    }
+    LOG_I("select_plmn:%s", plmn);
+    return 0;
+}
+
+//uint8_t debug_flag = 1;
+
 static void pdp_active_state_machine(void)
 {
     uint8_t c_fun;
     uint8_t cpin = 0;
     uint8_t net_reg = 0;
+    static uint8_t count = 0;
     static int64_t check_csq_timeout = 0;
     static int64_t check_pdp_timeout = 0;
     static int64_t check_sync_timeout = 0;
@@ -122,6 +194,7 @@ static void pdp_active_state_machine(void)
         case PDP_NOT_ACTIVATED:
             LOG_I("PDP_NOT_ACTIVATED");
             week_time("pdp", -1); 
+         //   ql_volte_set(0, 0);
             sys_info.pdp_reg = 0;
             pdp_active_info.pdp_is_active = 0;
             sys_info.paltform_connect = 0;
@@ -150,12 +223,11 @@ static void pdp_active_state_machine(void)
                 pdp_active_info.pdp_state  = PDP_START_ACTIVATION;
                 check_pdp_timeout = def_rtos_get_system_tick();
                 hal_drv_set_data_call_asyn_mode(pdp_active_info.profile_idx,1);
-
                 hal_drv_start_data_call(pdp_active_info.profile_idx, sys_config.apn); 
             }
             if((def_rtos_get_system_tick() - check_csq_timeout)/1000 > 30*60) {
                 LOG_E("sys_reset...");
-                sys_reset();
+                MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
             }
         break;
         case PDP_START_ACTIVATION:
@@ -163,8 +235,7 @@ static void pdp_active_state_machine(void)
             memset(ip4_adr_str, 0, sizeof(ip4_adr_str));
             if(hal_drv_get_data_call_res(pdp_active_info.profile_idx,ip4_adr_str)) {
                 pdp_active_info.pdp_state  = PDP_NTP_SYNC;
-            }
-            if((def_rtos_get_system_tick() - check_pdp_timeout)/1000 > 5*60) {
+            } else if((def_rtos_get_system_tick() - check_pdp_timeout)/1000 > 5*60) {
                pdp_active_info.pdp_state  = PDP_ACTIVATION_FAILURE;
             }
         break;
@@ -182,18 +253,79 @@ static void pdp_active_state_machine(void)
             pdp_active_info.pdp_state  = PDP_ACTIVE_DETECT;
             pdp_active_info.pdp_is_active = 1;
             sys_info.pdp_reg = 1; 
-            
+
         break;
         case PDP_ACTIVATION_FAILURE:
-            hal_drv_stop_data_call(pdp_active_info.profile_idx);
-            hal_dev_set_c_fun(MIN_FUN, 0);
             LOG_I("PDP_ACTIVATION_FAILURE");
-            pdp_active_info.pdp_state  = PDP_NOT_ACTIVATED;
+            #if HAND_SELECT_PLMN_ENABLE == 1
+                pdp_active_info.pdp_state = PDP_GET_OPERT_INFO;
+            #else
+                hal_drv_stop_data_call(pdp_active_info.profile_idx);
+                hal_dev_set_c_fun(MIN_FUN, 0);
+                pdp_active_info.pdp_state  = PDP_NOT_ACTIVATED;
+                if(count++>=3) {
+                    MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
+                }
+            #endif
+        break;
+        case PDP_GET_OPERT_INFO:
+            LOG_I("PDP_GET_OPERT_INFO");
+            if(hal_get_plmn_info() == 0) {
+                memset(s_plmn, 0, 9);
+                add_plmn_to_black_table(oper_info.c_plmn);
+                plmn_black_print();
+                pdp_active_info.pdp_state = PDP_HAND_SELELCT_OPERT;
+            } else if(count++ >= 3) {
+                MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
+            } else {
+                def_rtos_task_sleep_s(5);
+            }
+        break;
+        case PDP_HAND_SELELCT_OPERT:
+            LOG_I("PDP_HAND_SELELCT_OPERT");
+            for(int i = 0; i < oper_info.vaild_oper_num; i++) {
+                if(select_plmn(oper_info.v_oper_info[i].plmn) == 0) {
+                    memcpy(s_plmn, oper_info.v_oper_info[i].plmn, 9);
+                    pdp_active_info.pdp_state = PDP_HAND_SW_PLMN;
+                    count = 0;
+                    LOG_I("plmn:%s", s_plmn);
+                    break;
+                } 
+            } 
+            if(strlen(s_plmn) == 0) {
+                MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
+            }  
+        break;
+        case PDP_HAND_SW_PLMN:
+            LOG_I("PDP_HAND_SW_PLMN");
+            if (hal_select_oper(s_plmn) == 0) {
+                pdp_active_info.pdp_state = PDP_NOT_ACTIVATED;
+            } else {
+                if(count++ >= 3) {
+                    count = 0;
+                    add_plmn_to_black_table(s_plmn);
+                    plmn_black_print();
+                    memset(s_plmn, 0, 9);
+                    pdp_active_info.pdp_state = PDP_HAND_SELELCT_OPERT;
+                } else {
+                    def_rtos_task_sleep_s(5);
+                }
+            } 
         break;
         case PDP_ACTIVE_DETECT:
             LOG_I("PDP_ACTIVE_DETECT");
             week_time("pdp", 30);
+            #if 0
+            LOG_I("debug_flag:%d", debug_flag);
+            if(debug_flag++ < 4) {
+                def_rtos_task_sleep_s(20);
+                pdp_active_info.pdp_state = PDP_ACTIVATION_FAILURE;
+                break;
+            }
+            #endif
             hal_drv_pdp_detect_block();
+            count = 0;
+            memset(&black_plmn_info, 0, sizeof(black_plmn_info));
             pdp_active_info.pdp_state = PDP_NOT_ACTIVATED;
         break;
     }
@@ -202,6 +334,7 @@ static void pdp_active_state_machine(void)
 void pdp_active_thread(void *param)
 {
     hal_drv_data_call_register_init();
+    app_system_wait_active();
     while(1) {
     //    LOG_I("IS RUN");
         pdp_active_state_machine();
@@ -228,7 +361,7 @@ void iot_socket_create()
     uint8_t ret;	
     socket_con_info.socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(socket_con_info.socket_fd < 0){
-        LOG_E("socket is erro");
+        LOG_E("socket is error");
         return;
     }
     ret = bind(socket_con_info.socket_fd, (struct sockaddr *)&socket_con_info.local4, sizeof(struct sockaddr));
@@ -485,10 +618,11 @@ void iot_mqtt_state_machine()
                 if(QL_DATACALL_SUCCESS != ql_bind_sim_and_profile(0, 1, &mqtt_con_info.sim_cid)) {
                     LOG_E("MQTT_BIND_SIM_AND_PROFILE FAIL");
                     def_rtos_task_sleep_s(mqtt_bind_time);
-                    if(mqtt_bind_time > 64) {
-                        sys_reset();
-                    }
                     mqtt_bind_time = mqtt_bind_time << 1;
+                    if(mqtt_bind_time > 64) {
+                        MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
+                     //   sys_reset();
+                    }
                 } else {
                     mqtt_bind_time = 1;
                      mqtt_con_info.state = MQTT_CLIENT_INIT;
@@ -498,11 +632,12 @@ void iot_mqtt_state_machine()
             case MQTT_CLIENT_INIT:
                 LOG_I("MQTT_CLIENT_INIT");
                 if(ql_mqtt_client_init(&mqtt_con_info.mqtt_cli, mqtt_con_info.sim_cid) != MQTTCLIENT_SUCCESS) {
-                    LOG_E("MQTT_CLIENT_INIT FAIL:%d", mqtt_client_init_time);
-                    mqtt_client_init_time = mqtt_client_init_time << 1;
+                    LOG_E("MQTT_CLIENT_INIT FAIL:%d", mqtt_client_init_time);        
                     def_rtos_task_sleep_s(mqtt_client_init_time);
+                    mqtt_client_init_time = mqtt_client_init_time << 1;
                     if(mqtt_client_init_time > 64) {
-                        sys_reset();
+                     //   sys_reset();
+                        MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
                     }
                 } else {
                     mqtt_client_init_time = 1;
@@ -567,7 +702,8 @@ void iot_mqtt_state_machine()
                     if(mqtt_connect_ret_time > 512) {
                         mqtt_connect_ret_time = 1;
                     //    if(mqtt_count++ == 3) {
-                            sys_reset();
+                            MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
+                       //     sys_reset();
                     //    }
                     } 
                 }
@@ -623,7 +759,8 @@ void iot_mqtt_state_machine()
                     if(mqtt_client_sub_time > 512) {
                         mqtt_client_sub_time = 0;
                     //    if(mqtt_count++ > 3) {
-                            sys_reset();
+                    //        sys_reset();
+                        MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
                     //    }
                     }
                 }
@@ -656,6 +793,7 @@ void iot_mqtt_init()
 void net_socket_thread(void *param)
 {
     iot_mqtt_init();
+    app_system_wait_active();
     while (1)
     {
         LOG_I("IS RUN");

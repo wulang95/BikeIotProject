@@ -73,6 +73,14 @@ void rtc_event_handler(RTC_EVENT rtc_e)
             imu_algo_timer_start();  /*检测sensor功能*/
             week_time("sensor", 15);
             break;
+        case SYSTEM_REBOOT_EVENT:
+            LOG_I("SYSTEM_REBOOT_EVENT");
+            sys_reset();
+            break;
+        case BAT_CHARGE_TIMEOUT_EVENT:
+            MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_OFF_INDEX);
+            sys_info.charge_full_flag = 1;
+            break;
         default:
             break;
     }

@@ -190,7 +190,7 @@ NET_NW_INFO hal_drv_get_operator_info()
     ql_nw_operator_info_s oper_i;
     ql_nw_reg_status_info_s reg_info;
     ql_nw_signal_strength_info_s pt_info;
-    uint8_t csq;
+    uint8_t csq, d_len = 0,total_len = 0;
     char at_buf[64] = {0};
     static uint8_t last_band = 0xff;
     ql_nw_get_operator_name(0, &oper_i);
@@ -206,15 +206,16 @@ NET_NW_INFO hal_drv_get_operator_info()
     nw_info.rsrp = pt_info.rsrp;
     LOG_I("rsrp:%d", pt_info.rsrp);
     nw_info.bit_error_rate = pt_info.bitErrorRate;
-    for(int i = 0; i < 5; i++) {
-        hal_virt_at_write("AT+QNWINFO\r\n");
+    hal_virt_flush_recv();
+    hal_virt_at_write("AT+QNWINFO\r\n");
   //      hal_virt_at_write("AT+QENG=\"SERVINGCELL\"\r\n");
-        hal_virt_at_read(at_buf, 64, 100);
-        if(strstr(at_buf, "LTE BAND") != NULL){
-            break;
-        }
+    d_len = hal_virt_at_read(at_buf, 64, 2000);
+    total_len += d_len;
+    if(total_len > 0) {
+        d_len = hal_virt_at_recv_buf(&at_buf[total_len], 64 - d_len, 5000);
     }
-    
+    total_len += d_len;
+    LOG_I("at_buf:%s", at_buf);
     if(strstr(at_buf, "LTE BAND 3") != NULL){
         nw_info.fre_band = 0x02;
     } else if(strstr(at_buf, "LTE BAND 1") != NULL) {
@@ -293,4 +294,242 @@ int hal_net_ntp_sync(int pdp_index)
 
     ntp_cli_id = ql_ntp_sync("ntp.aliyun.com", &sync_option, ntp_result_cb, NULL, &error_num);
     return error_num;
+}
+
+
+
+void hal_net_info_print()
+{
+    ql_nw_operator_info_s oper_info;
+    ql_nw_cell_info_s cell_info;
+    ql_nw_get_operator_name(0, &oper_info);
+    LOG_I("mcc:%s, mnc:%s, long_oper_name:%s, short_oper_name:%s", oper_info.mcc, oper_info.mnc,oper_info.long_oper_name, oper_info.short_oper_name);
+    ql_nw_get_cell_info(0, &cell_info);
+    LOG_I("gsm_info_valid:%d, gsm_info_num:%d, lte_info_valid:%d, lte_info_num:%d", cell_info.gsm_info_valid, cell_info.gsm_info_num, cell_info.lte_info_valid, cell_info.lte_info_num);
+    for(int i = 0; i < cell_info.gsm_info_num; i++) {
+        LOG_I("i:%d,mmc:%d,mnc:%d,rssi:%d,flag:%d,arfcn:%d,RX_dBm:%d", i, cell_info.gsm_info[i].mcc, cell_info.gsm_info[i].mnc, cell_info.gsm_info[i].rssi, \
+            cell_info.gsm_info[i].flag, cell_info.gsm_info[i].arfcn, cell_info.gsm_info[i].RX_dBm);
+    }
+    for(int i = 0; i < cell_info.lte_info_num; i++){
+        LOG_I("i:%d, mcc:%d, mnc:%d, rssi:%d, flag:%d, earfcn:%d, RX_dBm:%d", i, cell_info.lte_info[i].mcc, cell_info.lte_info[i].mnc, cell_info.lte_info[i].rssi, \
+        cell_info.lte_info[i].flag, cell_info.lte_info[i].earfcn, cell_info.lte_info[i].RX_dBm);
+    }
+}
+
+struct oper_info_s oper_info;
+
+
+static void hal_plmn_info_print(struct oper_info_s oper_info_t)
+{
+    LOG_I("c_plmn:%s, c_oper_name:%s, vaild_oper_num:%d", oper_info_t.c_plmn, oper_info_t.c_oper_name, oper_info_t.vaild_oper_num);
+    for(int i = 0; i < oper_info_t.vaild_oper_num; i++){
+        LOG_I("index:%d, plmn:%s, oper_name:%s", i, oper_info_t.v_oper_info[i].plmn, oper_info_t.v_oper_info[i].oper_name);
+    }
+}
+
+int hal_plmn_one_prase(char *buf, uint16_t len)
+{
+    char *p = buf, *p1;
+    char data_str[36] = {0};
+    uint8_t v_func = 0;
+    uint8_t step = 0;
+    LOG_I("buf:%s", buf);
+    for(;;) {
+        switch(step){
+            case 0:
+                p1 = strchr(p, ',');
+                if(p1 != NULL){
+                    memcpy(data_str, p, p1 - p);
+                } else {
+                    LOG_E("error");
+                    return -1;
+                }
+                v_func = atoi(data_str);
+                step = 1;
+                p = p1 + 1;
+                memset(data_str, 0, 36);
+            break;
+            case 1:
+                p1 = strchr(p, ',');
+                if(p1 != NULL) {
+                    memcpy(data_str, p, p1 - p);
+                } else {
+                    LOG_E("error");
+                    return -1;
+                }
+                if(v_func == 2) {
+                    memcpy(oper_info.c_oper_name, data_str, strlen(data_str));
+                    oper_info.c_oper_name[strlen(data_str)] = '\0';
+                } else if(v_func == 1) {
+                    memcpy(oper_info.v_oper_info[oper_info.vaild_oper_num].oper_name, data_str, strlen(data_str));
+                    oper_info.v_oper_info[oper_info.vaild_oper_num].oper_name[strlen(data_str)] ='\0';
+                } else {
+                    LOG_E("error");
+                    return -2;
+                }
+                step = 2;
+                p = p1 + 1;
+                memset(data_str, 0, 36);
+            break;
+            case 2:
+                p1 = strchr(p, ',');
+                if(p1 == NULL) {
+                    LOG_E("error");
+                    return -1;
+                } 
+                step = 3;
+                p = p1 + 1;
+                LOG_I("p:%s", p);
+            break;
+            case 3:
+                p1 = strchr(p, ',');
+                if(p1 != NULL){
+                    memcpy(data_str, p, p1 - p);
+                } else {
+                    LOG_E("error");
+                    return -1;
+                }
+                if(v_func == 2) {
+                    memcpy(oper_info.c_plmn, data_str, strlen(data_str));
+                    oper_info.c_plmn[strlen(data_str)] = '\0';
+                } else if(v_func == 1) {
+                    memcpy(oper_info.v_oper_info[oper_info.vaild_oper_num].plmn, data_str, strlen(data_str));
+                    oper_info.v_oper_info[oper_info.vaild_oper_num].plmn[strlen(data_str)] = '\0';
+                    oper_info.vaild_oper_num++;
+                }   
+                return 0; 
+            break;
+        }
+        
+    }
+}
+int hal_plmn_info_prase(char *info, uint16_t total_len)
+{
+    uint8_t step = 0;
+    char buf[64] = {0};
+    uint8_t buf_len = 0;
+
+    char *p = info,*p1 = NULL, *p2 = NULL;
+    LOG_I("info:%s", info);
+    p1 = strchr(p, '(');
+    if(p1 == NULL) {
+        LOG_E("data is error");
+        return -1;
+    }
+    for(;;){
+        switch (step)
+        {
+            case 0:
+                p1 = strchr(p, '(');
+                if(p1 == NULL) {
+                    return 0;
+                }
+                step = 1;
+                p = p1;
+            break;
+            case 1:
+                p2 = strchr(p, ')');
+                if(p2 != NULL) {
+                    buf_len = p2 - (p+1);
+                    if(buf_len >= 64) {
+                        LOG_E("buf err");
+                        return -1;
+                    }
+                    memcpy(buf, p + 1, buf_len);
+                    if(oper_info.vaild_oper_num >= 7) {
+                        return 0;
+                    } else {
+                        if(buf_len >= 18) {
+                            if(hal_plmn_one_prase(buf, buf_len) != 0) {
+                                LOG_E("hal_plmn_one_prase is error");
+                                return -1;
+                            }
+                        }
+                        p = p2;
+                        step = 0;
+                        memset(buf, 0, 64);
+                    }
+                } else {
+                    LOG_E("plmn prase error");
+                    return -1;
+                }
+            break;
+        }  
+        LOG_I("step:%d", step);
+        LOG_I("p:%s", p);
+    }
+}
+
+
+
+int hal_get_plmn_info()
+{
+    int res = 0;
+    char *at_buf =NULL;
+    uint16_t total_len = 0, d_len = 0;
+    at_buf = (char*) malloc(1024);
+    if(at_buf == NULL) {
+        LOG_E("at_buf malloc is error");
+        return -2;
+    }
+    memset(at_buf, 0, 1024);
+    memset(&oper_info, 0, sizeof(oper_info));
+    hal_virt_flush_recv();
+    hal_virt_at_write("AT+COPS=?\r\n");
+    d_len = hal_virt_at_read(at_buf, 1024, 2000);
+    total_len += d_len;
+    if(total_len > 0) {
+        d_len = hal_virt_at_recv_buf(&at_buf[total_len], 1024 - d_len, 180000);
+    }
+    total_len += d_len;
+    if(total_len > 0) {
+        LOG_I("at_buf:%s, ", at_buf);
+        if(hal_plmn_info_prase(at_buf, total_len) == 0){
+            hal_plmn_info_print(oper_info);
+        } else {
+            LOG_E("hal_plmn_info_prase is error");
+            res = -1;
+        }
+    } else {
+        res = -3;
+    }
+   free(at_buf);
+   return res;
+}
+
+
+int hal_select_oper(char *plmn)
+{
+    int res = 0;
+    char buf_str[64] = {0};
+    char *rec_buf;
+    uint16_t d_len, total_len = 0;
+    if(plmn == NULL) {
+        LOG_E("plmn is error");
+        res = -1;
+    }
+    rec_buf = malloc(64);
+    if(rec_buf == NULL) {
+        LOG_E("rec_buf is malloc error");
+        return -3;
+    }
+    hal_virt_flush_recv();
+    sprintf(buf_str, "AT+COPS=1,2,%s\r\n", plmn);
+    hal_virt_at_write(buf_str);
+    d_len = hal_virt_at_read(rec_buf, 64, 2000);
+    total_len += d_len;
+    if(total_len > 0) {
+        d_len = hal_virt_at_recv_buf(&rec_buf[total_len], 64 - d_len, 5000);
+    }
+    total_len += d_len;
+    if(total_len > 0) {
+        LOG_I("rec_buf:%s, ", rec_buf);
+        if(strstr(rec_buf, "OK") == NULL) {
+            res = -2;
+        }
+    } else {
+        res = -3;
+    }
+    free(rec_buf);
+    return res;
 }

@@ -76,6 +76,7 @@ enum {
     BLE_CMD_LOOK_CAR = 0X0110,
     BLE_CMD_Q_CHARGE_POWER = 0X0111,
     BLE_CMD_S_CHARGE_POWER = 0X0112,
+    BLE_CMD_S_IP = 0X0118,
     BLE_CMD_CLEAN_BIND_INFO = 0X0119,
     BLE_CMD_Q_BMS_HEALTH_INFO = 0X011C,
     BLE_CMD_U_BMS_HEALTH_INFO = 0X011D,
@@ -797,6 +798,9 @@ void ble_cmd_opearte_res_up(uint16_t cmd)
     data_len += lenth;
     ble_protocol_data_pack(BLE_CMD_S_APN, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
+    sys_param_save(SYS_CONFIG_ADR);
+    sys_param_save(BACK_SYS_CONFIG_ADR);
+    sys_reset();
 }
 
 static void ble_cmd_set_power_on_password(uint8_t *dat, uint8_t lenth)
@@ -1345,8 +1349,10 @@ static void ble_set_charge_power(uint8_t *dat)
             sys_param_set.bms_charge_current = 8;
         break;
     }
+    SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
     data[data_len++] = dat[0];
-    car_control_cmd(CAR_BMS_CHARGE_CURRENT_SET);
+    if(car_info.quick_charger_det)
+        car_control_cmd(CAR_BMS_CHARGE_CURRENT_SET);
     ble_protocol_data_pack(BLE_CMD_S_CHARGE_POWER, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
 }
@@ -1520,17 +1526,76 @@ static void ble_cmd_bat_charge_sw(uint8_t dat)
     }
     #endif
 }
-
+#if 0
 static void ble_debug_voice_sw(uint8_t dat)
 {
-    #if 0
+    
     if(dat == 0x01){
         voice_play_mark(VOICE_TEST); 
     } else {
         voice_play_off();
     }    
-    #endif
+    
 }
+#endif
+
+static void ble_cmd_active_iot_req(uint8_t dat)
+{
+    uint8_t buf[64], data[64];
+    uint16_t len;
+    uint16_t lenth = 0;
+    if(dat == 0x01) {
+        app_system_active_func();
+        data[lenth++] = 0X01;
+        ble_protocol_data_pack(BLE_CMD_IOT_ACTIVE_REQ_ASK, &data[0], lenth, &buf[0], &len);
+        ble_send_data(buf, len);
+    } else {
+        app_system_deactive_func();
+        data[lenth++] = 0X02;
+        ble_protocol_data_pack(BLE_CMD_IOT_ACTIVE_REQ_ASK, &data[0], lenth, &buf[0], &len);
+        ble_send_data(buf, len);
+    }
+}
+
+static void ble_cmd_set_ip(uint8_t *dat, uint16_t d_len)
+{
+    uint8_t buf[64];
+    uint16_t len;
+    char *url_str = (char *)dat;
+    char *last_colon = NULL, *colon= strchr(url_str, ':');
+    LOG_I("url_str:%s", url_str);
+    while(colon != NULL){
+        last_colon = colon;
+        colon = strchr(colon+1, ':');
+    }
+    if (last_colon == NULL) {
+         LOG_E("error url_str:%s", url_str);
+         return;
+    }
+    size_t str_length = last_colon - url_str;
+    memset(&sys_config.ip, 0, sizeof(sys_config.ip));
+    strncpy(sys_config.ip, url_str, str_length);
+    sys_config.ip[str_length] = '\0';
+
+    const char *int_str = last_colon + 1;
+
+    for(const char *p = int_str; *p != '\0'; p++)
+    {
+        if(*p < '0' || *p > '9')
+        {
+            LOG_E("error int_str:%s", int_str);
+            return;
+        }
+    }
+    sys_config.port = atoi(int_str);
+    LOG_I("ip:%s, port:%d", sys_config.ip, sys_config.port);
+    sys_param_save(SYS_CONFIG_ADR);
+    sys_param_save(BACK_SYS_CONFIG_ADR);
+    ble_protocol_data_pack(BLE_CMD_S_IP, NULL, 0, &buf[0], &len);
+    ble_send_data(buf, len);
+    sys_reset();
+}
+
 void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 {
     uint16_t i = 0;
@@ -1707,7 +1772,10 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
         break;
 
         case BLE_CMD_IOT_ACTIVE_REQ:
-            ble_debug_voice_sw(data[0]);
+            ble_cmd_active_iot_req(data[0]);
+        break;
+        case BLE_CMD_S_IP:
+            ble_cmd_set_ip(data, len);
         break;
         default:
         break;

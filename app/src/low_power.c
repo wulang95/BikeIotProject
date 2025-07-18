@@ -22,6 +22,18 @@ static def_rtos_timer_t low_power_timer;
 static def_rtos_sem_t enter_power_sem; 
 static def_rtos_sem_t exit_power_sem;
 static uint8_t low_power_flag;  //进入低功耗标志， 为1标志进入低功耗
+
+
+void low_power_module_print()
+{
+    uint8_t i;
+    for(i = 0; i < 10; i++) {
+        if(sys_module_table[i].module_str != NULL) {
+            LOG_I("%s:%d", sys_module_table[i].module_str, sys_module_table[i].week_time);
+        }
+    }
+}
+
 int register_module(char *str)
 {
     uint8_t i;

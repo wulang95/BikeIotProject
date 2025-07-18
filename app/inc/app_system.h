@@ -116,6 +116,7 @@ struct sys_param_set_stu {
     uint16_t ota_seq;
     uint8_t navigation_quit_time;
     uint8_t ota_flag;
+    uint8_t sensor_con_err_cnt;  //6轴连续错误次数
     uint32_t crc32;
 };
 
@@ -186,6 +187,7 @@ enum {
     IOT_WAIT_ACTIVE_MODE,   //待激活模式
     IOT_LOW_POWER_MODE, //低功耗模式
     IOT_ACTIVE_MODE,    //激活模式
+    IOT_OTA_MODE,       //OTA模式
 };
 
 enum {
@@ -286,6 +288,9 @@ struct sys_info_stu {
     struct power_adc_calc_stu power_adc;
     uint8_t mache_dft_flag;
     int64_t sys_start_time_t;
+    uint8_t charge_time_flag;
+    uint8_t charge_full_flag;
+    uint8_t sensor_error_flag;
 };
 
 struct sys_set_var_stu{
@@ -349,4 +354,7 @@ void app_system_log_out_thread(void *param);
 void regular_heart_update();
 void flash_ota_close();
 void system_enter_ship_mode(CAR_CMD_Q car_cmd_q);
+void app_system_active_func();
+void app_system_wait_active();
+void app_system_deactive_func();
 #endif

@@ -319,10 +319,12 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
     case CMD_CAN_UNLOCK_CAR:
     break;
     case CMD_MCU_BAT_CHARGE_ON:
+        sys_info.charge_full_flag = 0;
         sys_info.bat_charge_state = BAT_CHARGE_ON;
         LOG_I("CMD_MCU_BAT_CHARGE_ON");
     break;
     case CMD_MCU_BAT_CHARGE_OFF:
+        sys_info.charge_time_flag = 0;
         sys_info.bat_charge_state = BAT_CHARGE_OFF;
         LOG_I("CMD_MCU_BAT_CHARGE_OFF");
     break;
@@ -358,6 +360,10 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
         LOG_I("sys_power_adc:%d", sys_info.power_adc.sys_power_adc);
         LOG_I("temp_adc:%d", sys_info.power_adc.temp_adc);
         sys_info.bat_val = app_get_bat_val();
+        if(sys_info.bat_val >= 4150 && sys_info.charge_full_flag == 0 && sys_info.charge_time_flag == 0 && sys_info.bat_charge_state == BAT_CHARGE_ON) {
+            rtc_event_register(BAT_CHARGE_TIMEOUT_EVENT, 3600*3, 0);
+            sys_info.charge_time_flag = 1;
+        }
         sys_info.bat_soc = app_get_bat_soc(sys_info.bat_val);
         sys_info.battry_val = app_get_sys_power_val();
         app_get_bat_temp_info();

@@ -408,8 +408,10 @@ static void net_engwe_cmdId_real_operate(uint8_t *data, uint16_t len, uint16_t s
         case 0x08:
             if(data[1] == 0x01){   //运输模式
                 system_enter_ship_mode(car_cmd_q);
-            } else if(data[1] == 0x02){   //激活模式
-                
+            } else if(data[1] == 0x02){   //禁用模式
+                app_system_deactive_func();
+                buf_len = net_engwe_cmdId_operate_respos(buf, car_cmd_q.net_car_control, 0x01, 0);
+                net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, buf, buf_len, car_cmd_q.net_car_control.seq); 
             }
         break;
         case 0x09:

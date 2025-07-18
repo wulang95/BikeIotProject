@@ -27,6 +27,20 @@ typedef struct {
     uint8_t bit_error_rate;
 }NET_NW_INFO;
 
+
+struct v_oper_info_s {
+    char oper_name[35];
+    char plmn[9]; 
+};
+
+struct oper_info_s{
+    char c_plmn[9];   //当前用的plmn
+    char c_oper_name[35];  //当前用运营商名称
+    uint8_t vaild_oper_num;  //其它可用运营商数量
+    struct v_oper_info_s v_oper_info[7];  //其它当前可用的运营商信息
+};
+extern struct oper_info_s oper_info;
+
 void hal_drv_get_imei(char *data, uint16_t len);
 void hal_drv_get_iccid(char *data, uint16_t len);
 void hal_drv_get_signal(uint8_t *csq);
@@ -44,9 +58,9 @@ void hal_drv_pdp_detect_block();
 NET_NW_INFO hal_drv_get_operator_info();
 int hal_net_ntp_sync(int pdpd_index);
 void hal_drv_stop_data_call(int pdp_index);
-
-
-
+void hal_net_info_print();
+int hal_get_plmn_info();
+int hal_select_oper(char *plmn);
 
 
 

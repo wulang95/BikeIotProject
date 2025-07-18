@@ -28,6 +28,10 @@ NET_NW_INFO nw_info;
 int ota_fd;
 uint16_t shock_cent;
 uint64_t shock_time_out;
+def_rtos_task_t app_system_task = NULL;
+static def_rtos_timer_t system_timer;
+static def_rtos_sem_t system_task_sem;
+static def_rtos_sem_t system_active_sem;
 
 void assert_handler(const char *ex_string, const char *func, size_t line)
 {
@@ -407,12 +411,12 @@ static void sys_param_set_default_init()
     sys_param_set.ota_cnt = 0;
     SETBIT(sys_param_set.net_heart_sw, LOCK_HEART_SW);
     SETBIT(sys_param_set.net_heart_sw, UNLOCK_HEART_SW);
-    sys_param_set.alive_flag = 1;
+    sys_param_set.alive_flag = 0;
     sys_param_set.net_engwe_offline_opearte_push_cmdId = OFFLINE_OPERATE_PUSH_DEFAULT;
     sys_param_set.net_engwe_state_push_cmdId = STATE_PUSH_DEFAULT;
     sys_param_set.unlock_car_heart_interval = 10;
     sys_param_set.net_heart_interval = 300;
-    sys_param_set.lock_car_heart_interval = 900;
+    sys_param_set.lock_car_heart_interval = 240;
     sys_param_set.internal_battry_work_interval = 3600;
     sys_param_set.lock_car_heart2_interval = 100;
     sys_param_set.unlock_car_heart2_interval = 10;
@@ -430,6 +434,7 @@ static void sys_param_set_default_init()
 
 static void sys_param_set_init()
 {
+    memset(&sys_param_set, 0, sizeof(sys_param_set));
     flash_partition_read(SYS_SET_ADR, (void *)&sys_param_set, sizeof(sys_param_set), 0);
     if(sys_param_set.magic != IOT_MAGIC || sys_param_set.crc32 != GetCrc32((uint8_t *)&sys_param_set, sizeof(sys_param_set) - 4)) {
         sys_param_set_default_init();
@@ -437,6 +442,7 @@ static void sys_param_set_init()
     }
     LOG_I("ota_cnt:%d", sys_param_set.ota_cnt);
 }
+
 
 static void sheepfang_data_init()
 {
@@ -540,9 +546,7 @@ void sys_config_init()
     LOG_I("APN:%s, DSN:%s, IP:%s, PORT:%d", sys_config.apn, sys_config.DSN, sys_config.ip, sys_config.port);
 }
 
-def_rtos_task_t app_system_task = NULL;
-def_rtos_timer_t system_timer;
-def_rtos_sem_t system_task_sem;
+
 
 
 /*心跳设置和状态改变时调用*/
@@ -608,8 +612,40 @@ int sys_mode_reinit(uint8_t mode)
     return 1;
 }
 
+void app_system_active_func()
+{
+    if(sys_param_set.alive_flag == 1) return;
+    sys_param_set.alive_flag = 1;
+    sys_info.iot_mode = IOT_ACTIVE_MODE;
+    if (sys_info.led_type_cur == LED_WAIT_ALIVE)
+        app_set_led_ind(LED_ALL_OFF);
+    SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
+    def_rtos_smaphore_release(system_active_sem);  //使用一个等待事件，需要释放一次
+    def_rtos_smaphore_release(system_active_sem);
+}
+
+void app_system_wait_active()
+{
+    def_rtosStaus res;
+    while(1){
+        res = def_rtos_semaphore_wait(system_active_sem, RTOS_WAIT_FOREVER);
+        if(res != RTOS_SUCEESS) {
+            continue;
+        } else {
+            break;
+        }
+        LOG_I("app_system_wait_active");
+        def_rtos_task_sleep_ms(500);
+    }
+}
 
 
+void app_system_deactive_func()
+{
+    sys_param_set.alive_flag = 0;
+    SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
+    rtc_event_register(SYSTEM_REBOOT_EVENT, 120, 0);
+}
  
 void app_system_thread(void *param)
 {
@@ -620,16 +656,17 @@ void app_system_thread(void *param)
     int64_t trace_time_t = 0;
     uint8_t TEMP = 0;
     ble_heart_time_t = def_rtos_get_system_tick();
-    if(sys_param_set.alive_flag) {  //已激活
-        sys_info.iot_mode = IOT_ACTIVE_MODE;
-    } else {    //未激活
+    LOG_I("sys_param_set.alive_flag:%d", sys_param_set.alive_flag);
+    if(sys_param_set.alive_flag == 0) {  //未激活
         app_set_led_ind(LED_WAIT_ALIVE);
-        if(sys_info.power_36v == 0) {
-            if(sys_info.ble_connect == 0) {
-                week_time("ble", 300);  //5分钟后休眠
-            }
-        }
+        sys_info.iot_mode = IOT_WAIT_ACTIVE_MODE;
+        LOG_I("wait active");
+    } else {
+        def_rtos_smaphore_release(system_active_sem); //两个等待事件，需要释放2次
+        def_rtos_smaphore_release(system_active_sem);
+        sys_info.iot_mode = IOT_ACTIVE_MODE;
     }
+
     while (1)
     {
   //      LOG_I("IS RUN");
@@ -651,6 +688,11 @@ void app_system_thread(void *param)
             SETBIT(sys_info.mode_reinit_flag, BLE_MODEL);
         }
 
+        if(iot_error_check(IOT_ERROR_TYPE, SENSOR_ERROR) == 1 && sys_info.sensor_error_flag == 0) {
+            SETBIT(sys_info.mode_reinit_flag, SENSOR_MODEL);
+            sys_info.sensor_init = 0;
+        }
+
         if(CHECKBIT(sys_info.mode_reinit_flag, GPS_MODEL)) {
             if(sys_mode_reinit(GPS_MODEL) == 0) {
                 CLEARBIT(sys_info.mode_reinit_flag, GPS_MODEL);
@@ -663,11 +705,11 @@ void app_system_thread(void *param)
             }
         }
 
-        // if(CHECKBIT(sys_info.mode_reinit_flag, SENSOR_MODEL)) {
-        //     if(sys_mode_reinit(SENSOR_MODEL) == 0) {
-        //         CLEARBIT(sys_info.mode_reinit_flag, SENSOR_MODEL);
-        //     }
-        // }
+        if(CHECKBIT(sys_info.mode_reinit_flag, SENSOR_MODEL)) {
+            if(sys_mode_reinit(SENSOR_MODEL) == 0) {
+                CLEARBIT(sys_info.mode_reinit_flag, SENSOR_MODEL);
+            }
+        }
 
         /*报错推送*/
         if(sys_info.last_car_error != sys_info.car_error || sys_info.iot_error != sys_info.last_iot_error) {
@@ -701,8 +743,10 @@ void app_system_thread(void *param)
             }
         }
         if(def_rtos_get_system_tick() - csq_time_t > 10*1000) {
-            net_update_singal_csq();
-            nw_info = hal_drv_get_operator_info();
+            low_power_module_print();
+        //    net_update_singal_csq();
+       //     hal_net_info_print();
+         //   nw_info = hal_drv_get_operator_info();
             LOG_I("MCC:%d, mnc:%d, lac:%d, cid:%d", nw_info.mcc, nw_info.mnc, nw_info.lac, nw_info.cid);
             LOG_I("net_state:%d, act:%d, rsrp:%d, bit_error_rate:%d", nw_info.net_state, nw_info.act, nw_info.rsrp, nw_info.bit_error_rate);
             csq_time_t = def_rtos_get_system_tick();
@@ -767,17 +811,11 @@ void app_system_thread(void *param)
                     ble_info_up_time_t = def_rtos_get_system_tick();
                 }
             }   
-        } else if(sys_info.ble_connect == 1) {   
-            if(sys_param_set.alive_flag == 0) {  //未激活
-                if(sys_info.power_36v == 0) {
-                    week_time("ble", 300);  //5分钟后休眠
-                }
-            } else {
-                week_time("ble", 60);   
-            }
-            sys_info.ble_log_sw = 0;
+        } else if(sys_info.ble_connect == 1){
+            week_time("ble", 60);
             sys_info.ble_connect = 0;
-            LOG_I("BLE DISCONNECT!");
+            sys_info.ble_log_sw = 0;
+            LOG_I("BLE disconnect");
         }
 
         if(hal_drv_read_gpio_value(I_36VPOWER_DET) == 1 && sys_info.power_36v == 1) {    //36V电源检测
@@ -863,7 +901,7 @@ void app_system_thread(void *param)
             car_info.last_headlight_sta = car_info.headlight_sta;
         }  
         /*====================震动检测========================*/
-        if(car_info.lock_sta == CAR_LOCK_STA && (sys_info.ota_flag == 0)) {
+        if(car_info.lock_sta == CAR_LOCK_STA && (sys_info.ota_flag == 0) && sys_param_set.alive_flag == 1) {
             if(car_info.move_alarm && car_info.car_lock_state == CAR_LOCK_STILL) {
                 car_info.move_alarm = 0;
                 car_info.car_lock_state = CAR_LOCK_TO_SHOCK;
@@ -1059,6 +1097,9 @@ void sys_param_init()
     sys_info.adc_charge_get_interval = 30*60; 
     sys_info.adc_discharge_get_interval = 60*60; 
     sys_info.shock_sw_state = sys_param_set.shock_sw;
+    if(sys_param_set.sensor_con_err_cnt >= 3){
+        sys_info.sensor_error_flag = 1;
+    }
     LOG_I("OTA_CNT:%d", sys_param_set.ota_cnt);   
 }
 
@@ -1111,12 +1152,14 @@ void app_sys_init()
     week_time("sys", 30); 
     shock_cent = 0;
     def_rtos_semaphore_create(&log_sem_t, 0);
-    
+    def_rtos_semaphore_create(&system_active_sem, 0);
    // sys_info.static_cali_flag = 1;
   //   app_set_led_ind(LED_TEST);
     rtc_event_register(BAT_MCU_ADC_GET_EVENT, BMS_DISCHARGE_RTC_CHECK_TIME, 1);
     rtc_event_register(NET_HEART_EVENT, sys_param_set.net_heart_interval, 1);
-  //  rtc_event_register(SENSOR_CHECK_EVENT, SENSOR_FUNC_RTC_CHECK_TIME, 1);  /*2小时检测一次传感器*/
+    if(sys_info.sensor_error_flag == 0){
+        rtc_event_register(SENSOR_CHECK_EVENT, SENSOR_FUNC_RTC_CHECK_TIME, 1);  /*2小时检测一次传感器*/
+    }
     def_rtos_semaphore_create(&system_task_sem, 0);
     def_rtos_timer_create(&system_timer, app_system_task, system_timer_fun, NULL);
     def_rtos_timer_start(system_timer, 1000, 1);

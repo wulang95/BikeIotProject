@@ -339,6 +339,8 @@ void imu_algo_thread(void *param)
         def_rtos_timer_start(algo_timer, 50, 1);
         sys_info.algo_timer_run = 1;
         sys_info.sensor_init = 1;
+        sys_param_set.sensor_con_err_cnt = 0;
+        SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
     }
     VibrationDetector* detector = init_vibration_detector(
         0.8f,   // 加速度阈值 (m/s²)
@@ -357,7 +359,6 @@ void imu_algo_thread(void *param)
 		if(memcmp(accl, last_accl, 3) == 0) {
 			if(++cent == 15 && (iot_error_check(IOT_ERROR_TYPE, SENSOR_ERROR) == 0)) {
 				iot_error_set(IOT_ERROR_TYPE, SENSOR_ERROR);
-                SETBIT(sys_info.mode_reinit_flag, SENSOR_MODEL);
 				cent = 0;
 			}
             LOG_I("cent:%d", cent);
@@ -435,32 +436,8 @@ void app_sensor_init()
 
 int app_sensor_reinit()
 {
-    static uint8_t step = 0;
-    int res;
-    switch(step){
-        case 0:
-            imu_algo_timer_stop();
-  //          hal_drv_iic_release();
-            hal_drv_write_gpio_value(SENSOR_POWER, LOW_L);
-            LOG_I("SENSOR_POWER OFF");
-            step = 1;
-        break;
-        case 1:
-            LOG_I("SENSOR_POWER ON");
-            hal_drv_write_gpio_value(SENSOR_POWER, HIGH_L);
-            step = 2;
-        break;
-        case 2:
-            if(qmi8658_init() == 1){
-                iot_error_clean(IOT_ERROR_TYPE, SENSOR_ERROR);
-                res = 0;
-            } else {
-                hal_drv_write_gpio_value(SENSOR_POWER, LOW_L);
-                res = 1;
-            }
-            step = 0;
-            return res;
-        break;
-    }
-    return 1;
+    sys_param_set.sensor_con_err_cnt++;
+    sys_param_save(SYS_SET_ADR);
+    MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);  //cat1断电重启
+    return 0;
 }

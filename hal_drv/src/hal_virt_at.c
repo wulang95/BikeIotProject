@@ -18,6 +18,14 @@ struct rt_ringbuffer *virtAt_Ringbuf;
 def_rtos_sem_t virtAt_sem;
 #define VIRT_RINGBUG_LEN      256
 
+void hal_virt_flush_recv()
+{   
+    char c;
+    while(hal_virt_at_read(&c, 1, 1)) {
+        ;
+    }
+}
+
 uint16_t hal_virt_at_read(char *buf, uint16_t len, uint32_t timeout)
 {
     uint16_t buf_len, read_len;
@@ -62,6 +70,7 @@ void hal_virt_at_init()
     LOG_I("ql_virt_at_open is success");
 }
 
+
 int hal_virt_at_write(char *buf)
 {
     def_rtosStaus res = RTOS_SUCEESS;
@@ -75,4 +84,20 @@ int hal_virt_at_write(char *buf)
     return 0;
 }
 
-
+uint16_t hal_virt_at_recv_buf(char *buf, uint16_t len, uint32_t timeout)
+{
+    uint16_t buf_len = 0,total_len = 0, relen;
+    buf_len = hal_virt_at_read(buf, len, timeout);
+    relen = len - buf_len;
+    total_len += buf_len;
+    while(relen > 0) {
+        buf_len = hal_virt_at_read(&buf[total_len], relen, 3);
+        if(buf_len == 0) {
+            return total_len;
+        } else {
+            total_len += buf_len;
+        }
+        relen -= buf_len;
+    }
+    return total_len;
+}
