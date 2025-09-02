@@ -188,6 +188,7 @@ enum {
     CMD_BMS_DISCHARGE_SW,
     CMD_DOUBLE_BMS_WORK_MODE,
     CMD_CHARGE_POWER,
+    CMD_PASS_ON_QUERY,
     CMD_MAX,
 };
 
@@ -255,12 +256,12 @@ void iot_can_state2_fun();
 void iot_can_navigation_data();
 void iot_quit_navigation();
 void iot_en_power_on_passwd();
-
-
-
-
-
-
+void mache_dft_adv_task();
+void dft_item_test();
+void mache_dft_clcy_get_info();
+void car_info_debug();
+void car_get_config_info(uint8_t cmd, uint8_t direct);
+void car_ver_query();
 
 
 

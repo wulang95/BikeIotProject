@@ -113,14 +113,7 @@ static void exit_lower_power()
     {
         LOG_E("failed to set auto sleep");
     }
-    if(sys_param_set.alive_flag == 1) {
-        sys_info.iot_mode = IOT_ACTIVE_MODE;
-    } else {
-        sys_info.iot_mode = IOT_WAIT_ACTIVE_MODE;
-    }
-    if(sys_info.iot_error != 0) {
-        app_set_led_ind(LED_SYS_FAULT);
-    }
+
     ble_cmd_mark(BLE_GET_MAC_INDEX);
 
     hal_drv_gpio_init(O_RED_IND, IO_OUTPUT, PULL_NONE_MODE, LOW_L);
@@ -135,6 +128,15 @@ static void exit_lower_power()
     hal_drv_write_gpio_value(O_BLE_WEEK_SIG, HIGH_L);  /*出现蓝牙无法从低功耗唤醒，使用*/
     ble_heart_time_t = def_rtos_get_system_tick();
     system_timer_start();   
+    if(sys_param_set.alive_flag == 1) {
+        sys_info.iot_mode = IOT_ACTIVE_MODE;
+    } else {
+        sys_info.iot_mode = IOT_WAIT_ACTIVE_MODE;
+        app_set_led_ind(LED_WAIT_ALIVE);
+    }
+    if(sys_info.iot_error != 0) {
+        app_set_led_ind(LED_SYS_FAULT);
+    } 
 }
 
 void low_power_thread(void *param)

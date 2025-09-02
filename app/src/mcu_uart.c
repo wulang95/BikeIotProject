@@ -17,7 +17,7 @@ def_rtos_queue_t can_rcv_que;
 def_rtos_queue_t mcu_cmd_que;
 
 uint8_t mcu_cmd_table[CMD_INDEX_MAX] = {0X0C, 0X0E, 0X0D, 0x0f, 0x0b, 0x0a, 0x09, 0X08, 0X07, 0X06, 0X05, 0X04, 0x03, 0x10, 0x11, 0x12, 0X13,\
-0X14, 0X15, 0X16, 0x17, 0x18, 0x19, 0x1a, 0x1B};
+0X14, 0X15, 0X16, 0x17, 0x18, 0x19, 0x1a, 0x1B, 0X1C, 0X1D};
 struct mcu_cmd_order_stu {
     uint8_t need_ask;
     uint16_t rely_timeout;
@@ -50,6 +50,8 @@ struct mcu_cmd_order_stu mcu_cmd_order_table[CMD_INDEX_MAX] = {
     {true,      1000,       3},     //CMD_MCU_BAT_CHARGE_ON  0X19
     {true,      1000,       3},     //CMD_MCU_BAT_CHARGE_OFF  0X1A
     {false,     0,          0},     //CMD_MCU_WEEK  0X1B
+    {true,      1000,       3},     //CMD_GPS_VER  0X1C
+    {true,      1000,       3},     //CMD_MCU_SYS_POER_STATE
 };
 
 
@@ -366,11 +368,23 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
         }
         sys_info.bat_soc = app_get_bat_soc(sys_info.bat_val);
         sys_info.battry_val = app_get_sys_power_val();
-        app_get_bat_temp_info();
+        app_get_bat_temp_info();        
         LOG_I("bat_val:%d, bat_soc:%d, battry_val:%d", sys_info.bat_val, sys_info.bat_soc, sys_info.battry_val);
     break;
     case CMD_MCU_WEEK:
         MCU_CMD_MARK(CMD_MCU_WEEK_INDEX);
+        break;
+    case CMD_GPS_VER:
+        memset(sys_info.gps_ver, 0, sizeof(sys_info.gps_ver));  
+        if(data_len > 5) {
+            memcpy(sys_info.gps_ver, data, data_len);
+        } 
+        LOG_I("GPS_VER:%s", sys_info.gps_ver);
+        break;
+    case CMD_MCU_SYS_POWER_STATE:
+        sys_info.mcu_sys_power_state = data[0];
+        LOG_I("CMD_MCU_SYS_POWER_STATE:%d", sys_info.mcu_sys_power_state);
+    break;
     default:
         break;
     }
@@ -525,6 +539,8 @@ void mcu_uart_init()
     MCU_CMD_MARK(CMD_CAN_OTA_END_INDEX);
     MCU_CMD_MARK(CMD_MCU_VER_INDEX);
     MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_OFF_INDEX);
+    MCU_CMD_MARK(CMD_GPS_VER_INDEX);
+    MCU_CMD_MARK(CMD_GPS_POWEROFF_INDEX);
     GPS_Init();
     LOG_I("mcu_uart_init is ok");
 }

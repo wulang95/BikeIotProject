@@ -1,15 +1,15 @@
 #include "app_system.h"
 #include "hal_drv_net.h"
 #include "sockets.h"
-#include "lwip/ip_addr.h"
-#include "lwip/ip6_addr.h"
-#include "lwip/netdb.h"
-#include "lwip/netif.h"
-#include "lwip/inet.h"
-#include "lwip/tcp.h"
+// #include "lwip/ip_addr.h"
+// #include "lwip/ip6_addr.h"
+// #include "lwip/netdb.h"
+// #include "lwip/netif.h"
+// #include "lwip/inet.h"
+// #include "lwip/tcp.h"
 #include "ql_mqttclient.h"
 #include "ql_api_datacall.h"
-
+#include "ql_ssl.h"
 #define DBG_TAG         "net_control"
 
 #ifdef NET_CONTROL_DEBUG
@@ -104,8 +104,7 @@ enum {
     MQTT_UNSUB_RES,
     MQTT_DISCONNECT,
 };
-
-
+#define USE_CRT_BUFFER 1
 
 void net_control_init()
 {
@@ -372,7 +371,7 @@ void iot_socket_create()
     }
     socket_con_info.socket_state = SOCKET_STATUS_CONNECTTING;
 }
-
+/*
 void iot_socket_connect()
 {
     uint8_t ret;
@@ -402,7 +401,7 @@ void iot_socket_connect()
     def_rtos_task_sleep_s(socket_connect_delay);
     socket_connect_delay = socket_connect_delay << 1;
 }
-
+*/
 void net_socket_send(uint8_t *data, uint16_t len)
 {
     debug_data_printf("net_send", data, len);
@@ -584,7 +583,7 @@ void iot_mqtt_public(const uint8_t *data, uint16_t len)
     }
     LOG_I("pub_topic:%s", mqtt_con_info.pub_topic);
     debug_data_printf("pub_data", data, len);
-    ql_mqtt_publish(&mqtt_con_info.mqtt_cli, mqtt_con_info.pub_topic, (void *)data, len, sys_config.mqtt_qos, 0, iot_mqtt_pub_result_cb, NULL);
+    ql_mqtt_publish(&mqtt_con_info.mqtt_cli, mqtt_con_info.pub_topic, (void *)data, len, sys_config.mqtt_qos, 1, iot_mqtt_pub_result_cb, NULL);
 }
 
 static void iot_mqtt_inpub_data_cb(mqtt_client_t *client, void *arg, int pkt_id, const char *topic, const unsigned char *payload, unsigned short payload_len)
@@ -595,7 +594,7 @@ static void iot_mqtt_inpub_data_cb(mqtt_client_t *client, void *arg, int pkt_id,
     net_engwe_data_parse((uint8_t *)payload, payload_len);
 }
 
-
+#define  MQTT_SSL_ENABLE   0
 void iot_mqtt_state_machine()
 {
     static uint32_t mqtt_bind_time = 1;
@@ -669,6 +668,32 @@ void iot_mqtt_state_machine()
                 mqtt_con_info.client_info.client_user = sys_config.mqtt_client_user;
                 mqtt_con_info.client_info.client_pass = sys_config.mqtt_client_pass;
                 mqtt_con_info.client_info.ssl_cfg = NULL;
+                #if defined(MQTT_SSL_ENABLE) && (MQTT_SSL_ENABLE == 1)
+                    struct mqtt_ssl_config_t quectel_ssl_cfg = {
+                    .ssl_ctx_id = 1,
+                     #if USE_CRT_BUFFER   
+                    .verify_level = MQTT_SSL_VERIFY_NONE,
+                    .cacert_path = "UFS:dev-mqtt.engweapp.cn.crt",
+                    .client_cert_path = NULL,
+                    .client_key_path = NULL,
+                    .client_key_pwd = NULL,
+                    #else
+                    .verify_level = MQTT_SSL_VERIFY_NONE,
+                    .cacert_path = NULL,
+                    .client_cert_path = NULL,
+                    .client_key_path = NULL,
+                    #endif
+
+                    
+                    .ssl_version = QL_SSL_VERSION_ALL,
+                    .sni_enable = 0,
+                    .ssl_negotiate_timeout = QL_SSL_NEGOTIATE_TIME_DEF,
+                    .ignore_invalid_certsign = 0,
+                    .ignore_multi_certchain_verify = 0,
+                    .ignore_certitem = MBEDTLS_X509_BADCERT_NOT_TRUSTED|MBEDTLS_X509_BADCERT_EXPIRED|MBEDTLS_X509_BADCERT_FUTURE,
+                    };
+                    mqtt_con_info.client_info.ssl_cfg = &quectel_ssl_cfg;
+                #endif
                 sprintf(mqtt_con_info.pub_topic, "%s%s", sys_config.mqtt_pub_topic, gsm_info.imei);
                 if(mqtt_con_info.url == NULL) {
                     mqtt_con_info.url = malloc(256);
@@ -735,6 +760,7 @@ void iot_mqtt_state_machine()
                     // }
                     mqtt_con_info.state = MQTT_CONNECT_DET;
                     net_engwe_signed();
+                    net_engwe_cmd_push(CONFIG_FEEDBACK_UP, 0x00000400);
                 //    检测OTA成功 版本不一样说明更新成功
                     LOG_I("last_ver:%s, cur_ver:%s", sys_config.soft_ver, SOFTVER);
                     if(sys_param_set.ota_flag == 1){

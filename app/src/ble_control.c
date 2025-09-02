@@ -548,6 +548,11 @@ void ble_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t len)
             ble_info.mac[4] = data[1];
             ble_info.mac[5] = data[0];
             sprintf(ble_info.mac_str, "%02X:%02X:%02X:%02X:%02X:%02X", ble_info.mac[0], ble_info.mac[1], ble_info.mac[2], ble_info.mac[3], ble_info.mac[4], ble_info.mac[5]);
+            if(memcmp(sys_config.mac_str, ble_info.mac_str, strlen(ble_info.mac_str)) != 0){
+                memset(sys_config.mac_str, 0, sizeof(sys_config.mac_str));
+                memcpy(sys_config.mac_str, ble_info.mac_str, strlen(ble_info.mac_str));
+                SETBIT(sys_set_var.sys_updata_falg, SYS_CONFIG_SAVE);
+            }
             sprintf(ble_info.ble_name, "%s-%02X", BLE_NAME, ble_info.mac[5]);
             LOG_I("BLE_MAC_STR:%s", ble_info.mac_str);
             LOG_I("BLE_NAME:%s", ble_info.ble_name);
@@ -675,33 +680,36 @@ static void ble_power_init()
     ble_info.init = 0;
     hal_drv_write_gpio_value(O_BLE_POWER, HIGH_L);
     for(i = 0; i < 3; i++) {
-        def_rtos_task_sleep_ms(10);
+        def_rtos_task_sleep_ms(3);
         len = hal_drv_uart_read(BLE_UART, (uint8_t *)buf, 24, 300);
         if(len) {
             LOG_I("%s", buf);
             p = strstr(buf, "mac:");
             if(p) {
                 HexSrt_To_Value(ble_info.mac, p+4, 12);
-                ble_info.init = 1;
                 break;
             }
-        } else {
-            hal_drv_write_gpio_value(O_BLE_POWER, LOW_L);
-            LOG_E("ble init recv fail count:%d", i);
-            def_rtos_task_sleep_ms(2000);
-        }
+        }     
+        hal_drv_write_gpio_value(O_BLE_POWER, LOW_L);   
+        LOG_E("ble init recv fail count:%d", i);
+        def_rtos_task_sleep_ms(5000);
         hal_drv_write_gpio_value(O_BLE_POWER, HIGH_L);
-        def_rtos_task_sleep_ms(15000);
+        def_rtos_task_sleep_ms(3000);
         ble_heart_time_t = def_rtos_get_system_tick();
     }
-    if(ble_info.init != 1) {
-        iot_error_set(IOT_ERROR_TYPE, BLE_ERROR);
-        LOG_E("ble init fail");
-        return;
-    } 
+    ble_info.init = 1;
+    if(i == 3) return;
     sprintf(ble_info.mac_str, "%02X:%02X:%02X:%02X:%02X:%02X", ble_info.mac[0], ble_info.mac[1], ble_info.mac[2], ble_info.mac[3], ble_info.mac[4], ble_info.mac[5]);
+    if(memcmp(sys_config.mac_str, ble_info.mac_str, strlen(ble_info.mac_str)) != 0){
+        memset(sys_config.mac_str, 0, sizeof(sys_config.mac_str));
+        memcpy(sys_config.mac_str, ble_info.mac_str, strlen(ble_info.mac_str));
+        SETBIT(sys_set_var.sys_updata_falg, SYS_CONFIG_SAVE);
+    }
     sprintf(ble_info.ble_name, "%s-%02X", BLE_NAME, ble_info.mac[5]);
+    LOG_I("ble_info.mac_str:%s", ble_info.mac_str);
+    LOG_I("ble_info.ble_name:%s", ble_info.ble_name);
 } 
+
 
 int ble_reinit()
 {
@@ -752,6 +760,7 @@ void ble_control_init()
     memset(&ble_info, 0, sizeof(ble_info));
     ble_power_init();
     ble_param_init();
+    ble_cmd_mark(BLE_GET_MAC_INDEX);
     ble_cmd_mark(BLE_GET_VER_INDEX);
     LOG_I("ble_control_init is ok");
 }

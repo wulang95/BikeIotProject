@@ -66,10 +66,12 @@ static int isInner_polygon(Point p, Point *Poly, int num)  //多边形禁区
 }
 
 
+
 void electron_fence_test()
 {
     Point p_t = {25, 160};
     Point p1 = {0,110.12}, p2 = {0, 111.12};
+  //  Point cur_p = {114.068687, 22.657007};
     double dst;
     int res;
     res = isInner_polygon(p_t, test_p, 5);
@@ -78,7 +80,6 @@ void electron_fence_test()
     LOG_I("RES:%d", res);
     dst = get_distance(p1, p2);
     LOG_I("DISTANCE:%0.2f", dst);
-
 }
 
 double Convert_LngLat(double val)
@@ -108,22 +109,22 @@ int Convert_LonLat(GPS_DATA *gps_data)
     dec_p = strchr(str[0], '.');
     if(dec_p == NULL)return FAIL;
     
-    lon = strtod(str[0], NULL);
-    degree = (lon - (int)(lon/100)*100) /60.0;
-    lon = (int)(lon/100)+ degree;
-    if(str[1][0] == 'S'){
-        gps_data->Longitude = -lon;
-    } else {
-        gps_data->Longitude = lon;
-    }
-
-    lat = strtod(str[2], NULL);
+    lat = strtod(str[0], NULL);
     degree = (lat - (int)(lat/100)*100) /60.0;
     lat = (int)(lat/100)+ degree;
-    if(str[3][0] == 'W') {
+    if(str[1][0] == 'S'){
         gps_data->Latitude = -lat;
-    } else{
+    } else {
         gps_data->Latitude = lat;
+    }
+
+    lon = strtod(str[2], NULL);
+    degree = (lon - (int)(lon/100)*100) /60.0;
+    lon = (int)(lon/100)+ degree;
+    if(str[3][0] == 'W') {
+        gps_data->Longitude = -lon;
+    } else{
+        gps_data->Longitude = lon;
     }
     LOG_I("lon:%f, lat:%f", gps_data->Longitude, gps_data->Latitude);
     return OK;
@@ -147,6 +148,7 @@ void gps_data_trans(uint8_t *data, uint16_t len)
 {
     rt_ringbuffer_put(GPS_Ringbuf, data, len);
     if(strstr((char *)data, "RMC")) {
+//    if(strstr((char *)data, "GSV")) {
         def_rtos_smaphore_release(gps_sem);
     }
 }
@@ -379,6 +381,7 @@ uint8_t  GPS_GGA_Proces(char *Data, GPS_DATA  *pGpsData)
                 if((DataLen > 8) || (GPS_Number_Cheek(Buf) != OK)) 
                     return FAIL;
                 pGpsData->high = strtod(Buf, NULL);
+                LOG_I("pGpsData->high:%f", pGpsData->high);
                 strcpy(pGpsData->SeaLevelH, Buf);
                 strcat(pGpsData->SeaLevelH, ",");
                 break;
@@ -468,7 +471,7 @@ uint8_t GPS_Data_Proces(char *data, uint16_t len)
             // LOG_I("Time2:%s", GDataTemp.Time2);
             // LOG_I("Mode:%s", GDataTemp.Mode);
             // LOG_I("Ground_speed:%s", GDataTemp.Ground_speed);
-            // LOG_I("Yaw:%s", GDataTemp.Yaw);
+          //   LOG_I("Yaw:%s", GDataTemp.Yaw);
 		}
     } 
     start = strstr(data, "GGA");
@@ -483,8 +486,8 @@ uint8_t GPS_Data_Proces(char *data, uint16_t len)
             memcpy(GData.SateNumStr, GDataTemp.SateNumStr, sizeof(GData.SateNumStr));
             memcpy(GData.HDOP, GDataTemp.HDOP, sizeof(GData.HDOP));
             memcpy(GData.SeaLevelH, GDataTemp.SeaLevelH, sizeof(GData.SeaLevelH));
-
-            // LOG_I("**********RT_OK***********");
+            GData.high = GDataTemp.high;
+            LOG_I("**********RT_OK***********");
             // LOG_I("GPSValidFlag:%d", GDataTemp.GPSValidFlag);
             // LOG_I("Time1:%s", GDataTemp.Time1);
             // LOG_I("LatLongData:%s", GDataTemp.LatLongData);
@@ -592,7 +595,8 @@ static void GPS_Composite_PosData(uint8_t gps_updateflag)
         }
         Gps.direction = (uint16_t)(strtod(GpsDataBuf.Yaw, NULL)*10.0);
         LOG_I("direction:%d", Gps.direction);
-        Gps.high = (uint16_t)GpsDataBuf.high;
+        Gps.high = (int16_t)GpsDataBuf.high;
+        LOG_I("Gps.high :%d", Gps.high);
         Gps.Lat = GpsDataBuf.Latitude*1000000;
         Gps.Long = GpsDataBuf.Longitude*1000000;
         LOG_I("statenum:%d", Gps.SateNum);
@@ -607,13 +611,13 @@ static void GPS_Composite_PosData(uint8_t gps_updateflag)
         }
         Gps.direction = (uint16_t)(strtod(GpsDataBuf_update.Yaw, NULL)*10.0);
         LOG_I("direction:%d", Gps.direction);
-        Gps.high = (uint16_t)GpsDataBuf_update.high;
+        Gps.high = (int16_t)GpsDataBuf_update.high;
+        LOG_I("Gps.high :%d", Gps.high);
         Gps.Lat = GpsDataBuf_update.Latitude*1000000;
         Gps.Long = GpsDataBuf_update.Longitude*1000000;
+        LOG_I("Gps.Lat:%d,Gps.Long:%d", Gps.Lat,Gps.Long);
         LOG_I("statenum:%d", Gps.SateNum);
     }
-    
-    
     #endif
 }
 
@@ -789,10 +793,12 @@ void GPS_Start(uint8_t Mode)
         Gps.GpsMode = Mode;
         Gps.GetGPSNum = 0; 
         Gps.vaild = 0;
+        Gps.gps_v_tim = 0;
         memset(&GpsDataBuf, 0, sizeof(GpsDataBuf)); 
     //    strcpy(Gps.PosData, ",V,,,,,,,,,,N");  
         if(Mode == GPS_MODE_TM) {
             Gps.Gps_Tm_timeout = def_rtos_get_system_tick();
+            LOG_I("Gps_Tm_timeout:%x",  Gps.Gps_Tm_timeout);
         }
     } else if(Mode == GPS_MODE_TM) {
         if(Gps.GpsMode == GPS_MODE_CONT)
@@ -904,9 +910,14 @@ int GPS_calcu_position(double lat, double lon)
     return 1;
 }
 
+uint8_t get_gps_vaild()
+{
+    return GpsDataBuf.GPSValidFlag;
+}
+
 void gps_control_thread(void *param)
 {
-    uint8 gps_buf[256];
+    uint8 gps_buf[512];
     uint16_t len;
     GPS_DATA last_GpsDataBuf= {0};
     double gps_speed=0;
@@ -916,7 +927,7 @@ void gps_control_thread(void *param)
     uint8_t GPS_update_flag = 0;
     while(1){
   //      LOG_I("IS RUN");
-        len = gps_data_block_recv(gps_buf, 256, RTOS_WAIT_FOREVER);
+        len = gps_data_block_recv(gps_buf, 512, RTOS_WAIT_FOREVER);
         if(len == 0) continue;
         gps_resh_time_t = def_rtos_get_system_tick();
         if(iot_error_check(IOT_ERROR_TYPE, GPS_ERROR) == 1) {
@@ -924,6 +935,9 @@ void gps_control_thread(void *param)
         }
 		if(GPS_Data_Proces((char *)gps_buf, len) == OK) {
             Gps.GetGPSNum++;
+        } 
+        if (GpsDataBuf.GPSValidFlag == 1 && Gps.gps_v_tim == 0) {  
+            Gps.gps_v_tim =  def_rtos_get_system_tick() - Gps.Gps_Tm_timeout;
         } 
         gps_speed = strtod(GpsDataBuf.Ground_speed, NULL);
         if(Gps.GpsMode == GPS_MODE_TM) {

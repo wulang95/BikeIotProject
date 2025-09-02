@@ -72,14 +72,14 @@ static uint16_t net_engwwe_iot_hw_info(uint8_t *p)
     uint16_t lenth = 0, data_lenth;
     u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[IOT_HW_INFO_CMD]);
     lenth += 4;
-    data_lenth = 54;
+    data_lenth = 60;
     u16_big_to_litel_end_sw(&p[lenth], data_lenth);
     lenth += 2;
     memcpy(&p[lenth], gsm_info.iccid, 20);
     lenth += 20;
     memcpy(&p[lenth], sys_config.sn, 15);
     lenth += 15;
-    memcpy(&p[lenth], ble_info.mac_str, 17);
+    memcpy(&p[lenth], sys_config.mac_str, 17);
     lenth += 17;
     memcpy(&p[lenth], sys_config.dev_type, 6);
     lenth += 6;
@@ -106,9 +106,9 @@ static uint16_t net_engwe_cmdId_gps_info(uint8_t *p)
     lenth += 2;
     u16_big_to_litel_end_sw(&p[lenth], Gps.high);
     lenth += 2;
-    u32_big_to_litel_end_sw(&p[lenth], Gps.Long);
+    u32_big_to_litel_end_sw(&p[lenth], Gps.Long); //纬度
     lenth += 4;
-    u32_big_to_litel_end_sw(&p[lenth], Gps.Lat);
+    u32_big_to_litel_end_sw(&p[lenth], Gps.Lat);  //经度
     lenth += 4;
     return lenth;
 }
@@ -136,11 +136,11 @@ static uint16_t net_engwe_cmdId_car_state(uint8_t *p)
     p[lenth++] = sys_info.sheepfang_sta;
     p[lenth++] = sys_info.fence_sta;
     if(car_info.lock_sta == CAR_LOCK_STA) {
-        p[lenth++] = 0X00; //挡位
+        p[lenth++] = 0X01; //挡位
         p[lenth++] = 0X00;  //里程单位
         p[lenth++] = 0X00;  //车辆限速
         p[lenth++] = 0X00;  //转向灯
-        p[lenth++] = 0X00;  //大灯
+        p[lenth++] = 0X01;  //大灯
     } else {
         p[lenth++] = car_info.gear + 1;
         p[lenth++] = car_info.hmi_info.display_unit == 0x00?0x02:0x01;
@@ -213,7 +213,8 @@ static uint16_t net_engwe_cmdId_bms_info(uint8_t bms_num, uint8_t *p)
         p[lenth++] = sys_info.bat_soc;
     } else {
         p[lenth++] = 0x00;
-        p[lenth++] = 5;
+        p[lenth++] = 6;
+        p[lenth++] = 0x00;
         u16_big_to_litel_end_sw(&p[lenth], sys_info.battry_val);
         lenth += 2;
         p[lenth++] = sys_info.bat_soc;
@@ -238,12 +239,13 @@ static uint16_t net_engwe_cmdId_ride_info(uint8_t *p)
     lenth += 4;
     u32_big_to_litel_end_sw(&p[lenth], car_info.cycle_total_time);
     lenth += 4;
-    u32_big_to_litel_end_sw(&p[lenth], car_info.single_odo);
-    lenth += 4;
+ //   u32_big_to_litel_end_sw(&p[lenth], car_info.single_odo);
+    u16_big_to_litel_end_sw(&p[lenth], (uint16_t)car_info.single_odo);
+    lenth += 2;
     u16_big_to_litel_end_sw(&p[lenth], car_info.remain_odo);
     lenth += 2;
-    u16_big_to_litel_end_sw(&p[lenth], (uint16_t)car_info.total_odo);
-    lenth += 2;
+    u32_big_to_litel_end_sw(&p[lenth], car_info.total_odo);
+    lenth += 4;
     u16_big_to_litel_end_sw(&p[lenth], car_info.ebike_calorie * 10);
     lenth += 2;
     u16_big_to_litel_end_sw(&p[lenth], (car_info.pedal_speed * 10));
@@ -455,6 +457,11 @@ static void net_engwe_cmdId_real_operate(uint8_t *data, uint16_t len, uint16_t s
         break;
         case 0X10:  /*转向灯*/
 
+        break;
+        case 0x11:
+            buf_len = net_engwe_cmdId_operate_respos(buf, car_cmd_q.net_car_control, 0x01, 0);
+            net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, buf, buf_len, car_cmd_q.net_car_control.seq); 
+            sys_reset();
         break;
     }
 }
@@ -931,11 +938,11 @@ static uint16_t net_engwe_cmdId_sheepfang_info(uint8_t *p)
     lenth += 2;
     if(sheepfang_data.shape_type == CIRCLE) {
         p[lenth++] = 0x01;
-        lat = (int)(sheepfang_data.circle.center.lat*1000000);
-        u32_big_to_litel_end_sw(&p[lenth], lat);
-        lenth += 4;
         lon = (int)(sheepfang_data.circle.center.lon*1000000);
         u32_big_to_litel_end_sw(&p[lenth], lon);
+        lenth += 4;
+        lat = (int)(sheepfang_data.circle.center.lat*1000000);
+        u32_big_to_litel_end_sw(&p[lenth], lat);
         lenth += 4;
         radius = (uint16_t)(sheepfang_data.circle.radius*1000);
         u16_big_to_litel_end_sw(&p[lenth], radius);
@@ -944,12 +951,12 @@ static uint16_t net_engwe_cmdId_sheepfang_info(uint8_t *p)
          p[lenth++] = 0x02;
          p[lenth++] = sheepfang_data.polygon.point_num;
         for(i = 0; i < sheepfang_data.polygon.point_num; i++){
-            lat = (int)(sheepfang_data.polygon.p[i].lat*1000000);
-            u32_big_to_litel_end_sw(&p[lenth], lat);
-            lenth += 4;
             lon = (int)(sheepfang_data.polygon.p[i].lon*1000000);
             u32_big_to_litel_end_sw(&p[lenth], lon);
             lenth += 4;
+            lat = (int)(sheepfang_data.polygon.p[i].lat*1000000);
+            u32_big_to_litel_end_sw(&p[lenth], lat);
+            lenth += 4;  
         }
     } else {
         p[lenth++] = 0x03;
@@ -974,13 +981,13 @@ static void net_engwe_cmdId_sheepfang_set(uint8_t *data, uint16_t len, uint16_t 
         net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
         data_len++;
         sheepfang_data.shape_type = CIRCLE;
-        lat = u32_big_to_litel_end(&data[data_len]);
-        sheepfang_data.circle.center.lat = lat;
-        sheepfang_data.circle.center.lat /= 1000000;
-        data_len += 4;
         lon = u32_big_to_litel_end(&data[data_len]);
         sheepfang_data.circle.center.lon = lon;
         sheepfang_data.circle.center.lon /= 1000000;
+        data_len += 4;
+        lat = u32_big_to_litel_end(&data[data_len]);
+        sheepfang_data.circle.center.lat = lat;
+        sheepfang_data.circle.center.lat /= 1000000;
         data_len += 4;
         radius = u16_big_to_litel_end(&data[data_len]);
         sheepfang_data.circle.radius = radius;
@@ -997,13 +1004,13 @@ static void net_engwe_cmdId_sheepfang_set(uint8_t *data, uint16_t len, uint16_t 
         }
         net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
         for(i = 0; i < sheepfang_data.polygon.point_num; i++){
-            lat = u32_big_to_litel_end(&data[data_len]);
-            sheepfang_data.polygon.p[i].lat = lat;
-            sheepfang_data.polygon.p[i].lat /= 1000000;
-            data_len += 4;
             lon = u32_big_to_litel_end(&data[data_len]);
             sheepfang_data.polygon.p[i].lon = lon;
             sheepfang_data.polygon.p[i].lon /= 1000000;
+            data_len += 4;
+            lat = u32_big_to_litel_end(&data[data_len]);
+            sheepfang_data.polygon.p[i].lat = lat;
+            sheepfang_data.polygon.p[i].lat /= 1000000;
             data_len += 4;
         }
         SETBIT(sys_set_var.sys_updata_falg, SHEEP_DATA_SAVE);
@@ -1027,11 +1034,11 @@ static uint16_t net_engwe_cmdId_forbidden_info(uint8_t *p)
     lenth += 2;
     if(forbidden_zone_data.shape_type == CIRCLE) {
         p[lenth++] = 0x01;
-        lat = (int)(forbidden_zone_data.circle.center.lat * 1000000);
-        u32_big_to_litel_end_sw(&p[lenth], lat);
-        lenth += 4;
         lon = (int)(forbidden_zone_data.circle.center.lon*1000000);
         u32_big_to_litel_end_sw(&p[lenth], lon);
+        lenth += 4;
+        lat = (int)(forbidden_zone_data.circle.center.lat * 1000000);
+        u32_big_to_litel_end_sw(&p[lenth], lat);
         lenth += 4;
         radius = (uint16_t)(forbidden_zone_data.circle.radius*1000);
         u16_big_to_litel_end_sw(&p[lenth], radius);
@@ -1040,11 +1047,11 @@ static uint16_t net_engwe_cmdId_forbidden_info(uint8_t *p)
         p[lenth++] = 0x02;
         p[lenth++] = forbidden_zone_data.polygon.point_num;
         for(i = 0; i < forbidden_zone_data.polygon.point_num; i++){
-            lat = (int)(forbidden_zone_data.polygon.p[i].lat*1000000);
-            u32_big_to_litel_end_sw(&p[lenth], lat);
-            lenth += 4;
             lon = (int) (forbidden_zone_data.polygon.p[i].lon*1000000);
             u32_big_to_litel_end_sw(&p[lenth], lon);
+            lenth += 4;
+            lat = (int)(forbidden_zone_data.polygon.p[i].lat*1000000);
+            u32_big_to_litel_end_sw(&p[lenth], lat);
             lenth += 4;
         }
     } else {
@@ -1198,13 +1205,13 @@ static void net_engwe_cmdId_forbidden_set(uint8_t *data, uint16_t len, uint16_t 
         net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
         data_len++;
         forbidden_zone_data.shape_type = CIRCLE;
-        lat = u32_big_to_litel_end(&data[data_len]);
-        forbidden_zone_data.circle.center.lat = lat;
-        forbidden_zone_data.circle.center.lat /= 1000000;
-        data_len += 4;
         lon = u32_big_to_litel_end(&data[data_len]);
         forbidden_zone_data.circle.center.lon = lon;
         forbidden_zone_data.circle.center.lon /= 1000000;
+        data_len += 4;
+        lat = u32_big_to_litel_end(&data[data_len]);
+        forbidden_zone_data.circle.center.lat = lat;
+        forbidden_zone_data.circle.center.lat /= 1000000;
         data_len += 4;
         radius = u16_big_to_litel_end(&data[data_len]);
         forbidden_zone_data.circle.radius = radius;
@@ -1221,13 +1228,13 @@ static void net_engwe_cmdId_forbidden_set(uint8_t *data, uint16_t len, uint16_t 
         }
         net_engwe_pack_seq_up(ACK_UP, NULL, 0, seq);
         for(i = 0; i < forbidden_zone_data.polygon.point_num; i++){
-            lat = u32_big_to_litel_end(&data[data_len]);
-            forbidden_zone_data.polygon.p[i].lat = lat;
-            forbidden_zone_data.polygon.p[i].lat /= 1000000;
-            data_len += 4;
             lon = u32_big_to_litel_end(&data[data_len]);
             forbidden_zone_data.polygon.p[i].lon = lon;
             forbidden_zone_data.polygon.p[i].lon /= 1000000;
+            data_len += 4;
+            lat = u32_big_to_litel_end(&data[data_len]);
+            forbidden_zone_data.polygon.p[i].lat = lat;
+            forbidden_zone_data.polygon.p[i].lat /= 1000000;
             data_len += 4;
         }
         SETBIT(sys_set_var.sys_updata_falg, FORBIDDEN_DATA_SAVE);

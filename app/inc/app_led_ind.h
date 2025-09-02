@@ -19,7 +19,7 @@ typedef enum {
     LED_TEST,
     LED_IND_MAX,
 }LED_IND;
-
+void led_set_value(uint8_t led, uint8_t value);
 void app_set_led_ind(LED_IND led_ind_sta);
 void app_led_init();
 

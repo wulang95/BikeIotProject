@@ -312,6 +312,7 @@ struct car_set_save_stu{
     uint8_t power_on_psaaword[4];
     uint8_t gear;
     uint8_t jump_password;
+    uint8_t last_en_power_on_psaaword;
     uint8_t en_power_on_psaaword;
     uint8_t left_turn_light :2;
     uint8_t right_turn_light :2;

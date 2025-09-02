@@ -183,6 +183,18 @@ void hal_drv_data_call_register_init()
     ql_datacall_register_cb(0, 1, ql_datacall_ind_callback, NULL);
 }
 
+uint8_t hal_get_rsrp()
+{
+    uint8_t rsrp_t = 0;
+    ql_nw_signal_strength_info_s pt_info;
+    ql_nw_get_signal_strength(0, &pt_info);
+    if(pt_info.rsrp <= -113) {      /*待确认*/
+        rsrp_t = 99;
+    } else {
+        rsrp_t = (pt_info.rsrp+113)/2;
+    }
+    return rsrp_t;
+}
 
 NET_NW_INFO hal_drv_get_operator_info()
 {

@@ -61,7 +61,7 @@ void hal_drv_stop_data_call(int pdp_index);
 void hal_net_info_print();
 int hal_get_plmn_info();
 int hal_select_oper(char *plmn);
-
+uint8_t hal_get_rsrp();
 
 
 

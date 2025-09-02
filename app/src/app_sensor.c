@@ -40,7 +40,7 @@ void imu_algo_timer()     // 10ms调用1次
 
 int qmi8658_sensor_init()
 {
-    int64_t sensor_cali_time_t;
+ //   int64_t sensor_cali_time_t;
     qst_algo_inti();
     def_rtos_task_sleep_ms(50);
     if(qmi8658_init() != 1) {
@@ -51,19 +51,19 @@ int qmi8658_sensor_init()
     LOG_I("qmi8658_init is succeeful");
 	iot_error_clean(IOT_ERROR_TYPE, SENSOR_ERROR);
     init_state_recognition(&qmi8658_read_reg);
-    sensor_cali_time_t = def_rtos_get_system_tick();
-    while(1){
-        qmi8658_read_xyz(accl, gyro);
-        def_rtos_task_sleep_ms(50);
-        if(sys_info.static_cali_flag == 1){
-            LOG_I("calic is succeeful");
-            break;
-        }
-        if(def_rtos_get_system_tick() - sensor_cali_time_t > 10000){
-            LOG_E("calic is fail");
-            break;
-        }
-    }
+    // sensor_cali_time_t = def_rtos_get_system_tick();
+    // while(1){
+    //     qmi8658_read_xyz(accl, gyro);
+    //     def_rtos_task_sleep_ms(50);
+    //     if(sys_info.static_cali_flag == 1){
+    //         LOG_I("calic is succeeful");
+    //         break;
+    //     }
+    //     if(def_rtos_get_system_tick() - sensor_cali_time_t > 10000){
+    //         LOG_E("calic is fail");
+    //         break;
+    //     }
+    // }
 	LOG_I("qmi8658_sensor_init");
     return 0;
 }
@@ -411,11 +411,11 @@ void imu_algo_timer_start()
 
 void imu_algo_timer_stop()
 {
-    if(sys_info.algo_timer_run == 0) return;
-	sys_info.algo_timer_run = 0;
+    if(sys_info.algo_timer_run == 0 || sys_info.static_cali_flag == 0) return;   //静态校准未完成
 	if(RTOS_SUCEESS != def_rtos_timer_stop(algo_timer)){
         LOG_E("algo_timer is stop fail");
     }
+    sys_info.algo_timer_run = 0;
 	qmi8658_enable_amd(1, 	qmi8658_Int1, 1);  //关闭同步
 	LOG_I("imu_algo_timer_stop");
 }

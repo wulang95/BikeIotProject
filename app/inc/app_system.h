@@ -124,8 +124,8 @@ struct sys_config_stu {
     uint32_t magic;
     char ip[128];
     uint32_t port; 
-    char soft_ver[8];
-    char hw_ver[8];
+    char soft_ver[10];
+    char hw_ver[10];
     char dev_type[6];  
     char apn[32];
     char DSN[32];
@@ -140,8 +140,9 @@ struct sys_config_stu {
     uint8_t mqtt_will_en;
     char mqtt_will_msg[32];
     char mqtt_will_topic[64];
-    char sn[15];
+    char sn[20];
     char manufacturer[16];
+    char mac_str[20];
     uint32_t crc32;
 };
 
@@ -152,8 +153,8 @@ typedef enum {
 } SHAPE_E;
 
 typedef struct {
-    double lon;     //纬度  负代表南纬
-    double lat;     //经度  负代表西经
+    double lon;     //经度  负代表西经
+    double lat;      //纬度  负代表南纬
 }Point;
 
 struct circle_p_stu {
@@ -277,6 +278,7 @@ struct sys_info_stu {
     uint8_t shock_sw_state;
     uint8_t ble_can_trans_sw;
     char fota_packname[255];
+    char gps_ver[16];
     unsigned long long car_error;
     unsigned long long last_car_error;
     unsigned iot_error;
@@ -291,6 +293,7 @@ struct sys_info_stu {
     uint8_t charge_time_flag;
     uint8_t charge_full_flag;
     uint8_t sensor_error_flag;
+    uint8_t mcu_sys_power_state;
 };
 
 struct sys_set_var_stu{
@@ -306,7 +309,7 @@ struct sys_set_var_stu{
 
 #pragma pack()
 
-#define SOFTVER "SW_3.0.2"
+#define SOFTVER "SW_3.0.3"
 #define HWVER   "HW_3.0.0"
 #define DEFAULT_MANUFACTURER  "EG" 
 #define DEFAULT_DNS "114.114.114.114"
@@ -315,15 +318,26 @@ struct sys_set_var_stu{
 #define DEFAULT_APN     "linksnet"
 /*"linksnet"*/
 /*"asia.bics"*/
-#define DEFAULT_IP  "mqtt://dev-mqtt.engweapp.cn"
+#define DEFAULT_IP "mqtt://dev-mqtt.engweapp.cn"
+//"mqtt://dev-mqtt.engweapp.cn"
+// "mqtts://test-mqtt.engweapp.cn"
+
 /*"mqtt://broker.emqx.io:1883" */
 /*"iot.engweapp.cn"*/
-#define DEFAULT_PORT    9506  
+#define DEFAULT_PORT   9506  
+// 9600
+
 /*9682*/
 #define DEFAULT_MQTT_SUB_PRE  "iot/engwe/subscribe/"
 #define DEFAULT_MQTT_PUB_PRE  "iot/engwe/publish/"
-#define DEFAULT_MQTT_USER   "admin"
+#define DEFAULT_MQTT_USER   "engweiot"
+//"admin"
+
+
 #define DEFAULT_MQTT_PWD    "engweMq1q@W3e"
+//"engweMq1q@W3e"
+
+
 
 #define BLE_NAME    "ENGWE"
 #define BLE_SUUID   0X1820

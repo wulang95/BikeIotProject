@@ -54,7 +54,7 @@ typedef struct GPS_INFO_STRUCT
     int64_t  Gps_Tm_timeout;
     uint8_t  SateNum;            		
     uint16_t GetGPSNum;          		
-	
+	uint64_t gps_v_tim;
 	uint8_t  GpsPowerFlag;
 	
 	uint8_t  GpsPowerSta:2;          	
@@ -85,12 +85,7 @@ void GPS_Start(uint8_t Mode);
 void GPS_stop();
 int GPS_reinit();//重新上电
 void GPS_fence_detection();
-
-
-
-
-
-
+uint8_t get_gps_vaild();
 
 
 

@@ -101,6 +101,7 @@ void led_set_value(uint8_t led, uint8_t value)
 
 void app_set_led_ind(LED_IND led_ind_sta)
 {
+    if(sys_info.mache_dft_flag == 1) return;
     def_rtos_timer_stop(led_timer);
     led_step = 0;
     led_cent = 0;

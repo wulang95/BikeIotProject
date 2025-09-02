@@ -35,7 +35,7 @@ void voice_play_mark(VOICE_TYPE type);
 void voice_play_off();
 void app_audio_init();
 void app_audio_thread(void *param);
-
+void audio_dft_start();
 
 
 
