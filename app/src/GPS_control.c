@@ -381,7 +381,6 @@ uint8_t  GPS_GGA_Proces(char *Data, GPS_DATA  *pGpsData)
                 if((DataLen > 8) || (GPS_Number_Cheek(Buf) != OK)) 
                     return FAIL;
                 pGpsData->high = strtod(Buf, NULL);
-                LOG_I("pGpsData->high:%f", pGpsData->high);
                 strcpy(pGpsData->SeaLevelH, Buf);
                 strcat(pGpsData->SeaLevelH, ",");
                 break;
@@ -430,6 +429,82 @@ uint16_t  GPS_FloatStr_To_Num(char *Data)
         Data++;
     }
     return 0xFFFF;
+}
+
+GPS_CN0_INFO GPS_cn0_info;
+
+void GPS_Data_CN0_Proces(char *data)
+{
+   // $POCNR,3278,0,3292,0,0,2923,0,2733,0,0*4B
+    uint8_t i, DataLen;
+    char *pe, *ps, data_str[10] = {0};
+    ps = data;
+    ps = strstr(ps, ",");
+    ps = ps + 1;
+    for(i = 0; i < 10; i++){
+        pe = strstr(ps, ",");
+        if(pe == NULL)
+        {
+            pe = strstr(ps, "*");                      
+            if(pe == NULL)  return;
+        }
+        switch(i){
+            case 0:
+                DataLen = pe - ps;
+                memcpy(data_str, ps, DataLen);
+                GPS_cn0_info.GPS_L1_CN0 = atoi(data_str);
+                LOG_I("GPS_cn0_info.GPS_L1_CN0:%d", GPS_cn0_info.GPS_L1_CN0);
+            break;
+            case 1:
+                DataLen = pe - ps;
+                memcpy(data_str, ps, DataLen);
+                GPS_cn0_info.GPS_L5_CN0 = atoi(data_str);
+            break;
+            case 2:
+                DataLen = pe - ps;
+                memcpy(data_str, ps, DataLen);
+                GPS_cn0_info.BDS_B1I_CN0 = atoi(data_str);
+            break;
+            case 3:
+                DataLen = pe - ps;
+                memcpy(data_str, ps, DataLen);
+                GPS_cn0_info.BDS_B2A_CN0 = atoi(data_str);
+            break;
+            case 4:
+                DataLen = pe - ps;
+                memcpy(data_str, ps, DataLen);
+                GPS_cn0_info.BDS_B2B_CN0 = atoi(data_str);
+            break;
+            case 5:
+                DataLen = pe - ps;
+                memcpy(data_str, ps, DataLen);
+                GPS_cn0_info.BDS_B1C_CN0 = atoi(data_str);
+            break;
+            case 6:
+                DataLen = pe - ps;
+                memcpy(data_str, ps, DataLen);
+                GPS_cn0_info.GLO_G1_CN0 = atoi(data_str);
+            break;
+            case 7:
+                DataLen = pe - ps;
+                memcpy(data_str, ps, DataLen);
+                GPS_cn0_info.GAL_E1_CN0 = atoi(data_str);
+            break;
+            case 8:
+                DataLen = pe - ps;
+                memcpy(data_str, ps, DataLen);
+                GPS_cn0_info.GAL_E5A = atoi(data_str);
+            break;
+            case 9:
+                DataLen = pe - ps;
+                memcpy(data_str, ps, DataLen);
+                GPS_cn0_info.GAL_E5B = atoi(data_str);
+            break;
+        }
+        ps = pe + 1;
+        memset(data_str, 0, sizeof(data_str));
+    }
+    
 }
 
 uint8_t GPS_Data_Proces(char *data, uint16_t len)
@@ -497,7 +572,10 @@ uint8_t GPS_Data_Proces(char *data, uint16_t len)
             // LOG_I("SeaLevelH:%s", GDataTemp.SeaLevelH);
         }
 	}
-   
+    start = strstr(data, "POCNR");
+    if(start) {
+        GPS_Data_CN0_Proces(start);
+    }
     if(GData.GpsFlag == 0)  return FAIL;
 
     if(GData.GPSValidFlag == 1) {

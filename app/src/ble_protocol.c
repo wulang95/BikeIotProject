@@ -826,6 +826,7 @@ static void ble_navigation_service(uint8_t *data)
     LOG_I("cur_dir_range:%d", car_state_data.cur_dir_range);
     LOG_I("total_nav_remaintime:%d", car_state_data.total_nav_remaintime);
     LOG_I("total_nav_range:%d", car_state_data.total_nav_range);
+    
     iot_can_state2_fun();
     iot_can_navigation_data();
     LOG_I("navigation_quit_time:%d", sys_param_set.navigation_quit_time);

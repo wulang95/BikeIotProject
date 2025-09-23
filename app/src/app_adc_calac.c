@@ -71,11 +71,11 @@ void app_bat_charge_check()
     if(sys_info.bat_charge_state == BAT_CHARGE_ON && (sys_info.power_36v == 0) && (sys_info.bat_temp < 0 || sys_info.bat_temp > 50)) {
         MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_OFF_INDEX);
         rtc_event_unregister(BAT_CHARGE_TIMEOUT_EVENT);
-  //      rtc_event_register(BAT_MCU_ADC_GET_EVENT, sys_info.adc_discharge_get_interval, 1);
+        rtc_event_register(BAT_MCU_ADC_GET_EVENT, sys_info.adc_discharge_get_interval, 1);
         return;
     } else if(sys_info.bat_charge_state == BAT_CHARGE_OFF && sys_info.power_36v == 1 && sys_info.bat_val < 4000) { 
         MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_ON_INDEX);
-  //      rtc_event_register(BAT_MCU_ADC_GET_EVENT, sys_info.adc_charge_get_interval, 1);
+        rtc_event_register(BAT_MCU_ADC_GET_EVENT, sys_info.adc_charge_get_interval, 1);
         return;
     }
     

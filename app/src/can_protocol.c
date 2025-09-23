@@ -1068,7 +1068,9 @@ static void engwe_mache_dft(CAN_PDU_STU can_pdu_t, uint8_t *data, uint8_t data_l
                 sys_info.static_cali_flag = 0;
                 imu_algo_timer_start();  
                 MCU_CMD_MARK(CMD_MCU_SYS_POWER_STATE_INDEX);  
-                memset(g_sn, 0, sizeof(g_sn));           
+                memset(g_sn, 0, sizeof(g_sn));   
+                voice_play_mark(VOICE_TEST); 
+                GPS_Start(GPS_MODE_TM);    
              //   audio_dft_start();
             }
         break;
@@ -1095,89 +1097,8 @@ static void engwe_mache_dft(CAN_PDU_STU can_pdu_t, uint8_t *data, uint8_t data_l
                 sn_step = 0;
             }
         break;
-        case 0xfffc:
-        //上位机获取iccid1
-            can_pdu.pdu.pdu2 = 0xfffc;
-            can_dat.ExtID = can_pdu.can_id;
-            can_dat.Cst.Control_f.IDE = 1;
-            can_dat.Cst.Control_f.RTR = 0;
-            if(strlen(gsm_info.iccid) == 0) {
-                can_dat.Cst.Control_f.DLC = 0;
-            } else {
-                memcpy(&can_dat.Data[0], &gsm_info.iccid[0], 8);
-                can_dat.Cst.Control_f.DLC = 8;
-            }
-            can_data_send(can_dat);
-        break;
-        case 0xfffb:
-        //上位机获取iccid2
-            can_pdu.pdu.pdu2 = 0xfffb;
-            can_dat.ExtID = can_pdu.can_id;
-            can_dat.Cst.Control_f.IDE = 1;
-            can_dat.Cst.Control_f.RTR = 0;
-            if(strlen(gsm_info.iccid) == 0) {
-                can_dat.Cst.Control_f.DLC = 0;
-            } else {
-                memcpy(&can_dat.Data[0], &gsm_info.iccid[8], 8);
-                can_dat.Cst.Control_f.DLC = 8;
-            }
-            can_data_send(can_dat);
-        break;
-        case 0xfffa:
-        //上位机获取iccid3
-            can_pdu.pdu.pdu2 = 0xfffa;
-            can_dat.ExtID = can_pdu.can_id;
-            can_dat.Cst.Control_f.IDE = 1;
-            can_dat.Cst.Control_f.RTR = 0;
-            if(strlen(gsm_info.iccid) == 0) {
-                can_dat.Cst.Control_f.DLC = 0;
-            } else {
-                memcpy(&can_dat.Data[0], &gsm_info.iccid[16], 4);
-                can_dat.Cst.Control_f.DLC = 4;
-            }
-            can_data_send(can_dat);
-        break;
-        case 0xfff9:
-        //上位机获取imei1
-            can_pdu.pdu.pdu2 = 0xfff9;
-            can_dat.ExtID = can_pdu.can_id;
-            can_dat.Cst.Control_f.IDE = 1;
-            can_dat.Cst.Control_f.RTR = 0;
-            if(strlen(gsm_info.imei) == 0) {
-                can_dat.Cst.Control_f.DLC = 0;
-            } else {
-                memcpy(&can_dat.Data[0], &gsm_info.imei[0], 8);
-                can_dat.Cst.Control_f.DLC = 8;
-            }
-            can_data_send(can_dat);
-        break;
-        case 0xfff8:
-        //上位机获取imei2
-            can_pdu.pdu.pdu2 = 0xfff8;
-            can_dat.ExtID = can_pdu.can_id;
-            can_dat.Cst.Control_f.IDE = 1;
-            can_dat.Cst.Control_f.RTR = 0;
-            if(strlen(gsm_info.imei) == 0) {
-                can_dat.Cst.Control_f.DLC = 0;
-            } else {
-                memcpy(&can_dat.Data[0], &gsm_info.imei[8], 7);
-                can_dat.Cst.Control_f.DLC = 7;
-            }
-            can_data_send(can_dat);
-        break;
-        case 0xfff7:
-        //上位机获取mac
-            can_pdu.pdu.pdu2 = 0xfff7;
-            can_dat.ExtID = can_pdu.can_id;
-            can_dat.Cst.Control_f.IDE = 1;
-            can_dat.Cst.Control_f.RTR = 0;
-            if(strlen(ble_info.mac_str) == 0) {
-                can_dat.Cst.Control_f.DLC = 0;
-            } else {
-                memcpy(&can_dat.Data[0], &ble_info.mac, 6);
-                can_dat.Cst.Control_f.DLC = 6;
-            }
-            can_data_send(can_dat);
+        case 0xfffd:
+            MCU_CMD_MARK(CMD_SHIP_MODE_INDEX);
         break;
         case 0xfff0:
         //压测can休眠唤醒
@@ -1411,7 +1332,7 @@ void mache_dft_adv_task(void)
             data_len += 2;
             memcpy(&g_mache_buf[data_len], &sys_info.bat_val, 2);  //备用电池电压
             data_len += 2;
-            g_mache_buf[data_len++] = sys_info.bat_temp;   //备用电池温度
+            g_mache_buf[data_len++] =(uint8_t)(sys_info.bat_temp + 40);   //备用电池温度
             g_mache_buf[data_len++] = sys_info.static_cali_flag;  //传感器校准状态
             g_mache_buf[data_len++] = strlen(sys_info.gps_ver);
             memcpy(&g_mache_buf[data_len], sys_info.gps_ver, strlen(sys_info.gps_ver));
@@ -1424,6 +1345,8 @@ void mache_dft_adv_task(void)
             memcpy(&g_mache_buf[data_len], sys_config.sn, strlen(sys_config.sn));
             data_len += strlen(sys_config.sn);
             LOG_I("sys_config.sn:%s", sys_config.sn);
+            memcpy(&g_mache_buf[data_len], &GPS_cn0_info.GPS_L1_CN0, 2);
+            data_len += 2;
             can_dat.Cst.Control_f.DLC = 3;
             can_dat.Cst.Control_f.IDE = 1;
             can_dat.Cst.Control_f.RTR = 0;    
@@ -1983,6 +1906,7 @@ void iot_can_state2_fun()
     can_pdu.res = 0;
     can_pdu.pdu.pdu2 = IOT_STATE_DATA;
 
+    data[1] = car_state_data.slope_data;
     data[3] = car_state_data.map_dir;
     data[4] = car_state_data.cur_dir_range & 0xff;
     data[5] = (car_state_data.cur_dir_range >> 8)& 0xff;
@@ -2118,6 +2042,7 @@ static void iot_can_state_fun()
     }
 }
 
+
 void iot_can_heart_fun()
 {
     static uint32_t time_s = 0;
@@ -2126,6 +2051,7 @@ void iot_can_heart_fun()
     }
     if(time_s % 2 == 0) {
         iot_can_state_fun();
+        iot_can_state2_fun();
     }
     if(def_rtos_get_system_tick() - check_bms2_timeout > 10000) {
         car_info.bms_info[1].init = 0;

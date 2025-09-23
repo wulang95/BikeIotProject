@@ -223,8 +223,10 @@ static void pdp_active_state_machine(void)
                 check_pdp_timeout = def_rtos_get_system_tick();
                 hal_drv_set_data_call_asyn_mode(pdp_active_info.profile_idx,1);
                 hal_drv_start_data_call(pdp_active_info.profile_idx, sys_config.apn); 
-            }
-            if((def_rtos_get_system_tick() - check_csq_timeout)/1000 > 30*60) {
+            } else if (gsm_info.csq > 10 && gsm_info.csq != 99 && cpin == 1 && c_fun == ALL_FUN && net_reg == 0 && (def_rtos_get_system_tick() - check_csq_timeout)/1000 > 15*60) {
+                pdp_active_info.pdp_state = PDP_GET_OPERT_INFO;
+                count = 0;
+            } else if((def_rtos_get_system_tick() - check_csq_timeout)/1000 > 30*60) {
                 LOG_E("sys_reset...");
                 MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
             }
@@ -258,6 +260,7 @@ static void pdp_active_state_machine(void)
             LOG_I("PDP_ACTIVATION_FAILURE");
             #if HAND_SELECT_PLMN_ENABLE == 1
                 pdp_active_info.pdp_state = PDP_GET_OPERT_INFO;
+                count = 0;
             #else
                 hal_drv_stop_data_call(pdp_active_info.profile_idx);
                 hal_dev_set_c_fun(MIN_FUN, 0);

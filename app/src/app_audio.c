@@ -28,7 +28,7 @@ struct audio_con_stu audio_con_table[] = {
     {1,    0,   ALARM_VOICE_FILE},
     {5,    1000,   LOOK_CAR_VOICE_FILE},
     {0Xff,     1000,   ENTER_PENALTY_AREA_VOICE_FILE},
-    {0Xff,     1000,   ALARM_VOICE_FILE},
+    {3,     1000,   ALARM_VOICE_FILE},
 };
 
 uint8_t play_flag;
@@ -36,7 +36,8 @@ uint8_t play_flag;
 void voice_play_mark(VOICE_TYPE type)
 {
     AudioStatus_e audio_state;
-    if(sys_info.audio_init == 0 || sys_info.mache_dft_flag == 1) return; 
+//    if(sys_info.audio_init == 0 || sys_info.mache_dft_flag == 1) return; 
+    if(sys_info.audio_init == 0) return; 
     play_flag = 1;
     audio_state = ql_aud_get_play_state();
     if(audio_state != QL_AUDIO_STATUS_IDLE) {
@@ -153,11 +154,11 @@ void app_audio_thread(void *param)
   //      LOG_I("IS RUN");
         res = def_rtos_queue_wait(audio_que_t, &type, sizeof(uint8_t), RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) continue;
-        if(sys_info.mache_dft_flag == 1) {
-            for(;;) {
-                audio_play_test();
-            }
-        }
+        // if(sys_info.mache_dft_flag == 1) {
+        //     for(;;) {
+        //         audio_play_test();
+        //     }
+        // }
         audio_play = audio_con_table[type];
         LOG_I("%s start, cnt:%d", audio_play.file_name, audio_play.play_cnt);
         play_flag = 0;

@@ -41,7 +41,18 @@ typedef struct GPS_DATA_STRUCT
 } GPS_DATA;
 
 
-
+typedef struct GPS_CN0_INFO_STRUCT{
+    uint16_t GPS_L1_CN0;
+    uint16_t GPS_L5_CN0;
+    uint16_t BDS_B1I_CN0;
+    uint16_t BDS_B2A_CN0;
+    uint16_t BDS_B2B_CN0;
+    uint16_t BDS_B1C_CN0;
+    uint16_t GLO_G1_CN0;
+    uint16_t GAL_E1_CN0;
+    uint16_t GAL_E5A;
+    uint16_t GAL_E5B;
+}GPS_CN0_INFO;
 
 typedef struct GPS_INFO_STRUCT
 {
@@ -75,7 +86,7 @@ typedef struct GPS_INFO_STRUCT
     int Lat;//纬度数据
     int Long;//经度数据
 } GPS_INFO;
-
+extern GPS_CN0_INFO GPS_cn0_info;
 extern GPS_INFO  Gps;
 extern int64_t gps_resh_time_t;
 void GPS_Init();

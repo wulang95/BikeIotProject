@@ -411,7 +411,7 @@ static void sys_param_set_default_init()
     sys_param_set.ota_cnt = 0;
     SETBIT(sys_param_set.net_heart_sw, LOCK_HEART_SW);
     SETBIT(sys_param_set.net_heart_sw, UNLOCK_HEART_SW);
-    sys_param_set.alive_flag = 0;
+    sys_param_set.alive_flag = 1;
     sys_param_set.net_engwe_offline_opearte_push_cmdId = OFFLINE_OPERATE_PUSH_DEFAULT;
     sys_param_set.net_engwe_state_push_cmdId = STATE_PUSH_DEFAULT;
     sys_param_set.unlock_car_heart_interval = 10;
@@ -508,6 +508,7 @@ static void sys_config_default_init()
     sys_config.mqtt_qos = 1;
     sys_config.mqtt_will_en = 1;
     memcpy(sys_config.mqtt_will_topic, DEFAULT_MQTT_WILL_TOPIC, strlen(DEFAULT_MQTT_WILL_TOPIC));
+    sys_config.mqtt_will_topic[strlen(DEFAULT_MQTT_WILL_TOPIC)] = '\0';
     memcpy(sys_config.soft_ver, SOFTVER, strlen(SOFTVER));
     memcpy(sys_config.hw_ver, HWVER, strlen(HWVER));
     memcpy(sys_config.mqtt_client_user, DEFAULT_MQTT_USER, strlen(DEFAULT_MQTT_USER));
@@ -523,7 +524,6 @@ static void sys_config_default_init()
 
 void sys_config_init()
 {
-//   sys_config_default_init();
     flash_partition_read(SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
     if(sys_config.magic != IOT_MAGIC || sys_config.crc32 != GetCrc32((uint8_t *)&sys_config, sizeof(sys_config) - 4)) {
         flash_partition_read(BACK_SYS_CONFIG_ADR, (void *)&sys_config_back, sizeof(sys_config_back), 0);
@@ -686,6 +686,11 @@ void app_system_thread(void *param)
                 SETBIT(sys_info.mode_reinit_flag, GPS_MODEL);
             }   
         }
+        
+        #if 1
+        sys_log_out("GPS_L1_CN0:%d", GPS_cn0_info.GPS_L1_CN0);
+        #endif
+
         app_bat_charge_check();
         if((def_rtos_get_system_tick() - ble_heart_time_t > 12*1000)&& (ble_info.init == 1) && (iot_error_check(IOT_ERROR_TYPE, BLE_ERROR) == 0)) {
             iot_error_set(IOT_ERROR_TYPE, BLE_ERROR);
@@ -832,9 +837,11 @@ void app_system_thread(void *param)
             if(car_info.lock_sta == CAR_UNLOCK_STA) {
                 car_get_config_info(CMD_PASS_ON_QUERY, 0);
                 GPS_Start(GPS_MODE_CONT);
+                imu_algo_timer_start();
                 SETBIT(sys_param_set.net_engwe_report_time1_cmdId, RIDE_INFO_CMD);
                 SETBIT(sys_param_set.net_engwe_report_time1_cmdId, BATTRY_INFO_CMD);
             } else {
+                imu_algo_timer_stop();
                 GPS_stop();//关锁后关GPS
                 CLEARBIT(sys_param_set.net_engwe_report_time1_cmdId, RIDE_INFO_CMD);
                 CLEARBIT(sys_param_set.net_engwe_report_time1_cmdId, BATTRY_INFO_CMD);
