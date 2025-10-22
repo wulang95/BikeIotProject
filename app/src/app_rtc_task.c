@@ -75,6 +75,7 @@ void rtc_event_handler(RTC_EVENT rtc_e)
             break;
         case SYSTEM_REBOOT_EVENT:
             LOG_I("SYSTEM_REBOOT_EVENT");
+            cat1_reset_reson_save(NET_RESET_DEACTIVE);
             sys_reset();
             break;
         case BAT_CHARGE_TIMEOUT_EVENT:

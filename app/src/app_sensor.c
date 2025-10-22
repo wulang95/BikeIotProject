@@ -125,6 +125,7 @@ void trigger_alert() {
     net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
 }
 
+
 void cancel_alert() {
     car_info.filp_state = CAR_FALL_TO_RECOVERY;
     LOG_I("CAR_FALL_TO_RECOVERY");
@@ -437,8 +438,10 @@ void app_sensor_init()
 
 int app_sensor_reinit()
 {
+    if(sys_info.sensor_error_flag == 1) return 1;
     sys_param_set.sensor_con_err_cnt++;
     sys_param_save(SYS_SET_ADR);
+    cat1_reset_reson_save(NET_RESET_SENSOR_ABNORMAL);
     MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);  //cat1断电重启
     return 0;
 }

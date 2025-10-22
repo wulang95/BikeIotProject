@@ -31,7 +31,12 @@ void car_open_lock()
  //   uint8_t val = 0XA9;
     hal_drv_write_gpio_value(O_KEY_HIGH, HIGH_L);
     hal_drv_write_gpio_value(O_KEY_LOW, HIGH_L);
-    def_rtos_timer_start(key_timer, 4000, 0);
+    def_rtos_task_sleep_ms(100);
+    hal_drv_write_gpio_value(O_KEY_HIGH, LOW_L);
+    hal_drv_write_gpio_value(O_KEY_LOW, LOW_L);
+    hal_drv_write_gpio_value(O_KEY_HIGH, HIGH_L);
+    hal_drv_write_gpio_value(O_KEY_LOW, HIGH_L);
+    def_rtos_timer_start(key_timer, 2000, 0);
     MCU_CMD_MARK(CMD_CAN_UNLOCK_CAR_INDEX);
     LOG_I("CAR_CMD_UNLOCK");
     // iot_can_cmd_control(CMD_SET_ELECLOCK, &val, 1);
@@ -331,6 +336,7 @@ void car_control_thread(void *param)
     int64_t cmd_timeout;
     uint8_t data[128];
     uint16_t len;
+    int car_cmd_res;
     while(1) {
         res = def_rtos_queue_wait(car_cmd_que, (uint8_t *)&car_cmd_q, sizeof(CAR_CMD_Q), RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) continue;
@@ -345,9 +351,9 @@ void car_control_thread(void *param)
             }
             continue;
         } else if(car_cmd_q.cmd == CAR_CMD_LOCK) {
-            if(car_lock_control(car_cmd_q.src, CAR_LOCK_STA) != OK){
+            if((car_cmd_res = car_lock_control(car_cmd_q.src, CAR_LOCK_STA)) != OK){
                 if(car_cmd_q.src == NET_CAR_CMD_SER) {
-                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
+                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, car_cmd_res);
                     net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
                 } else if(car_cmd_q.src == BLUE_CAR_CMD_SER) {
                     ble_cmd_opearte_res_up(car_cmd_q.ble_car_control.ble_cmd);     
@@ -355,9 +361,9 @@ void car_control_thread(void *param)
                 continue;
             }
         } else if(car_cmd_q.cmd == CAR_CMD_UNLOCK) {
-            if(car_lock_control(car_cmd_q.src, CAR_UNLOCK_STA) != OK){
+            if((car_cmd_res = car_lock_control(car_cmd_q.src, CAR_UNLOCK_STA)) != OK){
                 if(car_cmd_q.src == NET_CAR_CMD_SER) {
-                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
+                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, car_cmd_res);
                     net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
                 } else if(car_cmd_q.src == BLUE_CAR_CMD_SER) {
                     ble_cmd_opearte_res_up(car_cmd_q.ble_car_control.ble_cmd); 
@@ -372,7 +378,7 @@ void car_control_thread(void *param)
         for(;;) {
             if(def_rtos_get_system_tick() - cmd_timeout > 6000) {
                 if(car_cmd_q.src == NET_CAR_CMD_SER) {
-                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, 0);
+                    len = net_engwe_cmdId_operate_respos(data, car_cmd_q.net_car_control, 0x02, CAR_CMD_TIME_OUT_FAIL);
                     net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, data, len, car_cmd_q.net_car_control.seq);
                 } else if(car_cmd_q.src == BLUE_CAR_CMD_SER) {
                     ble_cmd_opearte_res_up(car_cmd_q.ble_car_control.ble_cmd); 
@@ -416,14 +422,14 @@ int car_lock_control(uint8_t src, uint8_t lock_operate)
         return OK;
     }
     if( sys_info.ota_flag == 1 && src != IOT_CAR_CMD_SER) {
-        return FAIL;
+        return CAR_OTA_FAIL;
     }
-    if(sys_info.power_36v == 0) return FAIL;
+    if(sys_info.power_36v == 0 && sys_info.battry_val < 360) return CAR_NO_BATTREY_FAIL;        //1014说明没接外部电池，考虑外部电源检测失效情况
     if(def_rtos_get_system_tick() - lock_time_t < 5000 && car_info.lock_sta == CAR_LOCK_STA) {
-        return FAIL;
+        return CAR_LOCK_TIME_OUT_FAIL;
     }
     if(lock_operate == CAR_LOCK_STA && car_info.speed != 0) {
-        return FAIL;
+        return CAR_SPEED_FAIL;
     }
     LOG_I("%d, %d", src, lock_operate);
     if(lock_operate == CAR_LOCK_STA) {

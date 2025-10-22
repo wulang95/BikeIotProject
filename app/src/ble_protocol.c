@@ -233,8 +233,8 @@ static void basic_services_send()
     data_len += 6;
     memcpy(&data[data_len], HWVER, 6);
     data_len += 6;
-    memcpy(&data[data_len], &sys_config.sn[0], 16);
-    data_len += 16;
+    memcpy(&data[data_len], &sys_config.sn[0], 19);
+    data_len += 19;
     ble_protocol_data_pack(BLE_CMD_Q_BASIC_SERVICES, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
 } 
@@ -244,13 +244,21 @@ static void basic_bat_info_send()
     uint8_t data[256] = {0}, buf[256];
     uint16_t data_len = 0;
     uint16_t len;
+    uint32_t temp_cal;
+    int16_t current;
 
     data[data_len++] = (car_info.bms_info[0].pack_vol >> 8)&0xff;
     data[data_len++] = (car_info.bms_info[0].pack_vol) & 0xff;
+    
+    current = car_info.bms_info[0].pack_current == 0 ? 0: (car_info.bms_info[0].pack_current-32768)/10;
+    data[data_len++] = (current >> 8)&0xff;
+    data[data_len++] = current&0xff;
 
-    data[data_len++] = (car_info.bms_info[0].pack_current >> 8)&0xff;
-    data[data_len++] = car_info.bms_info[1].pack_current&0xff;
-    data_len += 3;  /*温度*/
+    temp_cal = car_info.bms_info[0].max_temp + 273 -40;
+    data[data_len++] = (temp_cal >> 16)&0xff;
+    data[data_len++] = (temp_cal >> 8)&0xff;
+    data[data_len++] = temp_cal&0xff;
+
     if(car_info.bms_info[0].charge_sta) {
         data[data_len++] = 0x01;
     } else if(car_info.bms_info[0].chargefull_sta) {
@@ -261,19 +269,19 @@ static void basic_bat_info_send()
     data[data_len++] = car_info.bms_info[0].soh;
 
     data[data_len++] = ((car_info.bms_info[0].charge_interval_time*10) >> 8)&0xff;
-    data[data_len++] = car_info.bms_info[0].charge_interval_time&0xff;
+    data[data_len++] = (car_info.bms_info[0].charge_interval_time*10)&0xff;
 
     data[data_len++] = (car_info.bms_info[0].cycle_number >> 8)&0xff;
     data[data_len++] = car_info.bms_info[0].cycle_number&0xff;
 
-    data[data_len++] = strlen(car_info.bms_info[0].soft_ver);
-    memcpy(&data[data_len], car_info.bms_info[0].soft_ver, strlen(car_info.bms_info[0].soft_ver));
-    data_len += strlen(car_info.bms_info[0].soft_ver);
+    data[data_len++] = 8;
+    memcpy(&data[data_len], car_info.bms_info[0].soft_ver, 8);
+    data_len += 8;
 
 
-    data[data_len++] = strlen(car_info.bms_info[0].hw_ver);
-    memcpy(&data[data_len], car_info.bms_info[0].hw_ver, strlen(car_info.bms_info[0].hw_ver));
-    data_len += strlen(car_info.bms_info[0].hw_ver);
+    data[data_len++] = 8;
+    memcpy(&data[data_len], car_info.bms_info[0].hw_ver, 8);
+    data_len += 8;
 
     ble_protocol_data_pack(BLE_CMD_Q_BAT_INFO, &data[0], data_len, &buf[0], &len);
     ble_send_data(buf, len);
@@ -592,6 +600,30 @@ static void ble_cmd_car_wheel(uint8_t wheel, uint8_t query)
     ble_send_data(buf, len);
 }
 
+static void ble_cmd_query_power_on_password()
+{
+    uint8_t data[16] = {0}, buf[64];
+    uint16_t data_len = 0;
+    uint16_t len;
+
+    data[data_len++] = car_info.hmi_info.passwd_en == 1?1:0;
+
+    ble_protocol_data_pack(BLE_CMD_S_POWERPASSWORD_SW, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
+static void ble_cmd_query_jump_password()
+{
+    uint8_t data[16] = {0}, buf[64];
+    uint16_t data_len = 0;
+    uint16_t len;
+
+    data[data_len++] = car_info.hmi_info.passwd_en == 1?0x00:0xff;
+
+    ble_protocol_data_pack(BLE_CMD_S_JUMP_PASSWORD, &data[0], data_len, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
 static void ble_cmd_time_sync(uint8_t *dat, uint8_t query)
 {
     struct tm *gmt = NULL;
@@ -687,7 +719,7 @@ static void ble_cmd_car_unit(uint8_t unit, uint8_t query)
 
     if(query){
   //      data[data_len++] = car_info.hmi_info.display_unit ? 0x01: 0x02;
-        data[data_len++] = car_set_save.mileage_unit ? 0x01: 0x02;
+        data[data_len++] = car_info.hmi_info.display_unit ? 0x01: 0x02;
     } else {
         if(car_info.lock_sta == CAR_UNLOCK_STA){
             if(unit == 0x02) car_set_save.mileage_unit = 0;
@@ -697,7 +729,7 @@ static void ble_cmd_car_unit(uint8_t unit, uint8_t query)
             car_control_cmd(CAR_CMD_SET_MILEAGE_UNIT);
         } else {
            // data[data_len++] = car_info.hmi_info.display_unit ? 0x01: 0x02;
-           data[data_len++] = car_set_save.mileage_unit ? 0x01: 0x02;
+           data[data_len++] = car_info.hmi_info.display_unit ? 0x01: 0x02;
         }      
     }
     ble_protocol_data_pack(BLE_CMD_S_UNITS, &data[0], data_len, &buf[0], &len);
@@ -711,7 +743,10 @@ static void ble_cmd_car_brightness_level(uint8_t brightness_level, uint8_t query
     uint16_t len;
 
     if(query) {
-        if(car_info.bright_lev < 20)
+        if(car_info.bright_lev  == 0){
+            data[data_len++] = 0x0;
+        }
+        else if(car_info.bright_lev < 20)
             data[data_len++] = 0x01;
         else if(car_info.bright_lev < 40)
             data[data_len++] = 0x02;
@@ -734,7 +769,10 @@ static void ble_cmd_car_brightness_level(uint8_t brightness_level, uint8_t query
                 car_set_save.bright_lev = 100;
             data[data_len++] = brightness_level;
         } else {
-            if(car_info.bright_lev < 20)
+            if(car_info.bright_lev == 0){
+                data[data_len++] = 0x0;
+            }
+            else if(car_info.bright_lev < 20)
                 data[data_len++] = 0x01;
             else if(car_info.bright_lev < 40)
                 data[data_len++] = 0x02;
@@ -800,6 +838,7 @@ void ble_cmd_opearte_res_up(uint16_t cmd)
     ble_send_data(buf, len);
     sys_param_save(SYS_CONFIG_ADR);
     sys_param_save(BACK_SYS_CONFIG_ADR);
+    cat1_reset_reson_save(NET_RESET_BLE_SET_NET);
     sys_reset();
 }
 
@@ -822,7 +861,7 @@ static void ble_navigation_service(uint8_t *data)
     car_state_data.map_dir = data[0];
     car_state_data.cur_dir_range = data[1] << 16 | data[2] << 8 | data[3];
     car_state_data.total_nav_remaintime = data[4] << 24 | data[5] << 16 | data[6] << 8 | data[7];
-    car_state_data.total_nav_range = data[8]<<16 | data[9]| data[10];
+    car_state_data.total_nav_range = data[8]<<16 | data[9]<< 8| data[10];
     LOG_I("cur_dir_range:%d", car_state_data.cur_dir_range);
     LOG_I("total_nav_remaintime:%d", car_state_data.total_nav_remaintime);
     LOG_I("total_nav_range:%d", car_state_data.total_nav_range);
@@ -917,6 +956,57 @@ static void ble_current_limit_set(uint16_t dat, uint8_t query)
     ble_send_data(buf, len);
 }
 
+static void ble_cmd_q_bms_health_info()
+{
+    uint8_t buf[64], data[64];
+    uint16_t len;
+    uint16_t lenth = 0;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.capacity_input_quantity >> 24)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.capacity_input_quantity >> 16)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.capacity_input_quantity >> 8)&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.capacity_input_quantity&0xff;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_input_quantity >> 24)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_input_quantity >> 16)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_input_quantity >> 8)&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.engwe_input_quantity&0xff;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_use_time >> 24)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_use_time >> 16)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_use_time >> 8)&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.extreme_temperature_use_time&0xff;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_charge_time >> 24)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_charge_time >> 16)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_charge_time >> 8)&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.extreme_temperature_charge_time&0xff;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.deep_discharge_count >>8 )&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.deep_discharge_count&0xff;
+
+    data[lenth++] = car_info.bms_info[0].ece_regulation.battery_self_discharge_rate;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.engwe_exchange_efficiency;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.capactity_output_quantity >> 24)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.capactity_output_quantity >> 16)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.capactity_output_quantity >> 8)&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.capactity_output_quantity&0xff;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_output_quantity >> 24)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_output_quantity >> 16)&0xff;
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_output_quantity >> 8)&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.engwe_output_quantity&0xff;
+
+    data[lenth++] = (car_info.bms_info[0].ece_regulation.battery_internal_resistance >>8)&0xff;
+    data[lenth++] = car_info.bms_info[0].ece_regulation.battery_internal_resistance&0xff;
+    data[lenth++] = car_info.bms_info[0].manufacture_date.year;
+    data[lenth++] = car_info.bms_info[0].manufacture_date.month;
+    data[lenth++] = car_info.bms_info[0].manufacture_date.day;
+
+    ble_protocol_data_pack(BLE_CMD_U_BMS_HEALTH_INFO, &data[0], lenth, &buf[0], &len);
+    ble_send_data(buf, len);
+}
 static void basic_second_bat_info()
 {
     uint8_t data[64] = {0}, buf[96];
@@ -946,6 +1036,17 @@ static void basic_second_bat_info()
     ble_send_data(buf, len);
 }
 
+
+static void ble_cmd_query_auto_poweroff_time()
+{
+    uint8_t buf[64], data[64];
+    uint16_t len;
+    uint16_t lenth = 0;
+
+    data[lenth++] = car_info.autoPoweroffTime;
+    ble_protocol_data_pack(BLE_CMD_S_TIME_AUTODOWN, &data[0], lenth, &buf[0], &len);
+    ble_send_data(buf, len);
+}
 void ble_protocol_large_query_service(uint16_t cmd)
 {
     LOG_I("cmd:0x%04x", cmd);
@@ -1000,7 +1101,7 @@ void ble_protocol_large_query_service(uint16_t cmd)
             ble_cmd_car_unit(0, 1);
         break;
         case BLE_CMD_S_BRIGHTNESS_LEVEL:
-
+            ble_cmd_car_brightness_level(0, 1);
         break;
         case BLE_CMD_Q_ATSPHLIGHT_STA:
             ble_atsphlight_sta_query();
@@ -1016,6 +1117,18 @@ void ble_protocol_large_query_service(uint16_t cmd)
         break;
         case BLE_CMD_Q_APN:
             ble_apn_query_send();
+        break;
+        case BLE_CMD_S_POWERPASSWORD_SW:
+            ble_cmd_query_power_on_password();
+        break;
+        case BLE_CMD_S_JUMP_PASSWORD:
+            ble_cmd_query_jump_password();
+        break;
+        case BLE_CMD_S_TIME_AUTODOWN:
+            ble_cmd_query_auto_poweroff_time();
+        break;
+        case BLE_CMD_Q_BMS_HEALTH_INFO:
+            ble_cmd_q_bms_health_info();
         break;
         default:
         break;
@@ -1235,6 +1348,7 @@ void ble_cmd_en_power_on_password(uint8_t dat)
     ble_send_data(buf, len);
 }
 
+
 void ble_cmd_can_trans(uint8_t *data)
 {
     stc_can_rxframe_t can_dat = {0};
@@ -1445,57 +1559,7 @@ static void ble_cmd_look_car()
     ble_send_data(buf, len);
 }
 
-static void ble_cmd_q_bms_health_info()
-{
-    uint8_t buf[64], data[64];
-    uint16_t len;
-    uint16_t lenth = 0;
 
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.capacity_input_quantity >> 24)&0xff;
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.capacity_input_quantity >> 16)&0xff;
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.capacity_input_quantity >> 8)&0xff;
-    data[lenth++] = car_info.bms_info[0].ece_regulation.capacity_input_quantity&0xff;
-
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_input_quantity >> 24)&0xff;
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_input_quantity >> 16)&0xff;
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_input_quantity >> 8)&0xff;
-    data[lenth++] = car_info.bms_info[0].ece_regulation.engwe_input_quantity&0xff;
-
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_use_time >> 24)&0xff;
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_use_time >> 16)&0xff;
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_use_time >> 8)&0xff;
-    data[lenth++] = car_info.bms_info[0].ece_regulation.extreme_temperature_use_time&0xff;
-
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_charge_time >> 24)&0xff;
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_charge_time >> 16)&0xff;
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.extreme_temperature_charge_time >> 8)&0xff;
-    data[lenth++] = car_info.bms_info[0].ece_regulation.extreme_temperature_charge_time&0xff;
-
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.deep_discharge_count >>8 )&0xff;
-    data[lenth++] = car_info.bms_info[0].ece_regulation.deep_discharge_count&0xff;
-
-    data[lenth++] = car_info.bms_info[0].ece_regulation.battery_self_discharge_rate;
-    data[lenth++] = car_info.bms_info[0].ece_regulation.engwe_exchange_efficiency;
-
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.capactity_output_quantity >> 24)&0xff;
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.capactity_output_quantity >> 16)&0xff;
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.capactity_output_quantity >> 8)&0xff;
-    data[lenth++] = car_info.bms_info[0].ece_regulation.capactity_output_quantity&0xff;
-
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_output_quantity >> 24)&0xff;
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_output_quantity >> 16)&0xff;
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.engwe_output_quantity >> 8)&0xff;
-    data[lenth++] = car_info.bms_info[0].ece_regulation.engwe_output_quantity&0xff;
-
-    data[lenth++] = (car_info.bms_info[0].ece_regulation.battery_internal_resistance >>8)&0xff;
-    data[lenth++] = car_info.bms_info[0].ece_regulation.battery_internal_resistance&0xff;
-    data[lenth++] = car_info.bms_info[0].manufacture_date.year;
-    data[lenth++] = car_info.bms_info[0].manufacture_date.month;
-    data[lenth++] = car_info.bms_info[0].manufacture_date.day;
-
-    ble_protocol_data_pack(BLE_CMD_U_BMS_HEALTH_INFO, &data[0], lenth, &buf[0], &len);
-    ble_send_data(buf, len);
-}
 
 void ble_cmd_enter_ship_mode(uint8_t dat)
 {
@@ -1594,8 +1658,22 @@ static void ble_cmd_set_ip(uint8_t *dat, uint16_t d_len)
     sys_param_save(BACK_SYS_CONFIG_ADR);
     ble_protocol_data_pack(BLE_CMD_S_IP, NULL, 0, &buf[0], &len);
     ble_send_data(buf, len);
+    cat1_reset_reson_save(NET_RESET_BLE_SET_NET);
     sys_reset();
 }
+
+void ble_cmd_set_auto_poweroff_time(uint8_t dat)
+{
+    uint8_t buf[64], data[64];
+    uint16_t len;
+    uint16_t lenth = 0;
+
+    car_info.autoPoweroffTime = dat;
+    data[lenth++] = dat;
+    ble_protocol_data_pack(BLE_CMD_S_TIME_AUTODOWN, &data[0], lenth, &buf[0], &len);
+    ble_send_data(buf, len);
+}
+
 
 void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 {
@@ -1672,7 +1750,7 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
             ble_cmd_car_brightness_level(data[0], 0);
         break;
         case BLE_CMD_S_TIME_AUTODOWN:
-
+            ble_cmd_set_auto_poweroff_time(data[0]);
         break;
         case BLE_CMD_S_JUMP_PASSWORD:
             ble_cmd_jump_password(data[0]);

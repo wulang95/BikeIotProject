@@ -23,7 +23,8 @@ uint32_t CmdIdTable[CMD_ID_MAX] = { 0x00000001, 0x00000002, 0x00000004, 0x000000
                                     0x00000100, 0x00000200, 0x00000400, 0x00000800,
                                     0x00001000, 0x00002000, 0x00004000, 0x00008000,
                                     0x00010000, 0x00020000, 0x00040000, 0x00080000,
-                                    0x00100000, 0x00200000, 0x00400000, 0x00800000};
+                                    0x00100000, 0x00200000, 0x00400000, 0x00800000,
+                                    0x01000000, 0x02000000, 0x04000000};
 
 static uint16_t u16_big_to_litel_end(uint8_t *data)
 {
@@ -77,8 +78,8 @@ static uint16_t net_engwwe_iot_hw_info(uint8_t *p)
     lenth += 2;
     memcpy(&p[lenth], gsm_info.iccid, 20);
     lenth += 20;
-    memcpy(&p[lenth], sys_config.sn, 15);
-    lenth += 15;
+    memcpy(&p[lenth], sys_config.sn, 19);
+    lenth += 19;
     memcpy(&p[lenth], sys_config.mac_str, 17);
     lenth += 17;
     memcpy(&p[lenth], sys_config.dev_type, 6);
@@ -97,7 +98,7 @@ static uint16_t net_engwe_cmdId_gps_info(uint8_t *p)
         return lenth;
     }
     p[lenth++] = 0;
-    p[lenth++] = 18;
+    p[lenth++] = 20;
     p[lenth++] = Gps.SateNum;
     p[lenth++] = Gps.hdop;
     u16_big_to_litel_end_sw(&p[lenth], Gps.ground_speed);
@@ -110,6 +111,8 @@ static uint16_t net_engwe_cmdId_gps_info(uint8_t *p)
     lenth += 4;
     u32_big_to_litel_end_sw(&p[lenth], Gps.Lat);  //经度
     lenth += 4;
+    u16_big_to_litel_end_sw(&p[lenth], Gps.CN0);
+    lenth += 2;
     return lenth;
 }
 
@@ -461,11 +464,26 @@ static void net_engwe_cmdId_real_operate(uint8_t *data, uint16_t len, uint16_t s
         case 0x11:
             buf_len = net_engwe_cmdId_operate_respos(buf, car_cmd_q.net_car_control, 0x01, 0);
             net_engwe_pack_seq_up(OPERATION_FEEDBACK_UP, buf, buf_len, car_cmd_q.net_car_control.seq); 
+            cat1_reset_reson_save(NET_RESET_NET_CMD);
             sys_reset();
         break;
     }
 }
 
+static uint16_t net_engwe_cmdId_discon_info(uint8_t *p)
+{
+    uint16_t lenth = 0;
+    u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[DISCON_REASON_CMD]);
+    lenth += 4;
+    p[lenth++] = 0;
+    p[lenth++] = 7;
+    p[lenth++] = sys_info.net_disconnect_res;
+    p[lenth++] = sys_info.mode_reset_res;
+    p[lenth++] = sys_info.mcu_reset_res;
+    u16_big_to_litel_end_sw(&p[lenth], gsm_info.at_ceer_p);
+    lenth += 2;
+    return lenth;
+}
 
 static uint16_t net_engwe_cmdId_carConfig_query(uint8_t *p)
 {
@@ -1126,8 +1144,8 @@ static uint16_t net_engwe_hw_info(uint8_t *p)
     p[lenth++] = 55;
     memcpy(&p[lenth], gsm_info.iccid, 20);
     lenth += 20;
-    memcpy(&p[lenth], sys_config.sn, 15);
-    lenth += 15;
+    memcpy(&p[lenth], sys_config.sn, 19);
+    lenth += 19;
     memcpy(&p[lenth], ble_info.mac_str, 17);
     lenth += 17;
     memcpy(&p[lenth], sys_config.dev_type, 6);
@@ -1249,7 +1267,8 @@ static void net_engwe_cmdId_forbidden_set(uint8_t *data, uint16_t len, uint16_t 
 
 void net_engwe_signed()
 {
-    net_engwe_pack_up(SIGN_IN_UP, NULL, 0);
+ //   net_engwe_pack_up(SIGN_IN_UP, NULL, 0);
+    net_engwe_cmd_push(SIGN_IN_UP, CmdIdTable[DISCON_REASON_CMD]);
 }
 
 static void net_engwe_cmdId_param_query(uint32_t cmdId, uint16_t seq)
@@ -1325,6 +1344,9 @@ static void net_engwe_cmdId_param_query(uint32_t cmdId, uint16_t seq)
                 break;
                 case RIDE_INV_INFO_CMD:
                     lenth += net_engwe_cmdId_ride_info(&p[lenth]);
+                break;
+                case DISCON_REASON_CMD:
+                    lenth += net_engwe_cmdId_discon_info(&p[lenth]);
                 break;
             }
         }
@@ -1449,6 +1471,9 @@ void net_engwe_cmd_push(uint8_t cmd_type, uint32_t info_id)
                 break;
                 case BMS_HEALTH_CMD:
                     lenth += net_engwe_cmdId_bms_health_info(0, &p[lenth]);
+                break;
+                case DISCON_REASON_CMD:
+                    lenth += net_engwe_cmdId_discon_info(&p[lenth]);
                 break;
             } 
         }
@@ -1853,6 +1878,13 @@ void net_engwe_send_thread(void *param)
                 net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
             break;
             case REGULARLY_REPORT_UP:
+                if(car_info.lock_sta == CAR_UNLOCK_STA) {
+                    SETBIT(sys_param_set.net_engwe_report_time1_cmdId, RIDE_INFO_CMD);
+                    SETBIT(sys_param_set.net_engwe_report_time1_cmdId, BATTRY_INFO_CMD);
+                } else {
+                    CLEARBIT(sys_param_set.net_engwe_report_time1_cmdId, RIDE_INFO_CMD);
+                    CLEARBIT(sys_param_set.net_engwe_report_time1_cmdId, BATTRY_INFO_CMD);
+                }
                 net_engwe_cmd_push(REGULARLY_REPORT_UP, sys_param_set.net_engwe_report_time1_cmdId);
             break;
             case REGULARLY_REPORT2_UP:

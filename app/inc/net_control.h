@@ -9,7 +9,9 @@ struct gsm_info_stu{
     char iccid[24];
     uint8_t online :1;  
     uint8_t csq;
+    uint16_t at_ceer_p;
 };
+
 extern struct gsm_info_stu gsm_info;
 void net_socket_close();
 void net_control_init();

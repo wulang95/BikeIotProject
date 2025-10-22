@@ -37,6 +37,7 @@ typedef struct GPS_DATA_STRUCT
     double Latitude;                    //纬度数据 小数格式
     double Longitude;                   //经度数据 小数格式
     double high;                        //海平面高度
+    uint16_t CN0;
 	uint8_t  RefreshFlag;               //定位刷新标志       
 } GPS_DATA;
 
@@ -61,7 +62,8 @@ typedef struct GPS_INFO_STRUCT
 	uint32_t Status;             		
     uint8_t  GpsMode;            		
     uint8_t  SendCmdFlag;        		
-
+    double price_value;
+    double last_price_value;
     int64_t  Gps_Tm_timeout;
     uint8_t  SateNum;            		
     uint16_t GetGPSNum;          		
@@ -71,7 +73,8 @@ typedef struct GPS_INFO_STRUCT
 	uint8_t  GpsPowerSta:2;          	
 	uint8_t  Cgpscold:1;           
 	uint8_t  reserved:5;             	
-	
+    uint8_t  Tm_vaild_num;  //单点定位有效次数
+
 	uint32_t GPS_BAUD;              
 	uint8_t  CaptureNum;
 	char     CaptureKey[16];
@@ -83,6 +86,7 @@ typedef struct GPS_INFO_STRUCT
     uint16_t ground_speed;
     uint16_t direction;
     uint16_t high;
+    uint16_t CN0;
     int Lat;//纬度数据
     int Long;//经度数据
 } GPS_INFO;

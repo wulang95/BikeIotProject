@@ -122,7 +122,7 @@ void app_led_timer_func(void *param)
             if(led_cur_ind[led_step].value != 0) {
                 led_cent++;
                 if(led_cur_ind[led_step].value != 0 && led_cent == led_cur_ind[led_step].value) {
-                    sys_info.led_type_cur = 0xff;
+                    sys_info.led_type_cur = LED_IDEL;
                     return;
                 }
             }
@@ -131,6 +131,9 @@ void app_led_timer_func(void *param)
         break;
         case LED_STOP:
             led_set_value(led_cur_ind[led_step].led, led_cur_ind[led_step].value);
+            if(sys_info.led_type_cur  == LED_ALL_OFF){
+                sys_info.led_type_cur = LED_IDEL;
+            }
         break;
         default:
             led_set_value(led_cur_ind[led_step].led, led_cur_ind[led_step].value);
@@ -143,7 +146,7 @@ void app_led_timer_func(void *param)
 
 void app_led_init()
 {
-    sys_info.led_type_cur = 0xff;
+    sys_info.led_type_cur = LED_IDEL;
     def_rtos_timer_create(&led_timer, NULL, app_led_timer_func, NULL);
     LOG_I("app_led_init is ok");
 }

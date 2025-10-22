@@ -307,6 +307,7 @@ static void hmi_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
 
 static void control_fault_handle(uint8_t fault)
 {
+    sys_info.car_error = 0;    //先对异常清0，只支持单个报错
     switch(fault){
         case 1:
             iot_error_set(CAR_ERROR_TYPE, CTRL_PHASE_OC_FAULT);
@@ -529,6 +530,11 @@ static void bms_info_handle(uint8_t bms_num, PDU_STU pdu, uint8_t *data, uint8_t
                 car_info.bms_info[bms_num].remain_capacity = data[3]<<8 | data[2];
                 car_info.bms_info[bms_num].full_capactity = data[5]<<8 | data[4];
                 car_info.bms_info[bms_num].design_capactity = data[7]<<8 | data[6];
+                if(sys_info.battry_in_flag == 1) {
+                    sys_info.battry_in_flag = 0;
+                    car_info.bms_info[bms_num].connect= 1;
+                    net_engwe_cmd_push(STATUS_PUSH_UP, 0x00000004);   //刚插上电池，推送BMS信息到平台
+                }
             break;
             case BMS_CELL_VOL1:
                 car_info.bms_info[bms_num].pack_series_number = data[0];
@@ -1341,9 +1347,9 @@ void mache_dft_adv_task(void)
             g_mache_buf[data_len++] = MIN(Gps.gps_v_tim/1000,0XFF); 
             g_mache_buf[data_len++] =  (get_gps_vaild() == 1?1:0) << 0 | (g_dft_adc_info.dft_item_res&0x01?1:0)<<1|(g_dft_adc_info.dft_item_res&0x02?1:0)<<2|\
             (g_dft_adc_info.dft_item_res&0x04?1:0)<<3| (sys_info.sensor_init == 1?1:0) << 7 | (sys_info.power_36v == 1?1:0) << 6 | (sys_info.mcu_sys_power_state == 1?1:0) << 5;
-            g_mache_buf[data_len++] = strlen(sys_config.sn);
-            memcpy(&g_mache_buf[data_len], sys_config.sn, strlen(sys_config.sn));
-            data_len += strlen(sys_config.sn);
+            g_mache_buf[data_len++] = 19;
+            memcpy(&g_mache_buf[data_len], sys_config.sn, 19);
+            data_len += 19;
             LOG_I("sys_config.sn:%s", sys_config.sn);
             memcpy(&g_mache_buf[data_len], &GPS_cn0_info.GPS_L1_CN0, 2);
             data_len += 2;
@@ -1409,7 +1415,7 @@ void car_ver_query()
     }
     if(car_info.control_connect == 1) {
         if(strlen(car_info.control_hw_ver) == 0){
-                can_png_quest(CONTROL_ADR, CONTROL_HWVER1, 0);
+            can_png_quest(CONTROL_ADR, CONTROL_HWVER1, 0);
         }
         if(strlen(car_info.control_soft_ver) == 0) {
             can_png_quest(CONTROL_ADR, CONTROL_SOFTVER1, 0);
@@ -1525,9 +1531,9 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
             check_bms_timeout = def_rtos_get_system_tick();
             bms_info_handle(0, can_pdu.pdu, rx_can_frame.Data, rx_can_frame.Cst.Control_f.DLC);
             if(car_info.bms_info[0].connect == 0){
-                net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
-            }
-            car_info.bms_info[0].connect= 1;
+   //             net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
+                car_info.bms_info[0].connect= 1;
+            }  
         break;
         case SECOND_BMS_ADR:
             if(car_info.bms_info[1].init == 0 && can_ota_con.ota_step == OTA_IDEL_STEP) {

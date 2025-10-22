@@ -62,7 +62,7 @@ void hal_net_info_print();
 int hal_get_plmn_info();
 int hal_select_oper(char *plmn);
 uint8_t hal_get_rsrp();
-
+int hal_get_at_ceer(uint16_t *ceer_p);
 
 
 

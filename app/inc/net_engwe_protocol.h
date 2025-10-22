@@ -4,6 +4,44 @@
 #include <string.h>
 #include <stdlib.h>
 
+//掉线原因
+enum {
+    NET_NORMAL_CONNECT = 0X00,  //正常连接
+    NET_DISCON_REG_FAIL,  //注网失败
+    NET_DISCON_SERVICE_DISCON,   //服务器断开连接
+    NET_DISCON_OTHER_FAIL_RES, //其它原因
+};
+//重启原因
+enum{
+    NET_RESET_NORMAL = 0X00,  //IOT正常启动
+    NET_RESET_IOT_OTA,  //正常重启
+    NET_RESET_NO_CARD,    //未插卡
+    NET_RESET_CSQ_LOW,    //信号太差
+    NET_RESET_NO_REG,    //未注网
+    NET_RESET_PDP_FAIL,   //PDP激活失败
+    NTE_RESET_MQTT_BIND_SIM_AND_PROFILE_FAIL, //MQTT绑卡和上下文失败
+    NET_RESET_MQTT_CLIENT_INIT_FAIL, //MQTT初始化失败
+    NET_RESET_MQTT_CONNECT_SERVER_FAIL, //MQTT持续连接服务器失败
+    NET_RESET_MQTT_SUB_FAIL,    //MQTT持续订阅失败
+    NET_RESET_MQTT_DISCONNECT_FAIL, //MQTT持续掉线失败
+    NET_RESET_SENSOR_ABNORMAL, //传感器异常
+    NET_RESET_DEACTIVE,   //去激活
+    NET_RESET_BLE_SET_NET, //蓝牙配网
+    NET_RESET_NET_CMD, //平台命令重启
+};
+
+enum{
+    MCU_RESET_PORT_5V = 0, //5V启动复位
+    MCU_RESET_PORT1_5V,  //1.5V启动复位
+    MCU_RESET_LVD,   //低电压检测复位
+    MCU_RESET_WDT,   //看门狗复位
+    MCU_RESET_PCA,   //PCA复位
+    MCU_RESET_LOCKUP,  //系统异常复位
+    MCU_RESET_SYSREQ,   //软件复位
+    MCU_RESET_RSTB,    //RESET脚复位
+};
+
+
 enum {
     HEART_UP = 0XFF,  //心跳
     ACK_UP = 0XFE,  //ACK
@@ -50,6 +88,9 @@ enum {
     MQTT_SET_CMD,   //MQTT设置 0x00200000
     BMS_HEALTH_CMD,  //电池健康 0x00400000
     RIDE_INV_INFO_CMD,  //骑行区间信息 0x00800000
+    GEAR_PARAM_SET_CMD, //挡位参数设置 0x01000000
+    GEAR_PARAM_INFO_CMD,  //挡位参数信息 0x02000000
+    DISCON_REASON_CMD,   //掉线原因 0x04000000
     CMD_ID_MAX,
 };
 
@@ -66,6 +107,14 @@ enum{
     FOTA_UPDATE_SUCCESS,      //更新固件成功
     FOTA_UPDATE_FAIL,       //更新固件失败
     FOTA_VER_ERROR,         //版本不兼容更新失败
+};
+
+enum {
+    CAR_OTA_FAIL = 0,
+    CAR_NO_BATTREY_FAIL,
+    CAR_LOCK_TIME_OUT_FAIL,
+    CAR_SPEED_FAIL,
+    CAR_CMD_TIME_OUT_FAIL,
 };
 
 typedef struct {

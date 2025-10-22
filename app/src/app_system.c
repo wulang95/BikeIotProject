@@ -333,6 +333,7 @@ int64_t systm_tick_diff(int64_t time)
     int64_t sec;
     const int64_t cur_t = def_rtos_get_system_tick();
     sec = cur_t - time;
+  
     return sec;
 }
 
@@ -658,7 +659,6 @@ void app_system_thread(void *param)
     ble_heart_time_t = def_rtos_get_system_tick();
     LOG_I("sys_param_set.alive_flag:%d", sys_param_set.alive_flag);
     if(sys_param_set.alive_flag == 0) {  //未激活
-        app_set_led_ind(LED_WAIT_ALIVE);
         sys_info.iot_mode = IOT_WAIT_ACTIVE_MODE;
         LOG_I("wait active");
     } else {
@@ -673,6 +673,16 @@ void app_system_thread(void *param)
         res = def_rtos_semaphore_wait(system_task_sem, RTOS_WAIT_FOREVER);
         if(res != RTOS_SUCEESS) {
             continue;
+        }
+        if(sys_info.iot_mode == IOT_WAIT_ACTIVE_MODE) {
+            if(sys_info.led_type_cur == LED_IDEL) {
+                app_set_led_ind(LED_WAIT_ALIVE);
+            }
+        }
+        if(sys_info.ota_flag == 1) {
+            if(sys_info.led_type_cur == LED_IDEL) {
+                app_set_led_ind(LED_SYS_OTA);
+            }
         }
         dft_item_test();
         if(car_set_save.en_power_on_psaaword != car_set_save.last_en_power_on_psaaword){
@@ -755,7 +765,7 @@ void app_system_thread(void *param)
         
         if(def_rtos_get_system_tick() - sys_heart_time_t > 5*1000){
             car_ver_query();
-            car_info_debug();
+        //    car_info_debug();
             if(sys_info.mache_dft_flag == 1){
                 mache_dft_adv_task();
                 mache_dft_clcy_get_info();
@@ -817,6 +827,7 @@ void app_system_thread(void *param)
                 voice_play_mark(LOCK_VOICE);   
                 car_info.lock_sta = CAR_LOCK_STA;
             }
+            memset(&car_info, 0, sizeof(car_info));
         } else if(hal_drv_read_gpio_value(I_36VPOWER_DET) == 0 && sys_info.power_36v == 0) {
              can_png_quest(BMS_ADR, BMS_COMPREHENSIVE_DATA, 0);
              sys_info.power_36v = 1;
@@ -826,6 +837,7 @@ void app_system_thread(void *param)
              net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
              LOG_I("36V power on");
              sys_info.power_sta = BATTERY_USE;
+             sys_info.battry_in_flag = 1;
         }
         // if(sys_info.bat_soc <= 5 && sys_info.power_36v == 0) {
         //     if(sys_info.ble_connect == 1)
@@ -838,13 +850,10 @@ void app_system_thread(void *param)
                 car_get_config_info(CMD_PASS_ON_QUERY, 0);
                 GPS_Start(GPS_MODE_CONT);
                 imu_algo_timer_start();
-                SETBIT(sys_param_set.net_engwe_report_time1_cmdId, RIDE_INFO_CMD);
-                SETBIT(sys_param_set.net_engwe_report_time1_cmdId, BATTRY_INFO_CMD);
             } else {
+                sys_info.car_error = 0; //关锁车异常清0
                 imu_algo_timer_stop();
                 GPS_stop();//关锁后关GPS
-                CLEARBIT(sys_param_set.net_engwe_report_time1_cmdId, RIDE_INFO_CMD);
-                CLEARBIT(sys_param_set.net_engwe_report_time1_cmdId, BATTRY_INFO_CMD);
             }
             regular_heart_update();
             net_engwe_cmd_push(OPERATION_PUSH_UP, sys_param_set.net_engwe_offline_opearte_push_cmdId);
@@ -1060,7 +1069,11 @@ void system_timer_start()
 }
 
 
-
+void cat1_reset_reson_save(uint8_t res)
+{
+    sys_param_set.cat_reset_res = res;
+    sys_param_save(SYS_SET_ADR);
+}
 
  
 void sensor_cali_param_init()
@@ -1087,6 +1100,10 @@ void sys_param_init()
     sheepfang_data_init();
     forbidden_zone_data_init();
     sensor_cali_param_init();
+    sys_info.mode_reset_res = sys_param_set.cat_reset_res;
+    if(sys_param_set.cat_reset_res  != NET_RESET_NORMAL) {
+        cat1_reset_reson_save(NET_RESET_NORMAL);
+    }    
     sys_info.power_adc.sys_power_rate = 24.2556;
     sys_info.power_adc.bat_val_rate = 2.0;
     sys_info.bat_charge_state = BAT_CHARGE_OFF;

@@ -139,6 +139,7 @@ void app_audio_init()
         LOG_E("audio_que_t is create failed");
         return;
     }
+    sys_info.voice_type_cur = 0xff;
     sys_info.audio_init = 1;
     LOG_I("app_audio_init is ok");
 }

@@ -116,6 +116,7 @@ struct sys_param_set_stu {
     uint16_t ota_seq;
     uint8_t navigation_quit_time;
     uint8_t ota_flag;
+    uint8_t cat_reset_res;
     uint8_t sensor_con_err_cnt;  //6轴连续错误次数
     uint32_t crc32;
 };
@@ -294,6 +295,10 @@ struct sys_info_stu {
     uint8_t charge_full_flag;
     uint8_t sensor_error_flag;
     uint8_t mcu_sys_power_state;
+    uint8_t mcu_reset_res;   //MCU复位原因
+    uint8_t mode_reset_res; //模块重启原因
+    uint8_t net_disconnect_res;  //掉线原因
+    uint8_t battry_in_flag;  //电池重新插上
 };
 
 struct sys_set_var_stu{
@@ -309,7 +314,7 @@ struct sys_set_var_stu{
 
 #pragma pack()
 
-#define SOFTVER "SW_3.0.3"
+#define SOFTVER "SW_3.0.4"
 #define HWVER   "HW_3.0.0"
 #define DEFAULT_MANUFACTURER  "EG" 
 #define DEFAULT_DNS "114.114.114.114"
@@ -351,6 +356,7 @@ extern struct sys_param_set_stu sys_param_set;
 extern struct sys_info_stu sys_info;
 extern struct sys_config_stu sys_config;
 extern struct sensor_calibration_data_stu sensor_calibration_data;
+void cat1_reset_reson_save(uint8_t res);
 void app_sys_init();
 void system_timer_start();
 void system_timer_stop();

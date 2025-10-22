@@ -228,6 +228,13 @@ static void pdp_active_state_machine(void)
                 count = 0;
             } else if((def_rtos_get_system_tick() - check_csq_timeout)/1000 > 30*60) {
                 LOG_E("sys_reset...");
+                if(cpin == 0) {
+                    cat1_reset_reson_save(NET_RESET_NO_CARD);
+                } else if(gsm_info.csq <= 10 || gsm_info.csq == 99) {
+                    cat1_reset_reson_save(NET_RESET_CSQ_LOW);
+                } else {
+                    cat1_reset_reson_save(NET_RESET_NO_REG);
+                }
                 MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
             }
         break;
@@ -278,6 +285,11 @@ static void pdp_active_state_machine(void)
                 plmn_black_print();
                 pdp_active_info.pdp_state = PDP_HAND_SELELCT_OPERT;
             } else if(count++ >= 3) {
+                if(net_reg == 0) {
+                    cat1_reset_reson_save(NET_RESET_NO_REG);
+                } else {
+                    cat1_reset_reson_save(NET_RESET_PDP_FAIL);
+                }
                 MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
             } else {
                 def_rtos_task_sleep_s(5);
@@ -295,6 +307,11 @@ static void pdp_active_state_machine(void)
                 } 
             } 
             if(strlen(s_plmn) == 0) {
+                if(net_reg == 0) {
+                    cat1_reset_reson_save(NET_RESET_NO_REG);
+                } else {
+                    cat1_reset_reson_save(NET_RESET_PDP_FAIL);
+                }
                 MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
             }  
         break;
@@ -326,6 +343,7 @@ static void pdp_active_state_machine(void)
             }
             #endif
             hal_drv_pdp_detect_block();
+            sys_info.net_disconnect_res = NET_DISCON_REG_FAIL;
             count = 0;
             memset(&black_plmn_info, 0, sizeof(black_plmn_info));
             pdp_active_info.pdp_state = PDP_NOT_ACTIVATED;
@@ -499,6 +517,7 @@ static void socket_disconnect_handle(uint8_t disconnect_type)
         def_rtos_task_sleep_s(socket_disconnect_delay);
         socket_disconnect_delay = socket_disconnect_delay << 1;
         if(socket_disconnect_delay > 512) {
+            cat1_reset_reson_save(NET_RESET_MQTT_DISCONNECT_FAIL);
             sys_reset();
         }
     } else {
@@ -622,6 +641,7 @@ void iot_mqtt_state_machine()
                     def_rtos_task_sleep_s(mqtt_bind_time);
                     mqtt_bind_time = mqtt_bind_time << 1;
                     if(mqtt_bind_time > 64) {
+                        cat1_reset_reson_save(NTE_RESET_MQTT_BIND_SIM_AND_PROFILE_FAIL);
                         MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
                      //   sys_reset();
                     }
@@ -639,6 +659,7 @@ void iot_mqtt_state_machine()
                     mqtt_client_init_time = mqtt_client_init_time << 1;
                     if(mqtt_client_init_time > 64) {
                      //   sys_reset();
+                        cat1_reset_reson_save(NET_RESET_MQTT_CLIENT_INIT_FAIL);
                         MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
                     }
                 } else {
@@ -730,6 +751,7 @@ void iot_mqtt_state_machine()
                     if(mqtt_connect_ret_time > 512) {
                         mqtt_connect_ret_time = 1;
                     //    if(mqtt_count++ == 3) {
+                            cat1_reset_reson_save(NET_RESET_MQTT_CONNECT_SERVER_FAIL);
                             MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
                        //     sys_reset();
                     //    }
@@ -779,7 +801,7 @@ void iot_mqtt_state_machine()
                         }
                         sys_param_set.ota_flag = 0;
                         SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
-                    }      
+                    }  
                 } else if(def_rtos_get_system_tick() - mqtt_sub_timeout > 12000) {  
                     LOG_E("mqtt sub fail:%d", mqtt_client_sub_time);
                     def_rtos_task_sleep_s(mqtt_client_sub_time);
@@ -789,6 +811,7 @@ void iot_mqtt_state_machine()
                         mqtt_client_sub_time = 0;
                     //    if(mqtt_count++ > 3) {
                     //        sys_reset();
+                        cat1_reset_reson_save(NET_RESET_MQTT_SUB_FAIL);
                         MCU_CMD_MARK(CMD_CAT_REPOWERON_INDEX);
                     //    }
                     }
@@ -803,8 +826,14 @@ void iot_mqtt_state_machine()
                 } else {
                     socket_disconnect_handle(0);
                 }
+                if(hal_get_at_ceer(&gsm_info.at_ceer_p) != 0) {
+                    gsm_info.at_ceer_p = 0xffff; //无效
+                }
                 LOG_E("mqtt connect is fail");
                 mqtt_con_info.state = MQTT_BIND_SIM_AND_PROFILE;
+                if(pdp_active_info.pdp_state != PDP_NOT_ACTIVATED) {
+                    sys_info.net_disconnect_res = NET_DISCON_SERVICE_DISCON;
+                }
             break;
         }
     }

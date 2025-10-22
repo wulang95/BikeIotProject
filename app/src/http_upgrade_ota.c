@@ -522,6 +522,7 @@ int app_iot_ota_jump()
         LOG_I("FOTA_SATRT_UPDATE IS OK");
         net_engwe_fota_state_push(FOTA_SATRT_UPDATE);
         LOG_I("download is sucess ,system will reset power!");
+        cat1_reset_reson_save(NET_RESET_IOT_OTA);
         sys_param_set.ota_flag = 1;
         SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
         def_rtos_task_sleep_s(5);
@@ -544,7 +545,6 @@ void http_upgrade_start()
         net_engwe_fota_state_push(FOTA_IOT_REFUSE); /*开锁状态下拒绝升级*/
         return;
     }
-    app_set_led_ind(LED_SYS_OTA);
     def_rtos_smaphore_release(http_upgrade_info.http_ota_sem);
 }
 
@@ -651,6 +651,8 @@ void http_ota_fw_update()
                 LOG_I("HTTP CONTROL UPDATA SUCCESS");
                 car_info.con_init = 0;
                 net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+                memset(car_info.hmi_info.soft_ver, 0, sizeof(car_info.hmi_info.soft_ver));
+                memset(car_info.hmi_info.hw_ver, 0, sizeof(car_info.hmi_info.hw_ver));
             } else {
                 LOG_I("HTTP CONTROL UPDATA FAIL");
                 net_engwe_fota_state_push(FOTA_UPDATE_FAIL);
@@ -662,6 +664,9 @@ void http_ota_fw_update()
                 LOG_I("HTTP BMS UPDATA SUCCESS");
                 car_info.bms_info[0].init = 0;
                 net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+                car_info.bms_info[0].pack_series_number = 0;
+                memset(car_info.bms_info[0].hw_ver, 0, sizeof(car_info.bms_info[0].hw_ver));
+                memset(car_info.bms_info[0].soft_ver, 0, sizeof(car_info.bms_info[0].soft_ver));
             } else {
                 LOG_I("HTTP BMS UPDATA FAIL");
                 net_engwe_fota_state_push(FOTA_UPDATE_FAIL);
@@ -673,6 +678,9 @@ void http_ota_fw_update()
                 LOG_I("HTTP SECOND_BMS UPDATA SUCCESS");
                 car_info.bms_info[1].init = 0;
                 net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+                car_info.bms_info[1].pack_series_number = 0;
+                memset(car_info.bms_info[1].hw_ver, 0, sizeof(car_info.bms_info[1].hw_ver));
+                memset(car_info.bms_info[1].soft_ver, 0, sizeof(car_info.bms_info[1].soft_ver));
             } else {
                 LOG_I("HTTP SECOND_BMS UPDATA FAIL");
                 net_engwe_fota_state_push(FOTA_UPDATE_FAIL);
@@ -684,6 +692,8 @@ void http_ota_fw_update()
                 car_info.hmi_info.init = 0;
                 LOG_I("HTTP HMI UPDATA SUCCESS");
                 net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+                memset(car_info.hmi_info.hw_ver, 0, sizeof(car_info.hmi_info.hw_ver));
+                memset(car_info.hmi_info.soft_ver, 0, sizeof(car_info.hmi_info.soft_ver));
             } else {
                 LOG_I("HTTP HMI UPDATA FAIL");
                 net_engwe_fota_state_push(FOTA_UPDATE_FAIL);
@@ -910,9 +920,6 @@ void app_http_ota_thread(void *param)
         {
             case HTTP_OTA_WAIT:
                 sys_info.ota_flag = 0;
-                if(sys_info.led_type_cur == LED_SYS_OTA) {
-                    app_set_led_ind(LED_ALL_OFF);
-                }
                 week_time("ota", 30); 
                 if(sys_param_set.alive_flag == 1 && sys_info.iot_mode != IOT_ACTIVE_MODE) {
                     sys_info.iot_mode = IOT_ACTIVE_MODE;

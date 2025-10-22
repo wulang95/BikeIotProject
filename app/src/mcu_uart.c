@@ -17,7 +17,7 @@ def_rtos_queue_t can_rcv_que;
 def_rtos_queue_t mcu_cmd_que;
 
 uint8_t mcu_cmd_table[CMD_INDEX_MAX] = {0X0C, 0X0E, 0X0D, 0x0f, 0x0b, 0x0a, 0x09, 0X08, 0X07, 0X06, 0X05, 0X04, 0x03, 0x10, 0x11, 0x12, 0X13,\
-0X14, 0X15, 0X16, 0x17, 0x18, 0x19, 0x1a, 0x1B, 0X1C, 0X1D};
+0X14, 0X15, 0X16, 0x17, 0x18, 0x19, 0x1a, 0x1B, 0X1C, 0X1D, 0x1E};
 struct mcu_cmd_order_stu {
     uint8_t need_ask;
     uint16_t rely_timeout;
@@ -52,6 +52,7 @@ struct mcu_cmd_order_stu mcu_cmd_order_table[CMD_INDEX_MAX] = {
     {false,     0,          0},     //CMD_MCU_WEEK  0X1B
     {true,      1000,       3},     //CMD_GPS_VER  0X1C
     {true,      1000,       3},     //CMD_MCU_SYS_POER_STATE
+    {true,      1000,       3},     //CMD_MCU_RESET_RES
 };
 
 
@@ -273,6 +274,8 @@ void can_data_send(stc_can_rxframe_t can_txframe)
     mcu_uart_send(buf, len);
 }
 
+char *mcu_reset_res_table[] = {"ResetFlagMskPor5V", "ResetFlagMskPor1_5V", "ResetFlagMskLvd", "ResetFlagMskWdt", "ResetFlagMskPca",\
+"ResetFlagMskLockup", "ResetFlagMskSysreq", "ResetFlagMskRstb"};
 
 void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
 {
@@ -384,6 +387,12 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
     case CMD_MCU_SYS_POWER_STATE:
         sys_info.mcu_sys_power_state = data[0];
         LOG_I("CMD_MCU_SYS_POWER_STATE:%d", sys_info.mcu_sys_power_state);
+    break;
+    case CMD_MCU_RESET_RES:
+        sys_info.mcu_reset_res = data[0];
+        if(sys_info.mcu_reset_res <= 0x07) {
+            LOG_I("CMD_MCU_RESET_RES:%s", mcu_reset_res_table[sys_info.mcu_reset_res]);
+        }
     break;
     default:
         break;
@@ -536,6 +545,7 @@ void mcu_uart_init()
 {
     def_rtos_queue_create(&mcu_cmd_que, sizeof(uint8_t), 12);
     def_rtos_queue_create(&can_rcv_que, sizeof(stc_can_rxframe_t), 12);
+    MCU_CMD_MARK(CMD_MCU_RESET_RES_INDEX);
     MCU_CMD_MARK(CMD_CAN_OTA_END_INDEX);
     MCU_CMD_MARK(CMD_MCU_VER_INDEX);
     MCU_CMD_MARK(CMD_MCU_BAT_CHARGE_OFF_INDEX);

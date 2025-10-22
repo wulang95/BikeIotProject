@@ -18,7 +18,7 @@ int64_t gps_resh_time_t;
 def_rtos_sem_t gps_sem;
 GPS_DATA GpsDataBuf, GpsDataBuf_update; 
 GPS_INFO  Gps;
-
+Point G_CurPoint;
 
 #define EARTH_RADIUS 6378.137
 Point test_p[5] = {{23, 100}, {30, 120}, {25, 140}, {18,130}, {15, 110}};
@@ -141,6 +141,7 @@ void GPS_Init()
     GPS_Ringbuf = rt_ringbuffer_create(GPS_DATA_LEN);
 	gps_resh_time_t = 0;
     Gps.GpsPower = GPS_POWER_OFF;
+    memset(&G_CurPoint, 0, sizeof(G_CurPoint));
     GPS_Start(GPS_MODE_TM);
 }
 
@@ -575,6 +576,7 @@ uint8_t GPS_Data_Proces(char *data, uint16_t len)
     start = strstr(data, "POCNR");
     if(start) {
         GPS_Data_CN0_Proces(start);
+        GData.CN0 = GPS_cn0_info.GPS_L1_CN0;
     }
     if(GData.GpsFlag == 0)  return FAIL;
 
@@ -664,6 +666,7 @@ static void GPS_Composite_PosData(uint8_t gps_updateflag)
     }
     Gps.vaild = 1;
     if(gps_updateflag == 1 || GpsDataBuf_update.GPSValidFlag == 0) {
+        LOG_I("gps_updateflag:%d, GPSValidFlag:%d", gps_updateflag, GpsDataBuf_update.GPSValidFlag);
         Gps.ground_speed = (uint16_t)(strtod(GpsDataBuf.Ground_speed, NULL)*10.0);
         LOG_I("ground_speed:%d", Gps.ground_speed);
         if(strtod(GpsDataBuf.HDOP, NULL)*10.0 > 255.0){
@@ -677,6 +680,8 @@ static void GPS_Composite_PosData(uint8_t gps_updateflag)
         LOG_I("Gps.high :%d", Gps.high);
         Gps.Lat = GpsDataBuf.Latitude*1000000;
         Gps.Long = GpsDataBuf.Longitude*1000000;
+        Gps.CN0 = GpsDataBuf.CN0;
+        Gps.SateNum = atoi(GpsDataBuf.SateNumStr);
         LOG_I("statenum:%d", Gps.SateNum);
         GpsDataBuf_update = GpsDataBuf;
     } else {
@@ -693,6 +698,8 @@ static void GPS_Composite_PosData(uint8_t gps_updateflag)
         LOG_I("Gps.high :%d", Gps.high);
         Gps.Lat = GpsDataBuf_update.Latitude*1000000;
         Gps.Long = GpsDataBuf_update.Longitude*1000000;
+        Gps.CN0 = GpsDataBuf_update.CN0;
+        Gps.SateNum = atoi(GpsDataBuf_update.SateNumStr);
         LOG_I("Gps.Lat:%d,Gps.Long:%d", Gps.Lat,Gps.Long);
         LOG_I("statenum:%d", Gps.SateNum);
     }
@@ -868,10 +875,15 @@ void GPS_Start(uint8_t Mode)
 {
     if(Gps.GpsPower != GPS_POWER_ON) {
         MCU_CMD_MARK(CMD_GPS_POWERON_INDEX);
+        G_CurPoint.lon = Gps.Long/1000000;
+        G_CurPoint.lat = Gps.Lat/1000000;
         Gps.GpsMode = Mode;
         Gps.GetGPSNum = 0; 
         Gps.vaild = 0;
         Gps.gps_v_tim = 0;
+        Gps.Tm_vaild_num = 0;
+        Gps.price_value = 0;
+        Gps.last_price_value = 0;
         memset(&GpsDataBuf, 0, sizeof(GpsDataBuf)); 
     //    strcpy(Gps.PosData, ",V,,,,,,,,,,N");  
         if(Mode == GPS_MODE_TM) {
@@ -993,6 +1005,44 @@ uint8_t get_gps_vaild()
     return GpsDataBuf.GPSValidFlag;
 }
 
+/*归一化*/
+static double GPS_state_count_f(uint8_t state_count)
+{
+    double state_value;
+    if(state_count >= 12) state_value = 1.0;
+    else if(state_count <= 4) state_value = 0.0;
+    else {
+       state_value = ((double)(state_count - 4.0))/8.0;
+    }
+    return state_value;
+}
+
+static double GPS_HDOP_value_f(double hdop)
+{
+    double hdop_value;
+    if(hdop <= 1.0) {
+        hdop_value = 1.0;
+    } else if(hdop >= 20.0) {
+        hdop_value = 0;
+    } else {
+        hdop_value = 1 - (hdop - 1)/19.0;
+    }
+    return hdop_value;
+}
+
+static double GPS_CN0_value_f(uint16_t cn0)
+{
+    double cn0_value;
+    if(cn0 >= 4500){
+        cn0_value = 1.0;
+    } else if(cn0 <= 1000) {
+        cn0_value = 0;
+    } else {
+        cn0_value = ((double)(cn0 - 10))/3500;
+    }
+    return cn0_value;
+}
+
 void gps_control_thread(void *param)
 {
     uint8 gps_buf[512];
@@ -1001,7 +1051,7 @@ void gps_control_thread(void *param)
     double gps_speed=0;
     double distance =0;
     Point P_last={0}, P_now={0};
-    uint8_t s_cent = 0, d_cent = 0;
+  //  uint8_t s_cent = 0, d_cent = 0;
     uint8_t GPS_update_flag = 0;
     while(1){
   //      LOG_I("IS RUN");
@@ -1020,27 +1070,88 @@ void gps_control_thread(void *param)
         gps_speed = strtod(GpsDataBuf.Ground_speed, NULL);
         if(Gps.GpsMode == GPS_MODE_TM) {
             LOG_I("GetGPSNum:%d", Gps.GetGPSNum);
+            // if (systm_tick_diff(Gps.Gps_Tm_timeout) > 600*1000) {
+            //     LOG_I("GPS position is fail");
+            //     GPS_Composite_PosData(1);
+            //     if(sys_info.paltform_connect) {         /*上传一次定位*/
+            //         NET_ENGWE_CMD_MARK(REGULARLY_REPORT_UP);
+            //     }
+            //     GPS_stop();
+            // } else if(Gps.GetGPSNum >= GPS_POS_CNT && Gps.GetGPSNum%5 == 0 && gps_speed == 0) {
+            //     if(GPS_calcu_position(GpsDataBuf.Latitude, GpsDataBuf.Longitude) == 0) {
+            //         LOG_I("GPS position is ok");
+            //         GPS_Composite_PosData(1);
+            //         if(sys_info.paltform_connect) {         /*上传一次定位*/
+            //             NET_ENGWE_CMD_MARK(REGULARLY_REPORT_UP);
+            //         }
+            //         GPS_stop();
+            //     } 
+            // } 
             if (systm_tick_diff(Gps.Gps_Tm_timeout) > 600*1000) {
-                LOG_I("GPS position is fail");
-                GPS_Composite_PosData(1);
                 if(sys_info.paltform_connect) {         /*上传一次定位*/
                     NET_ENGWE_CMD_MARK(REGULARLY_REPORT_UP);
                 }
+                GpsDataBuf = last_GpsDataBuf;
+                GPS_Composite_PosData(1);
                 GPS_stop();
-            } else if(Gps.GetGPSNum >= GPS_POS_CNT && Gps.GetGPSNum%5 == 0 && gps_speed == 0) {
-                if(GPS_calcu_position(GpsDataBuf.Latitude, GpsDataBuf.Longitude) == 0) {
-                    LOG_I("GPS position is ok");
-                    GPS_Composite_PosData(1);
-                    if(sys_info.paltform_connect) {         /*上传一次定位*/
-                        NET_ENGWE_CMD_MARK(REGULARLY_REPORT_UP);
+            } else if(Gps.GetGPSNum >= GPS_POS_CNT) {
+                Gps.price_value = GPS_state_count_f(Gps.SateNum)*0.4 + GPS_HDOP_value_f(strtod(GpsDataBuf.HDOP, NULL))*0.4 + GPS_CN0_value_f(GPS_cn0_info.GPS_L1_CN0)*0.2;
+                if(Gps.price_value > Gps.last_price_value) {
+                    Gps.last_price_value = Gps.price_value;
+                    last_GpsDataBuf = GpsDataBuf;
+                    LOG_I("best value:%f", Gps.last_price_value);
+                    LOG_I("lat:%f, lon:%f", GpsDataBuf.Latitude, GpsDataBuf.Longitude);
+                }
+                if(GPS_cn0_info.GPS_L1_CN0 >= 3000 && strtod(GpsDataBuf.HDOP, NULL) < 3.0 && Gps.SateNum >= 8 && gps_speed == 0) {
+                    if(Gps.Tm_vaild_num++ > 10) {
+                        LOG_I("GPS position is ok");
+                        GPS_Composite_PosData(1);
+                        if(sys_info.paltform_connect) {         /*上传一次定位*/
+                            NET_ENGWE_CMD_MARK(REGULARLY_REPORT_UP);
+                        }
+                        GPS_stop();
                     }
-                    GPS_stop();
+                } else {
+                    Gps.Tm_vaild_num = 0;
                 } 
-            } 
+            }
+
             #if 0  //0707 调试低功耗
             GPS_stop();
             #endif
         } else {
+
+
+        //     GPS_update_flag = 0;
+        //     if(GpsDataBuf.GPSValidFlag == 1 && last_GpsDataBuf.GPSValidFlag == 1) {
+        //         P_now.lat = GpsDataBuf.Latitude;
+        //         P_now.lon = GpsDataBuf.Longitude;
+        //         P_last.lat = last_GpsDataBuf.Latitude;
+        //         P_last.lon = last_GpsDataBuf.Longitude;
+        //         distance = get_distance(P_now, P_last);
+        //         if(distance > 0.2) {
+        //             if(++d_cent >= 10){
+        //                 GPS_update_flag = 1;
+        //                 d_cent = 0;
+        //             }
+        //         } else if(gps_speed > 2.0) {
+        //             if (++s_cent > 5) {
+        //                  GPS_update_flag = 1;
+        //                 s_cent = 0;
+        //             }    
+        //         } else {
+        //             d_cent = 0;
+        //             s_cent = 0;
+        //         }
+        //     } 
+        //     /*追踪模式，位置持续更新*/
+        //     if(car_info.speed != 0 || sys_info.track_mode == 1){
+        //          GPS_update_flag = 1;
+        //     }
+        //     GPS_Composite_PosData(GPS_update_flag);
+        //     last_GpsDataBuf = GpsDataBuf;  
+        // }
+
             GPS_update_flag = 0;
             if(GpsDataBuf.GPSValidFlag == 1 && last_GpsDataBuf.GPSValidFlag == 1) {
                 P_now.lat = GpsDataBuf.Latitude;
@@ -1048,27 +1159,16 @@ void gps_control_thread(void *param)
                 P_last.lat = last_GpsDataBuf.Latitude;
                 P_last.lon = last_GpsDataBuf.Longitude;
                 distance = get_distance(P_now, P_last);
-                if(distance > 0.2) {
-                    if(++d_cent >= 10){
-                        GPS_update_flag = 1;
-                        d_cent = 0;
-                    }
-                } else if(gps_speed > 2.0) {
-                    if (++s_cent > 5) {
-                         GPS_update_flag = 1;
-                        s_cent = 0;
-                    }    
-                } else {
-                    d_cent = 0;
-                    s_cent = 0;
+
+                if((car_info.speed >= 20 && distance < 0.01) || (gps_speed > 2.0 && car_info.move_alarm == 1 && distance < 0.06)) {
+                    GPS_update_flag = 1;
+                    LOG_I("GPS_update_flag");
+                    LOG_I("car_info.speed:%d, distance:%f, gps_speed:%f, car_info.move_alarm:%d, distance:%f", car_info.speed, distance, gps_speed, car_info.move_alarm, distance);
                 }
-            } 
-            /*追踪模式，位置持续更新*/
-            if(car_info.speed != 0 || sys_info.track_mode == 1){
-                 GPS_update_flag = 1;
             }
+            LOG_I("GPSValidFlag:%d", GpsDataBuf.GPSValidFlag);
             GPS_Composite_PosData(GPS_update_flag);
-            last_GpsDataBuf = GpsDataBuf;  
+            last_GpsDataBuf = GpsDataBuf; 
         }
     }
     def_rtos_task_delete(NULL);

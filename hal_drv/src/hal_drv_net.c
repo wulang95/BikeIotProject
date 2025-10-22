@@ -545,3 +545,49 @@ int hal_select_oper(char *plmn)
     free(rec_buf);
     return res;
 }
+
+int hal_get_at_ceer(uint16_t *ceer_p)
+{
+    int res = -3;
+    int ceer_p1= 0, ceer_p2 = 0;
+    char at_buf[256] ={0}, *p1, *p2, str[5] ={0};
+    uint16_t total_len = 0, d_len = 0;
+    hal_virt_flush_recv();
+    hal_virt_at_write("AT+CEER\r\n");
+    d_len = hal_virt_at_read(at_buf, 256, 2000);
+    total_len += d_len;
+    if(total_len > 0) {
+        d_len = hal_virt_at_recv_buf(&at_buf[total_len], 256 - d_len, 180000);
+    }
+    total_len += d_len;
+    if(total_len > 0) {
+        LOG_I("at_buf:%s, ", at_buf);
+        if((p1 = strstr(at_buf, "+CEER:")) != NULL) {
+            if((p2 = strchr(p1, ',')) != NULL) {
+                // LOG_I("P1:%s", p1);
+                // LOG_I("P2:%s", p2);
+                // LOG_I("%s", p1+6);
+                memcpy(str, p1+6, p2 -p1-6);
+                // LOG_I("%s", str);
+                ceer_p1 = atoi(str);
+                *ceer_p = (uint16_t)ceer_p1 & 0x07;
+                if((p1 = strstr(p2, "\r\n")) != NULL) {
+                    memset(str, 0, 5);
+                    memcpy(str, p2+1, p1 - p2 -1);
+                    LOG_I("%s", str);
+                    ceer_p2 = atoi(str);
+                    if(ceer_p2 == -1) {
+                        *ceer_p |= 0xffff << 3; 
+                    } else {
+                        *ceer_p |= (uint16_t)ceer_p2&0x1fff << 3; 
+                    }
+                    res = 0;
+                }
+            }
+        }
+        LOG_I("%d,%d, %d", ceer_p1, ceer_p2, *ceer_p);
+    } else {
+        res = -1;
+    }
+    return res;
+}
