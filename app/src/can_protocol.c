@@ -39,7 +39,7 @@ struct can_cmd_order_s {
 struct can_control_cmd_stu {
     uint8_t dts;
     uint8_t cmd_code;
-    uint8_t cmd_index;
+    uint16_t cmd_index;
     uint8_t cmd_len;
 };
 
@@ -71,6 +71,8 @@ static struct can_control_cmd_stu can_control_cmd_table[] = {
     {0XF4,  0X14,   0X02,   1}, //CMD_DOUBLE_BMS_WORK_MODE
     {0X56,  0X60,   0X01,   2}, //CMD_CHARGE_POWER
     {0x28,  0x61,   0x01,   1}, //CMD_PASS_ON_QUERY
+    {0xEF,  0x60,   0x6280, 4}, //CMD_ASSIST_MODE_SET1
+    {0xEF,  0x60,   0x6284, 4}, //CMD_ASSIST_MODE_SET2
 };
 
 
@@ -144,8 +146,8 @@ void car_get_config_info(uint8_t cmd, uint8_t direct)
     can_pdu.dp = 0;
     can_pdu.res = 0;
     can_dat.ExtID = can_pdu.can_id;
-    data[0] = can_control_cmd_table[cmd].cmd_index;
-    data[1] = 0;
+    data[0] = can_control_cmd_table[cmd].cmd_index &0xff;
+    data[1] = (can_control_cmd_table[cmd].cmd_index>>8) &0xff;
     memcpy(&can_dat.Data[0], &data[0], 2);
     can_dat.Cst.Control_f.DLC = 2;
     can_dat.Cst.Control_f.IDE = 1;
@@ -369,6 +371,17 @@ static void control_fault_handle(uint8_t fault)
     }
 }
 
+void gear_config_info_prase(uint8_t *data)
+{
+    uint8_t gear_num;
+    gear_num = data[0];
+    if(gear_num >= 1 && gear_num <= 15) {
+        memcpy(&car_info.gear_config_info[gear_num - 1], &data[1], 7);
+    }else{
+        return;
+    }
+}
+
 static void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
 {
     if(pdu.pdu1 >= 240){
@@ -501,6 +514,9 @@ static void control_info_handle(PDU_STU pdu, uint8_t *data, uint8_t data_len)
             break;
             case CONTROL_CUSTOMERCODE2:
          //   debug_data_printf("CONTROL_CUSTOMERCODE2", data, data_len);
+            break;
+            case CONTROL_GEAR_INFOR:
+                gear_config_info_prase(data);
             break;
         }
     }
@@ -1404,7 +1420,7 @@ void mache_dft_adv_task(void)
 
 void car_ver_query()
 {
-    if(car_info.lock_sta == CAR_LOCK_STA) return;
+    if(car_info.lock_sta == CAR_LOCK_STA && sys_info.ota_flag == 1) return;
     if(car_info.hmi_connnect == 1){
         if(strlen(car_info.hmi_info.hw_ver) == 0){
             can_png_quest(HMI_ADR, HMI_HW_VER1, 0);
@@ -1438,6 +1454,11 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
     CAN_PDU_STU can_pdu;
     CAN_PDU_STU send_can_pdu;
     uint16_t pgn;
+    if(sys_info.ota_flag == 1) {
+        LOG_E("CANOTA, can_id:%0x", rx_can_frame.ExtID);
+        LOG_E("CANOTA data:%02x, %02x, %02x, %02x, %02x, %02x, %02x, %02x", rx_can_frame.Data[0], rx_can_frame.Data[1], rx_can_frame.Data[2],\
+            rx_can_frame.Data[3], rx_can_frame.Data[4], rx_can_frame.Data[5], rx_can_frame.Data[6], rx_can_frame.Data[7]);
+    }
     
     LOG_I("CAN_ID:%08x", rx_can_frame.RBUF32_0);
     can_pdu.can_id = rx_can_frame.RBUF32_0;
@@ -1452,6 +1473,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                 LOG_E("FALUT RES:%02x", rx_can_frame.Data[1]);
                 if(rx_can_frame.Data[1] == 0XA5) {
                     can_ota_con.ota_step = OTA_QUIT_STEP;
+                    LOG_I("OTA_QUIT_STEP: 0XA5");
                 }
                 // if(rx_can_frame.Data[1] == 0xA5) {  
                 //     can_ota_con.ota_step = OTA_IDEL_STEP;//退出异常
@@ -1596,6 +1618,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                         }
                         else if(rx_can_frame.Data[0] == 0xAA) {   //进入静默
                             can_ota_con.ota_step = OTA_QUIT_STEP;
+                            LOG_I("OTA_QUIT_STEP: 0XAA");
                       //      can_ota_con.ota_step = OTA_IDEL_STEP;  
                         }
                     }    
@@ -1618,6 +1641,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                             can_ota_con.ota_step = OTA_PACK_DATA_STEP;
                         } else {
                             can_ota_con.ota_step = OTA_QUIT_STEP;
+                            LOG_I("OTA_QUIT_STEP");
                         }
                     }
                 } else if(can_send_cmd.can_tx_frame.Data[0] == 0xA9) {
@@ -1627,6 +1651,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                         if(rx_can_frame.Data[1] == 0x55) {
                             if(can_ota_con.pack_cout == can_ota_con.total_pack) {
                                 can_ota_con.ota_step = OTA_QUIT_STEP;
+                                LOG_I("OTA_QUIT_STEP");
                             } else {
                                 can_ota_con.ota_step = OTA_PACK_HEAD_STEP;
                                 can_ota_con.retry = 0;
@@ -1639,6 +1664,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
                             //     can_ota_con.retry = 1;
                             // }   
                             can_ota_con.ota_step = OTA_QUIT_STEP;  
+                            LOG_I("OTA_QUIT_STEP");
                         }
                     }
                 }
@@ -1649,6 +1675,7 @@ static void can_data_recv_parse(stc_can_rxframe_t rx_can_frame)
 
 void can_png_quest(uint8_t dst, uint16_t png, uint8_t direct)
 {
+    if(sys_info.ota_flag == 1) return;
     CAN_PDU_STU can_pdu;
     uint8_t data[8] = {0};
     stc_can_rxframe_t can_dat = {0};
@@ -1715,8 +1742,8 @@ void iot_can_cmd_control(uint8_t cmd, uint8_t *cmdvar, uint8_t direct)
     can_pdu.dp = 0;
     can_pdu.res = 0;
     can_dat.ExtID = can_pdu.can_id;
-    data[0] = can_control_cmd_table[cmd].cmd_index;
-    data[1] = 0;
+    data[0] = can_control_cmd_table[cmd].cmd_index &0xff;
+    data[1] = (can_control_cmd_table[cmd].cmd_index>>8) &0xff;
     data[2] = can_control_cmd_table[cmd].cmd_len;
     memcpy(&data[3], cmdvar, can_control_cmd_table[cmd].cmd_len);
     data[7] = can_check_sum(data, 7);

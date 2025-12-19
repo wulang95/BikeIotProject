@@ -66,6 +66,7 @@ void rtc_event_handler(RTC_EVENT rtc_e)
             if(sys_info.ota_flag == 0){
                 MCU_CMD_MARK(CMD_MCU_ADC_DATA_INDEX);
                 can_png_quest(BMS_ADR, BMS_COMPREHENSIVE_DATA, 0);
+                can_png_quest(BMS_ADR, BMS_BATTRY_PACK_RECORDDATA, 0);
             }
             break;
         case SENSOR_CHECK_EVENT:
@@ -172,8 +173,8 @@ void app_rtc_event_thread(void *param)
         }
         LOG_I("min_sec:%d", min_sec);
         LOG_I("min_i:%d", min_i);
-        if(min_sec <= 2){
-            min_sec = 3;
+        if(min_sec <= 5){
+            min_sec = 5;
         }
         hal_drv_rtc_set_alarm(min_sec);  /*1S会有异常*/
         last_time = hal_drv_rtc_get_timestamp();

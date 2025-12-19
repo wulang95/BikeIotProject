@@ -88,7 +88,6 @@ enum {
 
 #define OFFLINE_OPERATE_PUSH_DEFAULT (0x00000040|0x00000080|0x00000020)
 #define STATE_PUSH_DEFAULT (0x00000020|0x00000200|0x00000004)
-
 struct sys_param_set_stu {
     uint32_t magic;
     uint8_t alive_flag;     //激活标志
@@ -205,7 +204,7 @@ enum {
     SHEEPFANG_ENTER,           //进入羊圈
     SHEEPFANG_LEAVE,            //离开羊圈
     SHEEPFANG_IN,           //在羊圈里
-    SHEEPFANG_OUT,          //在羊圈外
+    SHEEPFANG_OUT,          //在羊圈外  
 };
 
 enum {
@@ -314,7 +313,7 @@ struct sys_set_var_stu{
 
 #pragma pack()
 
-#define SOFTVER "SW_3.0.4"
+#define SOFTVER "SW_3.0.0"
 #define HWVER   "HW_3.0.0"
 #define DEFAULT_MANUFACTURER  "EG" 
 #define DEFAULT_DNS "114.114.114.114"
@@ -323,13 +322,18 @@ struct sys_set_var_stu{
 #define DEFAULT_APN     "linksnet"
 /*"linksnet"*/
 /*"asia.bics"*/
-#define DEFAULT_IP "mqtt://dev-mqtt.engweapp.cn"
+#define DEFAULT_IP   "mqtts://test-mqtt.engweapp.cn"
+//"mqtt://dev-mqtt.engweapp.cn"
+//"mqtts://mqtt.engweapp.com:11883"
+//"mqtt://dev-mqtt.engweapp.cn:9506"
+// "mqtts://test-mqtt.engweapp.cn:11883"
 //"mqtt://dev-mqtt.engweapp.cn"
 // "mqtts://test-mqtt.engweapp.cn"
-
 /*"mqtt://broker.emqx.io:1883" */
 /*"iot.engweapp.cn"*/
-#define DEFAULT_PORT   9506  
+#define DEFAULT_PORT  11883
+//9506  
+
 // 9600
 
 /*9682*/

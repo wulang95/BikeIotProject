@@ -71,7 +71,7 @@ int qmi8658_sensor_init()
 /*   摔倒检测    */
 #define FILTER_ALPHA        0.2f   // 低通滤波系数
 #define FALL_ACC_THRESH     3.0f   // 跌倒加速度阈值(3g)
-#define FALL_ANGLE_THRESH   60.0f  // 跌倒角度阈值(60度)
+#define FALL_ANGLE_THRESH   50.0f  // 跌倒角度阈值(60度)
 #define RECOVERY_ANGLE      30.0f  // 扶起角度阈值(30度)
 #define POST_FALL_TIME      3000   // 跌倒后检测扶起时间窗(3秒)
 #define STABLE_DURATION     2000   // 稳定状态维持时间(2秒)
@@ -287,10 +287,14 @@ void high_pass_filter(float *ax, float *ay, float *az, float alpha) {
 // 检测震动事件
 bool detect_vibration(VibrationDetector* detector, float *acc, float *gyro) {
     // 1. 应用高通滤波器去除重力影响
-    high_pass_filter(&acc[0], &acc[1], &acc[2], 0.8f);
+    float acc_t[3];
+    acc_t[0] = acc[0];
+    acc_t[1] = acc[1];
+    acc_t[2] = acc[2];
+    high_pass_filter(&acc_t[0], &acc_t[1], &acc_t[2], 0.8f);
     
     // 2. 计算当前合加速度
-    float current_magnitude = acceleration_magnitude(acc[0], acc[1], acc[2]);
+    float current_magnitude = acceleration_magnitude(acc_t[0], acc_t[1], acc_t[2]);
     
     // 3. 计算加速度变化率
     float delta_acc = fabsf(current_magnitude - detector->prev_magnitude);
@@ -349,7 +353,9 @@ void imu_algo_thread(void *param)
         0.8f,   // 合加速度阈值 (m/s²)
         5       // 滑动窗口大小
     );
-    imu_algo_timer_stop();
+    if(car_info.lock_sta == CAR_LOCK_STA){
+        imu_algo_timer_stop();
+    }
 	while(1)
 	{
 		res = def_rtos_semaphore_wait(imu_algo_sem, RTOS_WAIT_FOREVER);
@@ -376,9 +382,7 @@ void imu_algo_thread(void *param)
 		} else {
             car_info.filp_state = CAR_NORMAL_STATE;
         }
-        car_info.move_alarm = detect_vibration(detector, accl, gyro);
         LOG_I("car_info.move_alarm:%d", car_info.move_alarm);
-		LOG_I("accl[0]:%0.2f, accl[1]:%0.2f, accl[2]:%0.2f", accl[0], accl[1], accl[2]);
 		LOG_I("gyro[0]:%0.2f, gyro[1]:%0.2f, gyro[2]:%0.2f", gyro[0], gyro[1], gyro[2]);	
 		accel_correct[0] = Filter_Apply(accl[0],&accel_buf[0],&accel_filter);
 		accel_correct[1] = Filter_Apply(accl[1],&accel_buf[1],&accel_filter);
@@ -389,7 +393,9 @@ void imu_algo_thread(void *param)
 		qst_fusion_update(accel_correct, gyro_correct, &dt, euler_angle, quater, line_acc);
 		LOG_I("ptich:%.2f,roll:%.2f,yaw:%.2f",euler_angle[0],euler_angle[1],euler_angle[2]); 
         car_state_data.slope_data = (int8_t)euler_angle[0];
-		memcpy(last_accl, accl, 3);
+        memcpy(last_accl, accl, 3);
+        car_info.move_alarm = detect_vibration(detector, accl, gyro);
+        LOG_I("accl[0]:%0.2f, accl[1]:%0.2f, accl[2]:%0.2f", accl[0], accl[1], accl[2]);
 	}
 	def_rtos_task_delete(NULL);
 }
@@ -399,13 +405,13 @@ void imu_algo_thread(void *param)
 
 void imu_algo_timer_start()
 {
-    if(sys_info.algo_timer_run == 1) return;
-	sys_info.algo_timer_run = 1;
+    if(sys_info.algo_timer_run == 1) return;	
     LOG_I("imu_algo_timer_start");
 	if(RTOS_SUCEESS != def_rtos_timer_start(algo_timer, 50, 1)){
         LOG_E("algo_timer is start fail");
     }
 	QMI8658_Wakeup_Process();
+    sys_info.algo_timer_run = 1;
 //	qmi8658_enable_amd(0, 	qmi8658_Int1, 0); 
 //	qmi8658_restart();
 //	qmi8658_enableSensors(QMI8658_ACCGYR_ENABLE);
@@ -417,8 +423,8 @@ void imu_algo_timer_stop()
 	if(RTOS_SUCEESS != def_rtos_timer_stop(algo_timer)){
         LOG_E("algo_timer is stop fail");
     }
-    sys_info.algo_timer_run = 0;
 	qmi8658_enable_amd(1, 	qmi8658_Int1, 1);  //关闭同步
+    sys_info.algo_timer_run = 0;
 	LOG_I("imu_algo_timer_stop");
 }
 

@@ -136,7 +136,9 @@ enum {
     BLE_CMD_CAN_TRANS_SET = 0X0037,
     BLE_CMD_TRANS_CAN = 0X00FD,
     BLE_CMD_TRANS_CAN_UP = 0X007D,
-
+    BLE_CMD_GEAR_CONFIG_INFO_QUERY = 0X0129,
+    BLE_CMD_GEAR_CONFIG_INFO_ASK = 0X012A,
+    BLE_CMD_GEAR_CONFIG_SET = 0X012B,
 };
 
 void ble_protocol_data_pack(uint16_t cmd, uint8_t *data, uint16_t data_len, uint8_t *buf, uint16_t *len)
@@ -249,8 +251,8 @@ static void basic_bat_info_send()
 
     data[data_len++] = (car_info.bms_info[0].pack_vol >> 8)&0xff;
     data[data_len++] = (car_info.bms_info[0].pack_vol) & 0xff;
-    
     current = car_info.bms_info[0].pack_current == 0 ? 0: (car_info.bms_info[0].pack_current-32768)/10;
+    LOG_I("current:%d, pack_current:%d", current, car_info.bms_info[0].pack_current);
     data[data_len++] = (current >> 8)&0xff;
     data[data_len++] = current&0xff;
 
@@ -1674,6 +1676,46 @@ void ble_cmd_set_auto_poweroff_time(uint8_t dat)
     ble_send_data(buf, len);
 }
 
+static void ble_cmd_gear_config_info_query(uint8_t dat)
+{
+    uint8_t buf[64], data[64];
+    uint16_t len;
+    uint16_t lenth = 0;
+    uint8_t gear_num;
+
+    gear_num = dat;
+    if(gear_num >= 1 && gear_num <= 15){
+        data[lenth++] = gear_num;
+        data[lenth++] = car_info.gear_config_info[gear_num - 1].boost_ratio;
+        data[lenth++] = car_info.gear_config_info[gear_num - 1].start_step_fre_respon;
+        data[lenth++] = car_info.gear_config_info[gear_num - 1].maximun_torque;
+        data[lenth++] = car_info.gear_config_info[gear_num - 1].maximum_speed;
+        data[lenth++] = car_info.gear_config_info[gear_num - 1].maximun_power;
+        ble_protocol_data_pack(BLE_CMD_GEAR_CONFIG_INFO_ASK, &data[0], lenth, &buf[0], &len);
+        ble_send_data(buf, len);
+    }
+}
+
+
+static void ble_cmd_gear_config_set(uint8_t *dat)
+{
+    uint8_t buf[64];
+    uint16_t len;
+    uint8_t gear_num;
+
+    gear_num = dat[0];
+    if(gear_num >= 1 && gear_num <= 15) {
+        car_set_save.gear_config_num = gear_num;
+        car_set_save.gear_config_set.boost_ratio = dat[1];
+        car_set_save.gear_config_set.start_step_fre_respon = dat[2];
+        car_set_save.gear_config_set.maximun_torque = dat[3];
+        car_set_save.gear_config_set.maximum_speed = dat[4];
+        car_set_save.gear_config_set.maximun_power = dat[5];
+        car_control_cmd(CAR_ASSIST_MODE_SET);
+    }
+    ble_protocol_data_pack(BLE_CMD_GEAR_CONFIG_SET, dat, 6, &buf[0], &len);
+    ble_send_data(buf, len);
+}
 
 void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
 {
@@ -1856,6 +1898,12 @@ void ble_protocol_cmd_parse(uint16_t cmd, uint8_t *data, uint16_t len)
         case BLE_CMD_S_IP:
             ble_cmd_set_ip(data, len);
         break;
+        case BLE_CMD_GEAR_CONFIG_INFO_QUERY:
+            ble_cmd_gear_config_info_query(data[0]);
+        break;
+        case BLE_CMD_GEAR_CONFIG_SET:
+            ble_cmd_gear_config_set(data);
+        break;
         default:
         break;
     }
@@ -1870,6 +1918,9 @@ void ble_up_cycle_data_heart_service()
 
     data = malloc(128);
     buf = malloc(128);
+    if(car_info.lock_sta == CAR_LOCK_STA) {
+        car_info.speed = 0;
+    }
     data[data_len++] = (car_info.speed >> 8) & 0xff;
     data[data_len++] = car_info.speed&0xff;
     data[data_len++] = (car_info.max_speed >> 8)&0xff;
@@ -1949,6 +2000,7 @@ void ble_up_cycle_data_heart_service()
 
 void ble_heart_event()
 {
+    LOG_I("ble_heart_event");
     ble_up_cycle_data_heart_service();
 }
 

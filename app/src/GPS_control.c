@@ -1048,6 +1048,7 @@ void gps_control_thread(void *param)
     uint8 gps_buf[512];
     uint16_t len;
     GPS_DATA last_GpsDataBuf= {0};
+    GPS_DATA best_GpsDataBuf = {0};
     double gps_speed=0;
     double distance =0;
     Point P_last={0}, P_now={0};
@@ -1056,7 +1057,7 @@ void gps_control_thread(void *param)
     while(1){
   //      LOG_I("IS RUN");
         len = gps_data_block_recv(gps_buf, 512, RTOS_WAIT_FOREVER);
-        if(len == 0) continue;
+        if(len == 0 || Gps.GpsPower == GPS_POWER_OFF) continue;   //GPS没彻底关，调试发现关了还上报数据
         gps_resh_time_t = def_rtos_get_system_tick();
         if(iot_error_check(IOT_ERROR_TYPE, GPS_ERROR) == 1) {
             iot_error_clean(IOT_ERROR_TYPE, GPS_ERROR);
@@ -1151,7 +1152,8 @@ void gps_control_thread(void *param)
         //     GPS_Composite_PosData(GPS_update_flag);
         //     last_GpsDataBuf = GpsDataBuf;  
         // }
-
+           
+            //优化定位，信号差也更新。
             GPS_update_flag = 0;
             if(GpsDataBuf.GPSValidFlag == 1 && last_GpsDataBuf.GPSValidFlag == 1) {
                 P_now.lat = GpsDataBuf.Latitude;
@@ -1159,11 +1161,25 @@ void gps_control_thread(void *param)
                 P_last.lat = last_GpsDataBuf.Latitude;
                 P_last.lon = last_GpsDataBuf.Longitude;
                 distance = get_distance(P_now, P_last);
-
-                if((car_info.speed >= 20 && distance < 0.01) || (gps_speed > 2.0 && car_info.move_alarm == 1 && distance < 0.06)) {
-                    GPS_update_flag = 1;
-                    LOG_I("GPS_update_flag");
-                    LOG_I("car_info.speed:%d, distance:%f, gps_speed:%f, car_info.move_alarm:%d, distance:%f", car_info.speed, distance, gps_speed, car_info.move_alarm, distance);
+                if((car_info.speed >= 20 && distance < 0.01 && gps_speed > 2.0 && gps_speed < 60.0) || (car_info.speed == 0 && gps_speed > 2.0 && car_info.move_alarm == 1 && distance < 0.06)) {
+                    Gps.GetGPSNum++;
+                    // if(GPS_cn0_info.GPS_L1_CN0 <= 2000 || Gps.SateNum <= 6 || strtod(GpsDataBuf.HDOP, NULL) >= 3) {   //信号太差不更新位置
+                    //     GPS_update_flag = 0;
+                    // } else {
+                        Gps.price_value = GPS_state_count_f(Gps.SateNum)*0.4 + GPS_HDOP_value_f(strtod(GpsDataBuf.HDOP, NULL))*0.4 + GPS_CN0_value_f(GPS_cn0_info.GPS_L1_CN0)*0.2;
+                        if(Gps.price_value > Gps.last_price_value) {
+                            best_GpsDataBuf = GpsDataBuf;
+                            Gps.last_price_value = Gps.price_value;
+                        }
+                        if(Gps.GetGPSNum >= 10) {
+                            GPS_update_flag = 1;
+                            Gps.GetGPSNum = 0;
+                            Gps.last_price_value = 0;
+                            GpsDataBuf = best_GpsDataBuf;
+                        }
+                        LOG_I("GPS_update_flag");
+                        LOG_I("car_info.speed:%d, distance:%f, gps_speed:%f, car_info.move_alarm:%d", car_info.speed, distance, gps_speed, car_info.move_alarm);
+                    // } 
                 }
             }
             LOG_I("GPSValidFlag:%d", GpsDataBuf.GPSValidFlag);

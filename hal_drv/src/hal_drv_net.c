@@ -116,10 +116,11 @@ uint8_t hal_dev_get_c_fun()
     ql_dev_get_modem_fun(&fun, 0);
     return fun;
 }
-
+extern void mqtt_discon();
 void sys_reset()
 {
     LOG_I("sys_reset...");
+    mqtt_discon();
     def_rtos_task_sleep_s(5);
     ql_power_reset(RESET_NORMAL);
 }
@@ -245,13 +246,13 @@ NET_NW_INFO hal_drv_get_operator_info()
     } else if(strstr(at_buf, "LTE BAND 2") != NULL) {
         nw_info.fre_band = 0x01;
     } else if(strstr(at_buf, "GSM 850") != NULL) {
-        nw_info.fre_band = 0x17;
+        nw_info.fre_band = 0x16;
     } else if(strstr(at_buf, "GSM 900") != NULL) {
-        nw_info.fre_band = 0x18;
+        nw_info.fre_band = 0x17;
     } else if(strstr(at_buf, "GSM 1800") != NULL) {
-        nw_info.fre_band = 0x19;
+        nw_info.fre_band = 0x18;
     } else if(strstr(at_buf, "GSM 1900") != NULL) {
-        nw_info.fre_band = 0x1A;
+        nw_info.fre_band = 0x19;
     } else {
         nw_info.fre_band = last_band;
     }

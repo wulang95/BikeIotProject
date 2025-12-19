@@ -412,6 +412,7 @@ static void sys_param_set_default_init()
     sys_param_set.ota_cnt = 0;
     SETBIT(sys_param_set.net_heart_sw, LOCK_HEART_SW);
     SETBIT(sys_param_set.net_heart_sw, UNLOCK_HEART_SW);
+    SETBIT(sys_param_set.net_heart_sw, INTERNAL_BAT_HEART_SW);
     sys_param_set.alive_flag = 1;
     sys_param_set.net_engwe_offline_opearte_push_cmdId = OFFLINE_OPERATE_PUSH_DEFAULT;
     sys_param_set.net_engwe_state_push_cmdId = STATE_PUSH_DEFAULT;
@@ -423,7 +424,7 @@ static void sys_param_set_default_init()
     sys_param_set.unlock_car_heart2_interval = 10;
     sys_param_set.net_engwe_report_time1_cmdId = 7;
     sys_param_set.net_engwe_report_time2_cmdId = 7;
-    sys_param_set.shock_sensitivity = 3;
+    sys_param_set.shock_sensitivity = 5;
     sys_param_set.bms_charge_current = 8;
     sys_param_set.shock_sw = 1;
     sys_param_set.hid_lock_sw = 1;
@@ -531,7 +532,8 @@ void sys_config_init()
         if(sys_config_back.magic != IOT_MAGIC || sys_config_back.crc32 != GetCrc32((uint8_t *)&sys_config_back, sizeof(sys_config_back) - 4)) {
             LOG_E("sys_config save is fail!");
             sys_config_default_init();
-        } else {
+        } else { 
+
             sys_config = sys_config_back;
             flash_partition_erase(SYS_CONFIG_ADR);
             flash_partition_write(SYS_CONFIG_ADR, (void *)&sys_config, sizeof(sys_config), 0);
@@ -572,7 +574,7 @@ void regular_heart_update()
                 rtc_event_unregister(NET_REPORT_EVENT);
             }
             if(CHECKBIT(sys_param_set.net_heart_sw, LOCK_HEART2_SW)){
-                rtc_event_register(NET_REPORT_EVENT, sys_param_set.lock_car_heart2_interval, 1); 
+                rtc_event_register(NET_REPORT2_EVENT, sys_param_set.lock_car_heart2_interval, 1); 
             } else {
                 rtc_event_unregister(NET_REPORT2_EVENT);
             }
@@ -647,7 +649,9 @@ void app_system_deactive_func()
     SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
     rtc_event_register(SYSTEM_REBOOT_EVENT, 120, 0);
 }
- 
+
+
+
 void app_system_thread(void *param)
 {
     def_rtosStaus res;
@@ -698,7 +702,7 @@ void app_system_thread(void *param)
         }
         
         #if 1
-        sys_log_out("GPS_L1_CN0:%d", GPS_cn0_info.GPS_L1_CN0);
+        sys_log_out("euler_angle[0]:%f, euler_angle[1]:%f, euler_angle[2]:%f", euler_angle[0], euler_angle[1], euler_angle[2]);
         #endif
 
         app_bat_charge_check();
@@ -794,7 +798,7 @@ void app_system_thread(void *param)
  //       }
         /*电子围栏检测*/
         GPS_fence_detection();
-
+        LOG_I("I_BLE_CON_SIG:%d", hal_drv_read_gpio_value(I_BLE_CON_SIG));
         if(hal_drv_read_gpio_value(I_BLE_CON_SIG)) {   //蓝牙连接状态检测
             if(car_info.lock_sta == CAR_UNLOCK_STA) {
                 ble_heart_event();
@@ -809,7 +813,7 @@ void app_system_thread(void *param)
         } else if(sys_info.ble_connect == 1){
             week_time("ble", 60);
             sys_info.ble_connect = 0;
-            sys_info.ble_log_sw = 0;
+       //     sys_info.ble_log_sw = 0;
             LOG_I("BLE disconnect");
         }
 
@@ -818,7 +822,6 @@ void app_system_thread(void *param)
             regular_heart_update();
             LOG_I("POWER ON OFF");
             sys_info.power_sta = BATTERY_OUT;
-            net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);
             sys_info.power_sta = BATTERY_INNER;
             LOG_I("36V power off");
             car_info.bms_info[0].connect = 0; 
@@ -827,9 +830,11 @@ void app_system_thread(void *param)
                 voice_play_mark(LOCK_VOICE);   
                 car_info.lock_sta = CAR_LOCK_STA;
             }
+            net_engwe_cmd_push(STATUS_PUSH_UP, sys_param_set.net_engwe_state_push_cmdId);    //推送电池信息  11/24
             memset(&car_info, 0, sizeof(car_info));
         } else if(hal_drv_read_gpio_value(I_36VPOWER_DET) == 0 && sys_info.power_36v == 0) {
              can_png_quest(BMS_ADR, BMS_COMPREHENSIVE_DATA, 0);
+             can_png_quest(BMS_ADR, BMS_BATTRY_PACK_RECORDDATA, 0);
              sys_info.power_36v = 1;
              sys_info.power_sta = BATTERY_IN;
              regular_heart_update();
@@ -843,7 +848,7 @@ void app_system_thread(void *param)
         //     if(sys_info.ble_connect == 1)
         //         ble_cmd_mark(BLE_DISCONNECT_INDEX);
         // }
-        
+        car_get_gear_config_info();
         if(car_info.last_lock_sta != car_info.lock_sta && (sys_info.ota_flag == 0)) {
             car_info.last_lock_sta = car_info.lock_sta;
             if(car_info.lock_sta == CAR_UNLOCK_STA) {
@@ -851,7 +856,14 @@ void app_system_thread(void *param)
                 GPS_Start(GPS_MODE_CONT);
                 imu_algo_timer_start();
             } else {
+                car_info.gear = 0;
+                car_info.hmi_info.display_unit = 0;
+                car_info.speed_limit = 0;
+                car_info.headlight_sta = 0x01;
                 sys_info.car_error = 0; //关锁车异常清0
+                car_info.speed = 0;
+                car_info.pedal_speed = 0;
+                car_info.motor_power = 0;
                 imu_algo_timer_stop();
                 GPS_stop();//关锁后关GPS
             }
@@ -877,15 +889,15 @@ void app_system_thread(void *param)
             }
             car_info.last_speed = car_info.speed;
 
-            // if(car_info.last_gear != car_info.gear){
-            //     net_engwe_cmd_push(OPERATION_PUSH_UP, sys_param_set.net_engwe_offline_opearte_push_cmdId);
-            // }
-            // car_info.last_gear = car_info.gear;
+            if(car_info.last_gear != car_info.gear){
+                net_engwe_cmd_push(OPERATION_PUSH_UP, sys_param_set.net_engwe_offline_opearte_push_cmdId);
+            }
+            car_info.last_gear = car_info.gear;
 
-            // if(car_info.hmi_info.display_unit != car_info.last_unit) {
-            //     net_engwe_cmd_push(OPERATION_PUSH_UP, sys_param_set.net_engwe_offline_opearte_push_cmdId);
-            // }
-            // car_info.last_unit = car_info.hmi_info.display_unit;
+            if(car_info.hmi_info.display_unit != car_info.last_unit) {
+                net_engwe_cmd_push(OPERATION_PUSH_UP, sys_param_set.net_engwe_offline_opearte_push_cmdId);
+            }
+            car_info.last_unit = car_info.hmi_info.display_unit;
 
             if(car_info.last_speed_limit != car_info.speed_limit) {
                 net_engwe_cmd_push(OPERATION_PUSH_UP, sys_param_set.net_engwe_offline_opearte_push_cmdId);
@@ -898,7 +910,7 @@ void app_system_thread(void *param)
             car_info.last_headlight_sta = car_info.headlight_sta;
         }  
         /*====================震动检测========================*/
-        if(car_info.lock_sta == CAR_LOCK_STA && (sys_info.ota_flag == 0) && sys_param_set.alive_flag == 1) {
+        if(car_info.lock_sta == CAR_LOCK_STA && (sys_info.ota_flag == 0) && sys_param_set.alive_flag == 1 && sys_info.mache_dft_flag == 0) {
             if(car_info.move_alarm && car_info.car_lock_state == CAR_LOCK_STILL) {
                 car_info.move_alarm = 0;
                 car_info.car_lock_state = CAR_LOCK_TO_SHOCK;
@@ -933,19 +945,19 @@ void app_system_thread(void *param)
                 if (sys_info.track_mode == 1) {
                     trace_time_t = def_rtos_get_system_tick();
                 }
-            } else if(def_rtos_get_system_tick() - shock_time_t > 5000 && car_info.car_lock_state != CAR_LOCK_STILL) {
+            } else if(def_rtos_get_system_tick() - shock_time_t > 3000 && car_info.car_lock_state != CAR_LOCK_STILL) {
                 car_info.car_lock_state = CAR_LOCK_STILL;
-                imu_algo_timer_stop();
+            //    imu_algo_timer_stop();
                 trace_time_t = def_rtos_get_system_tick();
-            } 
-            if(def_rtos_get_system_tick() - trace_time_t > 30000 && sys_info.track_mode == 0 && car_info.car_lock_state != CAR_LOCK_STILL) {   /*触发GPS追踪模式，防盗模式*/
+            }
+            if(def_rtos_get_system_tick() - trace_time_t > 12000 && sys_info.track_mode == 0 && car_info.car_lock_state != CAR_LOCK_STILL) {   /*触发GPS追踪模式，防盗模式*/
                 week_time("track", -1);
                 sys_info.track_mode = 1;
                 GPS_Start(GPS_MODE_CONT);
                 rtc_event_register(GPS_TRACK_EVENT, 10, 1);
             }
-            if(sys_info.track_mode == 1 && def_rtos_get_system_tick() - trace_time_t > 180000) {/*3分钟后解除*/
-                week_time("track", 30);
+            if(sys_info.track_mode == 1 && def_rtos_get_system_tick() - trace_time_t > 30000) {/*3分钟后解除*/
+                week_time("track", 10);
                 GPS_stop();
                 sys_info.track_mode = 0;
                 rtc_event_unregister(GPS_TRACK_EVENT);
@@ -954,9 +966,8 @@ void app_system_thread(void *param)
             if(sys_info.track_mode == 1) {
                 sys_info.track_mode = 0;
                 rtc_event_unregister(GPS_TRACK_EVENT);
-                week_time("track", 30);
+                week_time("track", 10);
             }
-            imu_algo_timer_stop();
             car_info.car_lock_state = CAR_LOCK_STILL;
             car_info.move_alarm = 0;
         }
@@ -1071,8 +1082,12 @@ void system_timer_start()
 
 void cat1_reset_reson_save(uint8_t res)
 {
+    static bool is_run = false;
+    if(is_run == true) return;
+    is_run = true;
     sys_param_set.cat_reset_res = res;
     sys_param_save(SYS_SET_ADR);
+    is_run = false;
 }
 
  
@@ -1101,6 +1116,7 @@ void sys_param_init()
     forbidden_zone_data_init();
     sensor_cali_param_init();
     sys_info.mode_reset_res = sys_param_set.cat_reset_res;
+    LOG_I("cat_reset_res:%d", sys_info.mode_reset_res);
     if(sys_param_set.cat_reset_res  != NET_RESET_NORMAL) {
         cat1_reset_reson_save(NET_RESET_NORMAL);
     }    

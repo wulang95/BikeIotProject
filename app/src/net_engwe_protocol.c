@@ -73,7 +73,7 @@ static uint16_t net_engwwe_iot_hw_info(uint8_t *p)
     uint16_t lenth = 0, data_lenth;
     u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[IOT_HW_INFO_CMD]);
     lenth += 4;
-    data_lenth = 60;
+    data_lenth = 64;
     u16_big_to_litel_end_sw(&p[lenth], data_lenth);
     lenth += 2;
     memcpy(&p[lenth], gsm_info.iccid, 20);
@@ -92,13 +92,13 @@ static uint16_t net_engwe_cmdId_gps_info(uint8_t *p)
     uint16_t lenth = 0;
     u32_big_to_litel_end_sw(&p[lenth], CmdIdTable[GPS_INFO_CMD]);
     lenth += 4;
-    if(Gps.vaild == 0) {
-        p[lenth++] = 0;
-        p[lenth++] = 2;
-        return lenth;
-    }
+    // if(Gps.vaild == 0) {
+    //     p[lenth++] = 0;
+    //     p[lenth++] = 2;
+    //     return lenth;
+    // }
     p[lenth++] = 0;
-    p[lenth++] = 20;
+    p[lenth++] = 21;
     p[lenth++] = Gps.SateNum;
     p[lenth++] = Gps.hdop;
     u16_big_to_litel_end_sw(&p[lenth], Gps.ground_speed);
@@ -113,6 +113,11 @@ static uint16_t net_engwe_cmdId_gps_info(uint8_t *p)
     lenth += 4;
     u16_big_to_litel_end_sw(&p[lenth], Gps.CN0);
     lenth += 2;
+    if(Gps.vaild == 1) {
+        p[lenth++] = 1;
+    } else{
+        p[lenth++] = 0;
+    }
     return lenth;
 }
 
@@ -209,8 +214,7 @@ static uint16_t net_engwe_cmdId_bms_info(uint8_t bms_num, uint8_t *p)
         lenth += 2;
         u16_big_to_litel_end_sw(&p[lenth], car_info.bms_info[bms_num].cycle_number);
         lenth += 2;
-        car_info.bms_info[bms_num].charge_interval_time *= 10;
-        u16_big_to_litel_end_sw(&p[lenth], car_info.bms_info[bms_num].charge_interval_time);
+        u16_big_to_litel_end_sw(&p[lenth], car_info.bms_info[bms_num].charge_interval_time * 10);
         lenth += 2;
         p[lenth++] = car_info.bms_info[bms_num].max_temp;
         p[lenth++] = sys_info.bat_soc;

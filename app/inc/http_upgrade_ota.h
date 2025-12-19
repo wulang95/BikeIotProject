@@ -20,8 +20,8 @@ enum {
     HTTP_OTA_DOWN,
     HTTP_OTA_SUM_CHECK,
     HTTP_OTA_AES128_CHECK,
+    HTTP_OTA_DOWN_FAIL,
     HTTP_OTA_UPDATA,
-
 };
 
 /*升级固件类型*/

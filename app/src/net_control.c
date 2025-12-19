@@ -104,7 +104,7 @@ enum {
     MQTT_UNSUB_RES,
     MQTT_DISCONNECT,
 };
-#define USE_CRT_BUFFER 1
+#define USE_CRT_BUFFER 0
 
 void net_control_init()
 {
@@ -178,6 +178,19 @@ static int select_plmn(char *plmn){
     return 0;
 }
 
+
+
+static void net_set_discon_reson_no(uint8_t res)
+{
+    static bool is_run = false;
+    if(is_run == true){
+        LOG_E("set fail:%d", res);
+        return;
+    }
+    is_run = true;
+    sys_info.net_disconnect_res = res;
+    is_run = false;
+}
 //uint8_t debug_flag = 1;
 
 static void pdp_active_state_machine(void)
@@ -343,10 +356,10 @@ static void pdp_active_state_machine(void)
             }
             #endif
             hal_drv_pdp_detect_block();
-            sys_info.net_disconnect_res = NET_DISCON_REG_FAIL;
             count = 0;
             memset(&black_plmn_info, 0, sizeof(black_plmn_info));
             pdp_active_info.pdp_state = PDP_NOT_ACTIVATED;
+            net_set_discon_reson_no(NET_DISCON_REG_FAIL);
         break;
     }
 } 
@@ -423,72 +436,72 @@ void iot_socket_connect()
     socket_connect_delay = socket_connect_delay << 1;
 }
 */
-void net_socket_send(uint8_t *data, uint16_t len)
-{
-    debug_data_printf("net_send", data, len);
-    write(socket_con_info.socket_fd, data, len);
-}
+// void net_socket_send(uint8_t *data, uint16_t len)
+// {
+//     debug_data_printf("net_send", data, len);
+//     write(socket_con_info.socket_fd, data, len);
+// }
 
-void net_socket_close()
-{
-    if(socket_con_info.socket_fd > 0) {
-        close(socket_con_info.socket_fd);
-        LOG_I("socket is close");
-    }
-    sys_info.paltform_connect = 0;
-    socket_con_info.socket_fd = -1;
-}
+// void net_socket_close()
+// {
+//     if(socket_con_info.socket_fd > 0) {
+//         close(socket_con_info.socket_fd);
+//         LOG_I("socket is close");
+//     }
+//     sys_info.paltform_connect = 0;
+//     socket_con_info.socket_fd = -1;
+// }
 
-void socket_data_process()
-{
-    uint8_t buf[1024] = {0};
-    uint16_t len;
-    fd_set read_fds;
-    fd_set exp_fds;
-    int flags = 0;
-    int fd_changed = 0;
-    FD_ZERO(&read_fds);
-	FD_ZERO(&exp_fds);
+// void socket_data_process()
+// {
+//     uint8_t buf[1024] = {0};
+//     uint16_t len;
+//     fd_set read_fds;
+//     fd_set exp_fds;
+//     int flags = 0;
+//     int fd_changed = 0;
+//     FD_ZERO(&read_fds);
+// 	FD_ZERO(&exp_fds);
 
-    flags |= O_NONBLOCK;
-	fcntl(socket_con_info.socket_fd, F_SETFL, flags);
+//     flags |= O_NONBLOCK;
+// 	fcntl(socket_con_info.socket_fd, F_SETFL, flags);
 
-    FD_SET(socket_con_info.socket_fd, &read_fds);
-    FD_SET(socket_con_info.socket_fd, &exp_fds);
-    NET_CMD_MARK(NET_CMD_SIGN_IN_Q0);
-    while(1) {
-    //    LOG_I("IS RUN");
-        fd_changed = select(socket_con_info.socket_fd+1, &read_fds, NULL, &exp_fds, NULL);
-        LOG_I("fd_changed:%d", fd_changed);
-        if(fd_changed > 0) {
-            if(FD_ISSET(socket_con_info.socket_fd, &read_fds)){
-                FD_CLR(socket_con_info.socket_fd, &read_fds);
-                memset(buf, 0, sizeof(buf));
-                len = read(socket_con_info.socket_fd, buf, 512);
-                if(len <= 0) {
-                    socket_con_info.socket_state = SOCKET_STATUS_DISCONNECT;
-                    sys_info.paltform_connect = 0;
-                    LOG_E("socket is error");
-                    break;
-                }
-                FD_SET(socket_con_info.socket_fd, &read_fds);
-              //  debug_data_printf("net_recv", buf, len);
-                net_recv_data_parse(buf, len);
-            } else if(FD_ISSET(socket_con_info.socket_fd, &exp_fds)) {
-                FD_CLR(socket_con_info.socket_fd, &exp_fds);
-                socket_con_info.socket_state = SOCKET_STATUS_DISCONNECT;
-                sys_info.paltform_connect = 0;
-                LOG_E("socket is error");
-                break;
-            } else {
-                LOG_E("socket is error");
-                socket_con_info.socket_state = SOCKET_STATUS_DISCONNECT;
-                sys_info.paltform_connect = 0;
-                break;
-            }  
-        }   
-    }
-}
+//     FD_SET(socket_con_info.socket_fd, &read_fds);
+//     FD_SET(socket_con_info.socket_fd, &exp_fds);
+//     NET_CMD_MARK(NET_CMD_SIGN_IN_Q0);
+//     while(1) {
+//     //    LOG_I("IS RUN");
+//         fd_changed = select(socket_con_info.socket_fd+1, &read_fds, NULL, &exp_fds, NULL);
+//         LOG_I("fd_changed:%d", fd_changed);
+//         if(fd_changed > 0) {
+//             if(FD_ISSET(socket_con_info.socket_fd, &read_fds)){
+//                 FD_CLR(socket_con_info.socket_fd, &read_fds);
+//                 memset(buf, 0, sizeof(buf));
+//                 len = read(socket_con_info.socket_fd, buf, 512);
+//                 if(len <= 0) {
+//                     socket_con_info.socket_state = SOCKET_STATUS_DISCONNECT;
+//                     sys_info.paltform_connect = 0;
+//                     LOG_E("socket is error");
+//                     break;
+//                 }
+//                 FD_SET(socket_con_info.socket_fd, &read_fds);
+//               //  debug_data_printf("net_recv", buf, len);
+//                 net_recv_data_parse(buf, len);
+//             } else if(FD_ISSET(socket_con_info.socket_fd, &exp_fds)) {
+//                 FD_CLR(socket_con_info.socket_fd, &exp_fds);
+//                 socket_con_info.socket_state = SOCKET_STATUS_DISCONNECT;
+//                 sys_info.paltform_connect = 0;
+//                 LOG_E("socket is error");
+//                 break;
+//             } else {
+//                 LOG_E("socket is error");
+//                 socket_con_info.socket_state = SOCKET_STATUS_DISCONNECT;
+//                 sys_info.paltform_connect = 0;
+//                 break;
+//             }  
+//         }   
+//     }
+// }
 
 // void socket_data_process()
 // {
@@ -616,7 +629,12 @@ static void iot_mqtt_inpub_data_cb(mqtt_client_t *client, void *arg, int pkt_id,
     net_engwe_data_parse((uint8_t *)payload, payload_len);
 }
 
-#define  MQTT_SSL_ENABLE   0
+#define  MQTT_SSL_ENABLE   1
+void mqtt_discon()
+{
+    ql_mqtt_disconnect(&mqtt_con_info.mqtt_cli, NULL, NULL);
+}
+
 void iot_mqtt_state_machine()
 {
     static uint32_t mqtt_bind_time = 1;
@@ -626,6 +644,9 @@ void iot_mqtt_state_machine()
     static uint64_t mqtt_connect_timeout = 0;
     static uint64_t mqtt_disconnect_timeout = 0;
     static uint64_t mqtt_sub_timeout = 0;
+    static char client_buf[32]={0};
+    uint32 mqtt_disconnect_sem_cnt;
+    int random_num = 0;
 //    static uint16_t mqtt_count = 0;
     static int ret = MQTTCLIENT_SUCCESS;
     char will_msg[128] = {0};
@@ -633,6 +654,12 @@ void iot_mqtt_state_machine()
         switch(mqtt_con_info.state) {
             case MQTT_BIND_SIM_AND_PROFILE:
                 week_time("net", -1); 
+                ql_rtos_semaphore_get_cnt(mqtt_con_info.mqtt_disconnet_sem_t, &mqtt_disconnect_sem_cnt);
+                LOG_I("mqtt_disconnect_sem_cnt:%d", mqtt_disconnect_sem_cnt);
+                while(mqtt_disconnect_sem_cnt){
+                    mqtt_disconnect_sem_cnt--;
+                    ql_rtos_semaphore_release(mqtt_con_info.mqtt_disconnet_sem_t);
+                }
                 sys_info.paltform_connect = 0;
                 ret = ql_mqtt_client_deinit(&mqtt_con_info.mqtt_cli);
                 LOG_I("ret:%d", ret);
@@ -669,8 +696,13 @@ void iot_mqtt_state_machine()
                 }  
             break;
             case MQTT_CONNECT:
+                random_num += rand();
+                memset(client_buf, 0, 32);
+                sprintf(client_buf, "%d", random_num);
+                mqtt_con_info.client_info.client_id = gsm_info.imei;
+                LOG_I("ID:%s", mqtt_con_info.client_info.client_id);
                 LOG_I("MQTT_CONNECT");
-                sprintf(will_msg, "{\"clientId\":\"%s/%s\",\"imei\":\"%s\"}",gsm_info.imei, ip4_adr_str, gsm_info.imei);
+                sprintf(will_msg, "{\"clientId\":\"%s/%s\",\"imei\":\"%s\"}",client_buf, ip4_adr_str, gsm_info.imei);
                 LOG_I("will_msg:%s", will_msg);
                 mqtt_con_info.mqtt_connected = 0;
                 mqtt_con_info.client_info.clean_session = 1;
@@ -687,8 +719,6 @@ void iot_mqtt_state_machine()
                     mqtt_con_info.client_info.will_msg = NULL;
                     mqtt_con_info.client_info.will_qos = 0;
                 }
-                mqtt_con_info.client_info.client_id = gsm_info.imei;
-                LOG_I("ID:%s", mqtt_con_info.client_info.client_id);
                 mqtt_con_info.client_info.client_user = sys_config.mqtt_client_user;
                 mqtt_con_info.client_info.client_pass = sys_config.mqtt_client_pass;
                 mqtt_con_info.client_info.ssl_cfg = NULL;
@@ -718,7 +748,8 @@ void iot_mqtt_state_machine()
                     };
                     mqtt_con_info.client_info.ssl_cfg = &quectel_ssl_cfg;
                 #endif
-                sprintf(mqtt_con_info.pub_topic, "%s%s", sys_config.mqtt_pub_topic, gsm_info.imei);
+                sprintf(mqtt_con_info.pub_topic, "%s%s/%s", sys_config.mqtt_pub_topic, gsm_info.imei, client_buf);
+                LOG_I("pub_topic:%s", mqtt_con_info.pub_topic);
                 if(mqtt_con_info.url == NULL) {
                     mqtt_con_info.url = malloc(256);
                     memset(mqtt_con_info.url, 0, 256);
@@ -789,16 +820,17 @@ void iot_mqtt_state_machine()
                 //    检测OTA成功 版本不一样说明更新成功
                     LOG_I("last_ver:%s, cur_ver:%s", sys_config.soft_ver, SOFTVER);
                     if(sys_param_set.ota_flag == 1){
-                        if(strcmp(sys_config.soft_ver, SOFTVER) != 0) {
-                            LOG_I("OTA SUCCESS");
-                            net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
+                        // if(strcmp(sys_config.soft_ver, SOFTVER) != 0) {
+                        //     LOG_I("OTA SUCCESS");
+                        //     net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
                             memset(sys_config.soft_ver, 0, sizeof(sys_config.soft_ver));
                             memcpy(sys_config.soft_ver, SOFTVER, strlen(SOFTVER));
-                            SETBIT(sys_set_var.sys_updata_falg, SYS_CONFIG_SAVE);
-                        } else {
-                            LOG_I("OTA FAIL");
-                            net_engwe_fota_state_push(FOTA_VER_ERROR);
-                        }
+                        //     SETBIT(sys_set_var.sys_updata_falg, SYS_CONFIG_SAVE);
+                        // } else {
+                        //     LOG_I("OTA FAIL");
+                        //     net_engwe_fota_state_push(FOTA_VER_ERROR);
+                        // }
+                        net_engwe_fota_state_push(FOTA_UPDATE_SUCCESS);
                         sys_param_set.ota_flag = 0;
                         SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
                     }  
@@ -821,6 +853,7 @@ void iot_mqtt_state_machine()
                 LOG_I("MQTT_CONNECT_DET");
                 week_time("net", 30); 
                 ql_rtos_semaphore_wait(mqtt_con_info.mqtt_disconnet_sem_t, QL_WAIT_FOREVER);
+                mqtt_discon();
                 if(def_rtos_get_system_tick() - mqtt_disconnect_timeout < 60000) {      /*防止掉线频繁连接*/
                     socket_disconnect_handle(1);
                 } else {
@@ -831,13 +864,15 @@ void iot_mqtt_state_machine()
                 }
                 LOG_E("mqtt connect is fail");
                 mqtt_con_info.state = MQTT_BIND_SIM_AND_PROFILE;
-                if(pdp_active_info.pdp_state != PDP_NOT_ACTIVATED) {
-                    sys_info.net_disconnect_res = NET_DISCON_SERVICE_DISCON;
+                if(pdp_active_info.pdp_state == PDP_ACTIVE_DETECT) {
+                    net_set_discon_reson_no(NET_DISCON_SERVICE_DISCON);
                 }
+                
             break;
         }
     }
 }
+
 
 
 void iot_mqtt_init()

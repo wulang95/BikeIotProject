@@ -157,6 +157,16 @@ static void ble_ota_end()
     }
 }
 
+static void ble_ota_print_step(uint8_t step)
+{
+    static uint8_t last_step;
+    char *ota_str[] = {"BLE_OTA_IDEL_STEP","BLE_OTA_DISCON", "BLE_OTA_CHECK_DISCON", "BLE_OTA_STOP_AVD", "BLE_OTA_START_STEP", "BLE_OTA_DATA_STEP", "BLE_OTA_END_STEP", "BLE_OTA_ERROR_STEP"};
+    if(last_step == step)
+        return;
+    LOG_I("ble_ota_step:%s", ota_str[step]);
+    last_step = step;
+}
+
 int ble_ota_task()
 {
     int64_t ble_ota_start_time_t;
@@ -177,6 +187,7 @@ int ble_ota_task()
     ble_ota_ctrl.pack_num = 0;
     ble_ota_start_time_t = def_rtos_get_system_tick();
     while(1){
+        ble_ota_print_step(ble_ota_ctrl.ota_sta);
         switch(ble_ota_ctrl.ota_sta){
             case BLE_OTA_DISCON:
                 if(sys_info.ble_connect == 1) {

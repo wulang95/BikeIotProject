@@ -365,7 +365,7 @@ void mcu_recv_cmd_handler(uint8_t cmd, uint8_t *data, uint16_t data_len)
         LOG_I("sys_power_adc:%d", sys_info.power_adc.sys_power_adc);
         LOG_I("temp_adc:%d", sys_info.power_adc.temp_adc);
         sys_info.bat_val = app_get_bat_val();
-        if(sys_info.bat_val >= 4150 && sys_info.charge_full_flag == 0 && sys_info.charge_time_flag == 0 && sys_info.bat_charge_state == BAT_CHARGE_ON) {
+        if(sys_info.bat_val >= 4050 && sys_info.charge_full_flag == 0 && sys_info.charge_time_flag == 0 && sys_info.bat_charge_state == BAT_CHARGE_ON) {
             rtc_event_register(BAT_CHARGE_TIMEOUT_EVENT, 3600*3, 0);
             sys_info.charge_time_flag = 1;
         }

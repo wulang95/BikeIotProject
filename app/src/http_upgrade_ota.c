@@ -525,7 +525,6 @@ int app_iot_ota_jump()
         cat1_reset_reson_save(NET_RESET_IOT_OTA);
         sys_param_set.ota_flag = 1;
         SETBIT(sys_set_var.sys_updata_falg, SYS_SET_SAVE);
-        def_rtos_task_sleep_s(5);
 	    sys_reset();
         return 0;
     }
@@ -907,9 +906,10 @@ int app_ota_no_ase128()
 }
 void app_http_ota_thread(void *param)
 {
- //   int64_t http_start_time_t;
+    int64_t http_start_time_t = 0;
     def_rtosStaus res;
     uint32_t check_sum;
+    uint8_t attempt_cent = 0;
 //    uint8_t down_times;
     char version_buf[256] = {0};
     ql_dev_get_firmware_version(version_buf, sizeof(version_buf));
@@ -921,6 +921,8 @@ void app_http_ota_thread(void *param)
             case HTTP_OTA_WAIT:
                 sys_info.ota_flag = 0;
                 week_time("ota", 30); 
+                if(sys_info.led_type_cur == LED_SYS_OTA)
+                    app_set_led_ind(LED_ALL_OFF);
                 if(sys_param_set.alive_flag == 1 && sys_info.iot_mode != IOT_ACTIVE_MODE) {
                     sys_info.iot_mode = IOT_ACTIVE_MODE;
                 }
@@ -928,13 +930,23 @@ void app_http_ota_thread(void *param)
                 if(res != RTOS_SUCEESS) {
                     continue;
                 }
+                http_start_time_t = def_rtos_get_system_tick();
                 sys_info.iot_mode = IOT_OTA_MODE;
                 week_time("ota", -1);  
                 http_upgrade_info.ota_stage = HTTP_OTA_CHECK;
                 sys_info.ota_flag = 1;
+                attempt_cent = 0;
                 http_upgrade_info.stop_flag = 0;
                 LOG_I("HTTP_OTA_WAIT");
                 break;
+            case HTTP_OTA_DOWN_FAIL:
+                if(attempt_cent++ == 3 || (def_rtos_get_system_tick() - http_start_time_t > 1000*60*5)){
+                    net_engwe_fota_state_push(FOTA_DOWN_FAIL);
+                    http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
+                } else {
+                    http_upgrade_info.ota_stage = HTTP_OTA_CHECK;
+                }
+            break;
             case HTTP_OTA_CHECK:
                 if(sys_info.power_36v == 0) {
                     net_engwe_fota_state_push(FOTA_NOT_BAT);
@@ -970,12 +982,9 @@ void app_http_ota_thread(void *param)
                 } else {
                     if(http_upgrade_info.stop_flag == 1) {
                         
-                    } else {
-                        net_engwe_fota_state_push(FOTA_DOWN_FAIL);
-                    }
-                    http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
+                    } 
+                    http_upgrade_info.ota_stage = HTTP_OTA_DOWN_FAIL;
                 }
-                
             break;
             case HTTP_OTA_SUM_CHECK:
                 LOG_I("HTTP_OTA_SUM_CHECK");
@@ -989,15 +998,13 @@ void app_http_ota_thread(void *param)
                         if(app_ota_no_ase128() == 0) {
                             http_upgrade_info.ota_stage = HTTP_OTA_UPDATA;
                         } else {
-                            net_engwe_fota_state_push(FOTA_DOWN_FAIL);
-                            http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
+                            http_upgrade_info.ota_stage = HTTP_OTA_DOWN_FAIL;
                         }
                     #endif
                 } else {
                     LOG_E("HTTP_OTA_SUM_CHECK IS FAULT");
                     LOG_E("crc_sum:%08x, check_sum:%08x", http_upgrade_info.crc_sum, check_sum);
-                    net_engwe_fota_state_push(FOTA_DOWN_FAIL);
-                    http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
+                    http_upgrade_info.ota_stage = HTTP_OTA_DOWN_FAIL;
                 }
             break;
             case HTTP_OTA_AES128_CHECK:
@@ -1005,8 +1012,7 @@ void app_http_ota_thread(void *param)
                 if(aes128_ota_check() == 0) {
                     http_upgrade_info.ota_stage = HTTP_OTA_UPDATA;
                 } else {
-                    net_engwe_fota_state_push(FOTA_DOWN_FAIL);
-                    http_upgrade_info.ota_stage = HTTP_OTA_WAIT;
+                    http_upgrade_info.ota_stage = HTTP_OTA_DOWN_FAIL;
                 }
             break;
             case HTTP_OTA_UPDATA:

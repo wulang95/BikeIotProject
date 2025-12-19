@@ -37,6 +37,7 @@ enum {
     CAR_BMS_CHARGE_CURRENT_SET,
     CAR_LOOK_CAR1,
     CAR_LOOK_CAR2,
+    CAR_ASSIST_MODE_SET,
 };
 
 enum {
@@ -80,6 +81,15 @@ typedef struct {
 }CAR_CMD_Q;
 
 #pragma pack(1)
+
+struct gear_config_info_stu {
+    uint8_t boost_ratio; //助力比  0-10
+    uint8_t start_step_fre_respon;  //起步踏频响应  0-10
+    uint8_t maximun_torque;   //最大扭矩  0-100%
+    uint8_t maximum_speed; //最大速度 0-100%
+    uint8_t maximun_power;//最大功率 0-100%
+    uint16 resever; //预留
+};
 
 struct atmosphere_light_task_stu{
     uint8_t task_en;
@@ -206,7 +216,9 @@ struct car_info_stu {
     struct bms_info_stu bms_info[2];
     struct atmosphere_light_info_stu atmosphere_light_info;
     struct electronic_lock_stu electronic_lock;
+    struct gear_config_info_stu gear_config_info[15];
     uint8_t con_init;
+    uint8_t gear_info_flag :1;
     uint8_t hmi_connnect :1;
     uint8_t control_connect :1;
     uint8_t lock_connect :1;
@@ -305,6 +317,8 @@ enum {
 
 struct car_set_save_stu{
     uint32_t magic;
+    uint8_t gear_config_num;
+    struct gear_config_info_stu gear_config_set;
     struct atmosphere_light_info_stu atmosphere_light_set;
     uint32_t odo;
     uint32_t trip;
@@ -349,7 +363,7 @@ void car_init();
 int car_lock_control(uint8_t src, uint8_t lock_operate);
 void car_control_thread(void *param);
 void CAR_CMD_MARK(CAR_CMD_Q car_cmd_q);
-
+void car_get_gear_config_info();
 
 
 

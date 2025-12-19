@@ -13,6 +13,7 @@ struct car_set_save_stu car_set_save;
 struct car_state_data_stu car_state_data;
 def_rtos_queue_t car_cmd_que;
 def_rtos_timer_t  key_timer;
+def_rtos_timer_t  gear_assit_timer;
 
 void key_timer_fun()
 {
@@ -68,7 +69,7 @@ void car_close_lock()
 int car_control_cmd(uint8_t cmd)
 {
     uint8_t data = 0;
-    uint8_t dat[2];
+    uint8_t dat[4];
     uint16_t charge_power = 220;
     if(sys_info.power_36v == 0) 
     {   
@@ -85,6 +86,20 @@ int car_control_cmd(uint8_t cmd)
     }
     switch (cmd)
     {
+    case CAR_ASSIST_MODE_SET:
+        dat[0] = car_set_save.gear_config_num;
+        dat[1] = car_set_save.gear_config_set.boost_ratio;
+        dat[2] = car_set_save.gear_config_set.start_step_fre_respon;
+        dat[3] = car_set_save.gear_config_set.maximun_torque;
+        iot_can_cmd_control(CMD_ASSIST_MODE_SET1, dat, 0);
+        dat[0] = car_set_save.gear_config_num;
+        dat[1] = car_set_save.gear_config_set.maximum_speed;
+        dat[2] = car_set_save.gear_config_set.maximun_power;
+        dat[3] = 0;
+        iot_can_cmd_control(CMD_ASSIST_MODE_SET2, dat, 0);
+        car_info.gear_info_flag =0;
+        def_rtos_timer_start(gear_assit_timer, 2000, 0);
+        break;
     case CAR_CMD_LOCK:
         car_close_lock();
         break;
@@ -400,11 +415,26 @@ void car_control_thread(void *param)
     def_rtos_task_delete(NULL);
 }
 
+void car_get_gear_config_info()
+{
+    if(car_info.gear_info_flag == 0 && car_info.lock_sta == CAR_UNLOCK_STA) {
+        can_png_quest(CONTROL_ADR, CONTROL_GEAR_INFOR, 0);
+        LOG_I("car_get_gear_config_info");
+        car_info.gear_info_flag = 1;
+    }
+}
+
+void car_get_gear_timer_fun()
+{
+    can_png_quest(CONTROL_ADR, CONTROL_GEAR_INFOR, 0);
+}
+
 void car_init()
 {
     def_rtos_queue_create(&car_cmd_que, sizeof(CAR_CMD_Q), 5);
     memset(&car_info, 0, sizeof(car_info));
     def_rtos_timer_create(&key_timer, NULL, key_timer_fun, NULL); 
+    def_rtos_timer_create(&gear_assit_timer, NULL, car_get_gear_timer_fun, NULL); 
     car_info.car_unlock_state = CAR_UNLOCK_STILL;  //车辆静止
     car_info.filp_state = CAR_NORMAL_STATE;
     car_info.car_lock_state = CAR_LOCK_STILL;
